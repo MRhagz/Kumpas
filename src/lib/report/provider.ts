@@ -1,6 +1,6 @@
-﻿import { demoRankedRecommendationList, demoStudentProfile } from "@/lib/report-fixtures";
-import type { RankedRecommendationList, StudentProfile } from "@/lib/report-types";
-import { validateRankedRecommendationList } from "@/lib/report-types";
+﻿import { demoRankedRecommendationList, demoStudentProfile } from "@/lib/report/fixtures";
+import type { RankedRecommendationList, StudentProfile } from "@/lib/report/types";
+import { validateRankedRecommendationList } from "@/lib/report/types";
 
 export interface RecommendationProvider {
   getApprovedStudentProfile(sessionId: string): Promise<StudentProfile>;
@@ -47,3 +47,4 @@ export const mockRecommendationProvider: RecommendationProvider = {
   getApprovedStudentProfile: getMockApprovedStudentProfile,
   getRankedRecommendations: getMockRankedRecommendationList,
 };
+

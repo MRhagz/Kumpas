@@ -1,12 +1,12 @@
-﻿import type { RecommendationProvider } from "@/lib/report-provider";
-import { mockRecommendationProvider } from "@/lib/report-provider";
+﻿import type { RecommendationProvider } from "@/lib/report/provider";
+import { mockRecommendationProvider } from "@/lib/report/provider";
 import type {
   AuditTrailEntry,
   RankedRecommendationList,
   ReportPayload,
   StudentProfile,
-} from "@/lib/report-types";
-import { validateRankedRecommendationList } from "@/lib/report-types";
+} from "@/lib/report/types";
+import { validateRankedRecommendationList } from "@/lib/report/types";
 
 export interface AssembleReportDataOptions {
   provider?: RecommendationProvider;
@@ -97,3 +97,4 @@ function validateStudentProfile(
 
   return errors;
 }
+
