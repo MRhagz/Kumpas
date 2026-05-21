@@ -1,8 +1,8 @@
 ﻿import type {
   RankedRecommendationList,
   StudentProfile,
-} from "@/lib/report-types";
-import { validateRankedRecommendationList } from "@/lib/report-types";
+} from "@/lib/report/types";
+import { validateRankedRecommendationList } from "@/lib/report/types";
 
 export const demoStudentProfile: StudentProfile = {
   sessionId: "demo-session-module-4",
@@ -115,3 +115,4 @@ export const demoRankedRecommendationList: RankedRecommendationList = {
 
 export const demoRankedRecommendationValidationErrors =
   validateRankedRecommendationList(demoRankedRecommendationList);
+
