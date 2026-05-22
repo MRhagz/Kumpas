@@ -1,7 +1,7 @@
-﻿import type { RecommendationProvider } from "@/lib/report/provider";
+﻿import { buildAuditTrail, validateAuditTrail } from "@/lib/report/audit-trail";
+import type { RecommendationProvider } from "@/lib/report/provider";
 import { mockRecommendationProvider } from "@/lib/report/provider";
 import type {
-  AuditTrailEntry,
   RankedRecommendationList,
   ReportPayload,
   StudentProfile,
@@ -34,24 +34,16 @@ export async function assembleReportData(
   ]);
 
   validateReportInputs(sessionId, studentProfile, rankedRecommendations);
+  const auditTrail = buildAuditTrail(rankedRecommendations);
+  validateReportAuditTrail(auditTrail);
 
   return {
     sessionId,
     studentProfile,
     rankedRecommendations,
-    auditTrail: buildAuditTrail(rankedRecommendations),
+    auditTrail,
     generatedAt: options.generatedAt ?? new Date().toISOString(),
   };
-}
-
-export function buildAuditTrail(
-  rankedRecommendations: RankedRecommendationList,
-): AuditTrailEntry[] {
-  return rankedRecommendations.recommendations.map((recommendation) => ({
-    recommendationId: recommendation.id,
-    careerPath: recommendation.careerPath,
-    sources: recommendation.sources,
-  }));
 }
 
 function validateReportInputs(
@@ -98,3 +90,12 @@ function validateStudentProfile(
   return errors;
 }
 
+function validateReportAuditTrail(
+  auditTrail: ReturnType<typeof buildAuditTrail>,
+): void {
+  const errors = validateAuditTrail(auditTrail);
+
+  if (errors.length > 0) {
+    throw new ReportAssemblyError("Report audit trail assembly failed.", errors);
+  }
+}
