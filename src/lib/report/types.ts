@@ -63,12 +63,12 @@ export interface ReportPayload {
   generatedAt: string;
 }
 
-export interface PdfTokenRecord {
-  token: string;
+export interface StoredReportPdf {
   sessionId: string;
-  filePath: string;
+  downloadUrl: string;
   expiresAt: string;
   createdAt: string;
+  byteLength: number;
 }
 
 export function isNormalizedScore(score: number): boolean {
