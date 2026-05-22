@@ -1,90 +1,161 @@
-import { randomUUID } from "node:crypto";
+import "server-only";
 
-import type { PdfTokenRecord } from "@/lib/report/types";
+import { createClient } from "@supabase/supabase-js";
 
-const DEFAULT_TOKEN_TTL_MS = 15 * 60 * 1000;
+import type { StoredReportPdf } from "@/lib/report/types";
+
+export const REPORT_PDF_BUCKET = "kumpas-reports";
+export const REPORT_PDF_SIGNED_URL_TTL_SECONDS = 30 * 60;
+
+const REPORT_PDF_CONTENT_TYPE = "application/pdf";
+
+interface StorageError {
+  message: string;
+}
+
+interface StorageBucketClient {
+  upload(
+    path: string,
+    fileBody: Buffer,
+    options: {
+      contentType: string;
+      upsert: boolean;
+    },
+  ): Promise<{ error: StorageError | null }>;
+  createSignedUrl(
+    path: string,
+    expiresIn: number,
+  ): Promise<{ data: { signedUrl: string } | null; error: StorageError | null }>;
+}
+
+interface ReportStorageClient {
+  storage: {
+    from(bucket: string): StorageBucketClient;
+  };
+}
 
 export interface PdfFileStoreOptions {
-  tokenTtlMs?: number;
+  bucketName?: string;
+  signedUrlTtlSeconds?: number;
   now?: () => Date;
-  tokenFactory?: () => string;
+  client?: ReportStorageClient;
+  supabaseUrl?: string;
+  serviceRoleKey?: string;
 }
 
 export class PdfFileStore {
-  private readonly records = new Map<string, PdfTokenRecord>();
-  private readonly tokenTtlMs: number;
+  private readonly bucketName: string;
+  private readonly signedUrlTtlSeconds: number;
   private readonly now: () => Date;
-  private readonly tokenFactory: () => string;
+  private client?: ReportStorageClient;
+  private readonly supabaseUrl?: string;
+  private readonly serviceRoleKey?: string;
 
   constructor(options: PdfFileStoreOptions = {}) {
-    this.tokenTtlMs = options.tokenTtlMs ?? DEFAULT_TOKEN_TTL_MS;
+    this.bucketName = options.bucketName ?? REPORT_PDF_BUCKET;
+    this.signedUrlTtlSeconds =
+      options.signedUrlTtlSeconds ?? REPORT_PDF_SIGNED_URL_TTL_SECONDS;
     this.now = options.now ?? (() => new Date());
-    this.tokenFactory = options.tokenFactory ?? randomUUID;
+    this.client = options.client;
+    this.supabaseUrl = options.supabaseUrl;
+    this.serviceRoleKey = options.serviceRoleKey;
   }
 
-  registerPdf(sessionId: string, filePath: string): PdfTokenRecord {
-    if (!sessionId.trim()) {
-      throw new Error("Session id is required to register a PDF.");
+  async uploadReportPdf(
+    sessionId: string,
+    pdfBuffer: Buffer,
+  ): Promise<StoredReportPdf> {
+    if (!Buffer.isBuffer(pdfBuffer) || pdfBuffer.byteLength === 0) {
+      throw new Error("PDF buffer is required to store a report.");
     }
 
-    if (!filePath.trim()) {
-      throw new Error("File path is required to register a PDF.");
+    const objectKey = getReportPdfObjectKey(sessionId);
+    const bucket = this.getClient().storage.from(this.bucketName);
+    const { error: uploadError } = await bucket.upload(objectKey, pdfBuffer, {
+      contentType: REPORT_PDF_CONTENT_TYPE,
+      upsert: true,
+    });
+
+    if (uploadError) {
+      throw new Error(`Failed to upload report PDF: ${uploadError.message}`);
+    }
+
+    const { data, error: signedUrlError } = await bucket.createSignedUrl(
+      objectKey,
+      this.signedUrlTtlSeconds,
+    );
+
+    if (signedUrlError) {
+      throw new Error(
+        `Failed to create signed report URL: ${signedUrlError.message}`,
+      );
+    }
+
+    if (!data?.signedUrl) {
+      throw new Error("Supabase did not return a signed report URL.");
     }
 
     const createdAt = this.now();
-    const token = this.tokenFactory();
-    const record: PdfTokenRecord = {
-      token,
-      sessionId,
-      filePath,
+
+    return {
+      sessionId: normalizeSessionId(sessionId),
+      downloadUrl: data.signedUrl,
       createdAt: createdAt.toISOString(),
-      expiresAt: new Date(createdAt.getTime() + this.tokenTtlMs).toISOString(),
+      expiresAt: new Date(
+        createdAt.getTime() + this.signedUrlTtlSeconds * 1000,
+      ).toISOString(),
+      byteLength: pdfBuffer.byteLength,
     };
-
-    this.records.set(token, record);
-
-    return record;
   }
 
-  getPdf(token: string, sessionId: string): PdfTokenRecord | null {
-    const record = this.records.get(token);
+  private getClient(): ReportStorageClient {
+    const client =
+      this.client ??
+      createClient(
+        this.supabaseUrl ?? getRequiredEnv("SUPABASE_URL"),
+        this.serviceRoleKey ?? getRequiredEnv("SUPABASE_SERVICE_ROLE_KEY"),
+        {
+          auth: {
+            persistSession: false,
+            autoRefreshToken: false,
+          },
+        },
+      );
 
-    if (!record) {
-      return null;
-    }
+    this.client = client;
 
-    if (this.isExpired(record)) {
-      this.records.delete(token);
-      return null;
-    }
+    return client;
+  }
+}
 
-    if (record.sessionId !== sessionId) {
-      return null;
-    }
+export function getReportPdfObjectKey(sessionId: string): string {
+  const normalizedSessionId = normalizeSessionId(sessionId);
 
-    return record;
+  return `${normalizedSessionId}/${normalizedSessionId}.pdf`;
+}
+
+function normalizeSessionId(sessionId: string): string {
+  const normalizedSessionId = sessionId.trim();
+
+  if (!normalizedSessionId) {
+    throw new Error("Session id is required to store a report PDF.");
   }
 
-  revokeToken(token: string): boolean {
-    return this.records.delete(token);
+  if (normalizedSessionId.includes("/") || normalizedSessionId.includes("\\")) {
+    throw new Error("Session id cannot contain path separators.");
   }
 
-  clearExpired(): number {
-    let clearedCount = 0;
+  return normalizedSessionId;
+}
 
-    this.records.forEach((record, token) => {
-      if (this.isExpired(record)) {
-        this.records.delete(token);
-        clearedCount += 1;
-      }
-    });
+function getRequiredEnv(name: string): string {
+  const value = process.env[name];
 
-    return clearedCount;
+  if (!value) {
+    throw new Error(`${name} is required to store report PDFs.`);
   }
 
-  private isExpired(record: PdfTokenRecord): boolean {
-    return Date.parse(record.expiresAt) <= this.now().getTime();
-  }
+  return value;
 }
 
 export const pdfFileStore = new PdfFileStore();
