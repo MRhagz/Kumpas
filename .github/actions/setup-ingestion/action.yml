@@ -1,0 +1,55 @@
+name: Setup ingestion runtime
+description: >
+  Installs Python and the kumpas-ingestion package for a pipeline workflow.
+  Assumes actions/checkout has already run in the calling workflow.
+
+inputs:
+  python-version:
+    description: Python version to install.
+    required: false
+    default: "3.12"
+  extras:
+    description: >
+      Optional extras to install, comma-separated. Use 'psa' for PSA OpenSTAT,
+      'pdf' for DOLE BLE / CHED PDF parsing, 'tesda' for TESDA curation.
+    required: false
+    default: ""
+
+runs:
+  using: composite
+  steps:
+    - name: Set up Python
+      uses: actions/setup-python@v5
+      with:
+        python-version: ${{ inputs.python-version }}
+        cache: pip
+        cache-dependency-path: ingestion/pyproject.toml
+
+    - name: Install kumpas-ingestion
+      shell: bash
+      run: |
+        set -euo pipefail
+        cd ingestion
+        if [ -z "${{ inputs.extras }}" ]; then
+          pip install -e .
+        else
+          pip install -e ".[${{ inputs.extras }}]"
+        fi
+
+    - name: Validate required secrets
+      shell: bash
+      env:
+        SUPABASE_URL: ${{ env.SUPABASE_URL }}
+        SUPABASE_SERVICE_ROLE_KEY: ${{ env.SUPABASE_SERVICE_ROLE_KEY }}
+        GEMINI_API_KEY: ${{ env.GEMINI_API_KEY }}
+      run: |
+        set -euo pipefail
+        missing=()
+        [ -z "${SUPABASE_URL:-}" ] && missing+=("SUPABASE_URL")
+        [ -z "${SUPABASE_SERVICE_ROLE_KEY:-}" ] && missing+=("SUPABASE_SERVICE_ROLE_KEY")
+        [ -z "${GEMINI_API_KEY:-}" ] && missing+=("GEMINI_API_KEY")
+        if [ ${#missing[@]} -gt 0 ]; then
+          echo "Missing required environment variables: ${missing[*]}" >&2
+          echo "Configure these as GitHub Actions repository secrets and pass them via the workflow 'env:' block." >&2
+          exit 1
+        fi
