@@ -104,6 +104,8 @@ The system is intended exclusively for use by licensed guidance counselors. Grad
 | TESDA | Technical Education and Skills Development Authority \- the Philippine government agency overseeing technical-vocational qualifications and scholarship programs. |
 | SDD | System Design Document \- the technical design document that follows approval of this SRS and details the system architecture and implementation plan. |
 | MVP | Minimum Viable Product \- the first deployable version of the system containing all core features required for initial evaluation with users. |
+| JWT | JSON Web Token: a signed token issued by Supabase Auth and used by the application to identify the authenticated counselor in server-side requests and RLS checks. |
+| RLS  | Row-Level Security: a PostgreSQL and Supabase authorization mechanism that restricts table rows by the authenticated user or service role. |
 
    4. ## ***References*** {#references}
 
@@ -137,6 +139,76 @@ De Leon, P. J. (2025). The influence of socioeconomic factors on career choices 
 
 2. # **Architectural Design** {#architectural-design}
 
+![][image1]
+
+***2.1 System Architecture Overview***
+
+Kumpas uses a web-based architecture centered on a counselor-facing Next.js application deployed on Vercel. The application coordinates document intake, redaction, AI extraction, multi-agent analysis, and report generation. Supabase provides persistent storage for knowledge-base records, vector embeddings, ingestion logs, correction logs, session drafts, and any configured report artifacts. Gemini provides multimodal extraction and language-model analysis through authenticated HTTPS API calls.
+
+***2.2 Deployment View***
+
+The deployed system consists of the following units:
+
+* **Next.js/Vercel application:** counselor UI, protected API routes, report generation route, session orchestration, and Gemini/Supabase coordination.  
+* **Supabase project:** PostgreSQL database, pgvector indexes, RLS policies, storage buckets if generated PDFs or temporary redacted files are stored outside the request lifecycle.  
+* **Gemini API:** external AI provider used only after PII redaction.  
+* **Ingestion scheduler/worker:** GitHub Actions cron responsible for PSA, DOLE/CHED, and TESDA ingestion.
+
+***2.3 Runtime View for a Counseling Session***
+
+1\. Counselor authenticates.
+
+2\. Counselor uploads documents and enters notes.
+
+3\. The system redacts PII before external AI processing.
+
+4\. Unredacted raw images are deleted immediately after redaction succeeds.
+
+5\. Redacted inputs are sent to Gemini for extraction.
+
+6\. Counselor reviews and approves extracted data.
+
+7\. Approved profile and session state are saved to the durable session store.
+
+8\. Specialist agents retrieve only their assigned knowledge silos.
+
+9\. The meta-agent ranks recommendations.
+
+10\. The report is generated and delivered according to the report-storage design.
+
+11\. Session cleanup removes temporary artifacts according to retention rules.
+
+***2.4 Data Location and Privacy View***
+
+| Artifact | Storage Location | Contains PII? | Sent to Gemini? | Retention | Deletion Trigger |
+| :---- | :---- | :---- | :---- | :---- | :---- |
+| Raw uploaded image | Temporary server storage only | Yes | No | Until redaction succeeds | Immediate post-redaction purge |
+| Redacted image | Temporary storage or Supabase Storage | No direct PII expected | Yes | Session/report window only | Session cleanup or expiry |
+| Extracted fields | Durable session store | Possible | Yes, only if redacted/minimized | 24 hours for drafts unless approved policy differ | Draft expiry/session cleanup |
+| Counselor notes | Durable session store | Possible | Yes, if needed for analysis | 24 hours for drafts unless approved policy differs | Draft expiry/session cleanup |
+| Correction logs | Supabase table | No student-identifiable data | No | One academic year | Retention cleanup |
+| Generated PDF | Streamed response or Supabase Storage | Possible | No | Up to 24 hours | Retention cleanup |
+| Knowledge-base chunks | Supabase pgvector tables | No student PII | Retrieved as context | Until superseded | Ingestion maintenance |
+| RankedRecommendations  | Supabase table  | No direct PII; contains career path names, alignment scores, and status flags derived from the approved student profile  | No  | Session/report window only; records correspond to a single counseling session  | Session cleanup or retention cleanup after report delivery  |
+| RecommendationSources  | Supabase table  | No direct PII; contains knowledge-base source references linked to ranked recommendations  | No  | Session/report window only; tied to the lifecycle of its parent RankedRecommendations record  | Session cleanup or retention cleanup after report delivery; must be deleted in the same pass as the parent RankedRecommendations record to avoid orphaned rows  |
+
+***2.5 Cross-Cutting Concerns***
+
+Authentication, authorization, row-level security, session expiry, logging, retry policies, quota handling, backup, and disaster recovery apply across all modules. Each detailed module design shall reference these shared mechanisms rather than redefining local-only behavior.
+
+***2.6 Authentication and Authorization Design***
+
+The system mandates authenticated sessions for all counselor-facing web interfaces. Authentication is handled exclusively via Supabase Auth. 
+
+**User Provisioning (Counselor Role)** The system supports a single user role for the web application: the Counselor. Accounts are strictly invite-only. The provisioning flow is as follows: the development team manually creates the user account, Supabase automatically emails an invitation, and the counselor follows the secure link to set their password and activate the account.
+
+**Administrative and Ingestion Access.** Automated backend processes, such as GitHub Actions ingestion workflows and server-side routes that require elevated database access, authenticate to Supabase using the service-role key. This key bypasses Row Level Security and has full write access to the vector store tables. It must be stored exclusively in two locations: as an encrypted GitHub Actions repository secret for use by the ingestion workflows, and as a Vercel environment variable for server-side routes that require service-role access such as PDFFileStore. The service-role key must never appear in client-side code, in any committed file, or in any environment other than these two designated locations. Ingestion workflows do not use a counselor JWT or any session token. 
+
+**Row-Level Security (RLS)** Authorization and data isolation are strictly enforced at the database level using two core Supabase RLS policies:
+
+* **Profiles:** Counselors may only access and update their own specific profile row.  
+* **Session-Scoped Tables:** For all operational tables, database operations are restricted so that users can only interact with records where the counselor\_id matches their authenticated user token (auth.uid()).
+
 3. # **Detailed Design** {#detailed-design}
 
 ### ***Module 1*** {#module-1}
@@ -153,23 +225,23 @@ Not applicable. The ingestion timestamp updated by this pipeline is consumed by 
 
 * Back-end component(s)
 
-  * **QuarterlyScheduler**	
+  * **PipelineScheduler**	
 
-    * **Description and purpose:** Triggers the PSA OpenSTAT ingestion pipeline on a quarterly cadence aligned with the PSA Labor Force Survey release cycle. It acts as the entry point of the entire flow, firing the pipeline job without any manual intervention.
+    * **Description and purpose:** Triggers the PSA OpenSTAT ingestion workflow according to the quarterly Labor Force Survey release cycle. The trigger is a GitHub Actions cron workflow that starts the Python ingestion job without requiring an always-running scheduler process. Each run records start time, end time, status, and failure reason in the ingestion log.
 
-    * **Component type/format:** Cron job / background task runner (e.g., a Python APScheduler job or a Vercel Cron configuration pointing to a serverless function endpoint).
+    * **Component type/format:** GitHub Actions cron workflow invoking the Python ingestion job.
 
   * **PSAOpenSTATClient** 
 
     * **Description and purpose:** Responsible for issuing an authenticated or unauthenticated HTTP GET request to the PSA OpenSTAT CSV endpoint. It checks the HTTP response status and either returns the raw CSV bytes or raises a download failure event to the logger.
 
-    * **Component type/format:** Python service class using the requests or httpx library.
+    * **Component type/format:** Python service class using the `requests` or `httpx` library.
 
   * **LFSCSVParser** 
 
-    * **Description and purpose:** Receives the raw CSV bytes from the client and loads them into a structured DataFrame using pandas. Handles encoding issues, malformed rows, and column normalization.
+    * **Description and purpose:** Receives the raw CSV bytes from the client and loads them into a structured DataFrame using `pandas`. Handles encoding issues, malformed rows, and column normalization.
 
-    * **Component type/format:** Python utility class wrapping pandas.read\_csv.
+    * **Component type/format:** Python utility class wrapping `pandas.read_csv`.
 
   * **OccupationRecordExtractor** 
 
@@ -179,27 +251,27 @@ Not applicable. The ingestion timestamp updated by this pipeline is consumed by 
 
   * **TextChunker**
 
-    * **Description and purpose:** Converts each OccupationRecord into one or more text chunks suitable for embedding. Each chunk carries provenance metadata (source URL, acquisition method, ingestion timestamp) so that the vector store record is fully attributable.
+    * **Description and purpose:** Converts each `OccupationRecord` into one or more text chunks suitable for embedding. Each chunk carries provenance metadata (source URL, acquisition method, ingestion timestamp) so that the vector store record is fully attributable.
 
-    * **Component type/format:** Python utility class with configurable chunk\_size and overlap parameters.
+    * **Component type/format:** Python utility class with configurable `chunk_size` and `overlap` parameters.
 
   * **EmbeddingService** 
 
-    * **Description and purpose:** Transforms each text chunk into a dense vector representation using a sentence-level embedding model. This is the component responsible for the semantic encoding that enables similarity search in the vector store.
+    * **Description and purpose:** The embedding model runs inside the Python ingestion environment triggered by GitHub Actions. If the model load time or memory usage exceeds the GitHub Actions runtime budget, the embedding step shall use a hosted embedding API while preserving the same vector dimension and distance metric.
 
-    * **Component type/format:** Python service class wrapping a sentence-transformers model (e.g., all-MiniLM-L6-v2). The model is loaded once at startup and reused for all chunks in a single run.
+    * **Component type/format:** Python service class wrapping sentence-transformers, or a Python client for the configured hosted embedding API if local model execution is not feasible.
 
   * **VectorStoreRepository**
 
-    * **Description and purpose:** Handles all write operations to the Supabase pgvector\-enabled PostgreSQL instance. It performs upsert operations (insert or update by a content hash or source-URL \+ chunk-index key) to avoid duplicating records across quarterly runs. After a successful upsert batch, it updates the ingestion timestamp record for the occupational silo.
+    * **Description and purpose:** Handles all write operations to the Supabase `pgvector`\-enabled PostgreSQL instance. It performs upsert operations on the composite primary key (silo\_id, source\_url, chunk\_index). If a record with the same (silo\_id, source\_url, chunk\_index) already exists and its content\_hash is unchanged, the record is skipped (no re-embedding, no write). If the content\_hash has changed, the existing record is updated with the new embedding and new ingestion\_timestamp. If no matching key exists, a new record is inserted. content\_hash (SHA-256 of the raw chunk text) is stored as a non-key column for change detection only. It is never used as the primary lookup key. silo\_id is a foreign key to the silos reference table, ensuring that a record can never be written to the wrong silo due to a source\_type misconfiguration.
 
-    * **Component type/format:** Python data access class using the supabase-py client and psycopg2 for direct PostgreSQL operations where needed.
+    * **Component type/format:** Python data access class using supabase-py and psycopg2 where needed. Credentials are provided through GitHub Actions secrets or the Python backend deployment environment, never hard-coded in the repository.
 
   * **IngestionLogger** 
 
-    * **Description and purpose:** Records the outcome of every pipeline run — success with record count, or failure with error detail and stack trace. On failure, it dispatches an alert to the technical administrator (e.g., via email or a monitoring webhook). On success, it writes a structured log entry for audit purposes.
+    * **Description and purpose:** Because ingestion runs from GitHub Actions, each workflow run shall write structured success, no-op, and failure records to the ingestion log. Failures shall also be visible in the GitHub Actions run history and sent to the configured administrator alert channel.
 
-    * **Component type/format:** Python service class; uses Python's built-in logging module with a configurable handler (file, email SMTP, or webhook).
+    * **Component type/format:** Python logging service writing to the configured the ingestion\_logs Supabase table specified in 3.3 Data Retention. and GitHub Actions workflow logs; alerts are dispatched through email, webhook, or another configured channel.
 
     
 
@@ -207,17 +279,17 @@ Not applicable. The ingestion timestamp updated by this pipeline is consumed by 
 
   * Class Diagram
 
-  ![][image1] 
+  ![][image2] 
 
   * Sequence Diagram
 
-![][image2]
+![][image3]
 
 * Data Design
 
   * ERD or schema
 
-![][image3]
+![][image4]
 
 #### ***1.2 DOLE BLE / CHED PDF Parsing & Ingestion***
 
@@ -233,25 +305,25 @@ Not applicable for the same reason stated above. This pipeline has no interactiv
 
   * **WeeklyScheduler**
 
-    * **Description and purpose:** Triggers the DOLE BLE / CHED ingestion pipeline on a weekly cadence. It is the sole entry point to the pipeline and fires without any manual intervention.
+    * **Description and purpose:** Triggers the DOLE BLE / CHED publication ingestion workflow according to the configured schedule. The trigger is a GitHub Actions cron workflow that starts the Python ingestion job, checks for new publications, and exits as a no-op when no new publications are detected.
 
-    * **Component type/format:** Cron job / Python APScheduler job or Vercel Cron endpoint.
+    * **Component type/format:** GitHub Actions cron workflow invoking the Python ingestion job.
 
   * **PublicationIndexChecker** 
 
     * **Description and purpose:** Queries the DOLE BLE and CHED publication index pages to detect newly released PDFs since the last ingestion timestamp. It compares the detected entries against a local cache of previously processed publication URLs to determine which ones are new. If none are new, it signals a no-op and the pipeline terminates without modifying the vector store.
 
-    * **Component type/format:** Python service class; uses httpx for HTTP requests and BeautifulSoup or a structured API client if the index is machine-readable. Reads the last ingestion timestamp from ingestion\_metadata.
+    * **Component type/format:** Python service class; uses `httpx` for HTTP requests and `BeautifulSoup` or a structured API client if the index is machine-readable. Reads the last ingestion timestamp from `ingestion_metadata`.
 
   * **PDFDownloader** 
 
     * **Description and purpose:** Downloads a PDF document over HTTPS from a given publication URL. On failure, it raises a typed exception that the pipeline catches and routes to the logger. Does not perform any extraction or transformation.
 
-    * **Component type/format:** Python utility class using httpx with streaming support for large PDF files.
+    * **Component type/format:** Python utility class using `httpx` with streaming support for large PDF files.
 
   * **PDFTextExtractor** 
 
-    * **Description and purpose:** Accepts raw PDF bytes and extracts all page text using pdfplumber. Handles multi-column layouts and hyphenation artifacts where possible.
+    * **Description and purpose:** Accepts raw PDF bytes and extracts all page text using pdfplumber. Handles multi-column layouts, running headers/footers, and hyphenation artifacts through pdfplumber’s spatial-layout-aware extraction. This library was chosen over Node.js alternatives (pdf-parse, pdfjs-dist) because neither handles multi-column Philippine government publications reliably. Module 1 must remain a Python service in part to preserve this capability.
 
     * **Component type/format:** Python utility class wrapping pdfplumber.open().
 
@@ -265,7 +337,7 @@ Not applicable for the same reason stated above. This pipeline has no interactiv
 
     * **Description and purpose:** Splits cleaned text into overlapping chunks of a fixed token length, preserving sentence boundaries where possible. Each chunk is paired with provenance metadata derived from the source publication.
 
-    * **Component type/format:** Python utility class; shared with Module 1.1 through a common chunking utility module.
+    * **Component type/format:** Python utility class; shared with Module 1.1 through a common `chunking` utility module.
 
   * **EmbeddingService** 
 
@@ -275,15 +347,15 @@ Not applicable for the same reason stated above. This pipeline has no interactiv
 
   * **VectorStoreRepository** 
 
-    * **Description and purpose:** Upserts embedded chunks into the appropriate Supabase knowledge silo — Live Labor Demand for DOLE BLE LMI records, and Path Feasibility for CHED Memorandum Order records — based on a source\_type tag attached to each chunk's metadata. Updates the ingestion timestamp for the affected silo after a successful batch.
+    * **Description and purpose:** Upserts embedded chunks into the appropriate Supabase knowledge silo — Live Labor Demand for DOLE BLE LMI records, and Path Feasibility for CHED Memorandum Order records — based on a `source_type` tag attached to each chunk's metadata. Updates the ingestion timestamp for the affected silo after a successful batch.
 
-    * **Component type/format:** Python data access class using supabase-py; silo routing is determined by the source\_type field in chunk metadata.
+    * **Component type/format:** Python data access class using `supabase-py`; silo routing is determined by the `source_type` field in chunk metadata.
 
   * **PublicationIndexCache** 
 
-    * **Description and purpose:** Maintains a record of all publication URLs that have been successfully ingested, enabling the PublicationIndexChecker to perform change detection without re-downloading already-processed documents. Stored in a Supabase table.
+    * **Description and purpose:** Maintains a record of all publication URLs that have been successfully ingested, enabling the `PublicationIndexChecker` to perform change detection without re-downloading already-processed documents. Stored in a Supabase table.
 
-    * **Component type/format:** PostgreSQL table accessed via VectorStoreRepository; effectively acts as an idempotency guard.
+    * **Component type/format:** PostgreSQL table accessed via `VectorStoreRepository`; effectively acts as an idempotency guard.
 
   * **IngestionLogger** 
 
@@ -295,47 +367,47 @@ Not applicable for the same reason stated above. This pipeline has no interactiv
 
   * Class Diagram
 
-![][image4]   
+![][image5]   
 
 * Sequence Diagram
 
-![][image5]
+![][image6]
 
 * Data Design
 
   * ERD or schema
 
-![][image6] 
+![][image7] 
 
 #### ***1.3 Manual TESDA Cost Curation & Ingestion***
 
 * User Interface Design
 
-Not applicable within the main Kumpas counselor application. The curation interface for the technical administrator is a separate administrative tool — such as a structured spreadsheet template or a standalone data entry form — that exists outside the scope of the counselor-facing application and is not deployed as part of the Kumpas web interface. 
+Not applicable within the main Kumpas counselor application. The curation process for the development team is entirely repository-based. The team manually edits and commits a structured CSV file directly within the project's version control repository. This process exists strictly outside the scope of the counselor-facing application and is not deployed as part of the Kumpas web interface.
 
 * Front-end component(s)
 
-Not applicable. The administrator interacts with the system by submitting a validated CSV or JSON file conforming to the TESDA record schema, or by directly invoking the curation ingestion script. No browser-rendered form is part of this module's design in the main application. 
+Not applicable. The administrator interacts with the system by submitting a validated CSV or JSON file conforming to the TESDA record schema. No browser-rendered form is part of this module's design in the main application. 
 
 * Back-end component(s)
 
-  * **SemesterCurationTrigger** 
+  * **RepoCsvCurationWorkflow**
 
-    * **Description and purpose:** Entry point for the manual curation process. The technical administrator invokes this component — either via a CLI command or a secure admin API endpoint — to begin the ingestion of a prepared batch of TESDA program cost records. It reads the batch file path or payload and passes it downstream.
+    * **Description and purpose:** Entry point for the manual curation process. The development team invokes this component — either via a CLI command or a secure admin API endpoint — to begin the ingestion of a prepared batch of TESDA program cost records. It reads the batch file path or payload and passes it downstream.
 
-    * **Component type/format:** Python CLI script (click\-based) or a secured Next.js API route restricted to administrator credentials.
+    * **Component type/format:** GitHub Actions workflow triggered by a push to the designated TESDA CSV path; authenticated to Supabase via service-role repo  secret.
 
   * **TESDARecordValidator** 
 
     * **Description and purpose:** Validates each submitted TESDA record against a defined schema: required fields must be present (program name, cost, tuition benchmark, TESDA qualification code, source reference), numeric fields must be in acceptable ranges, and the source reference must be a non-empty string. Invalid records are flagged with field-level error messages and returned to the administrator for correction before any embedding or upsert occurs. No partial batches are written to the vector store.
 
-    * **Component type/format:** Python utility class using  pydantic for schema definition and validation.
+    * **Component type/format:** Python utility class using  `pydantic` for schema definition and validation.
 
   * **TESDARecordSchema (Pydantic Model)** 
 
     * **Description and purpose:** Defines the canonical structure and validation rules for a single TESDA program cost record. Acts as the contract between the administrator's curation template and the ingestion pipeline.
 
-    * **Component type/format:** Python pydantic.BaseModel data class.
+    * **Component type/format:** Python `pydantic.BaseModel` data class.
 
   * **EmbeddingService** 
 
@@ -345,7 +417,7 @@ Not applicable. The administrator interacts with the system by submitting a vali
 
   * **VectorStoreRepository** 
 
-    * **Description and purpose:** Upserts embedded TESDA records into the Path Feasibility knowledge silo in Supabase. Performs conflict resolution on a composite key of tesda\_qualification\_code \+ program\_name to prevent duplicate entries across semester refresh cycles. Updates the ingestion timestamp for the Path Feasibility silo after a successful batch.
+    * **Description and purpose:** Upserts embedded TESDA records into the Path Feasibility knowledge silo in Supabase. Performs conflict resolution on a composite key of `tesda_qualification_code` \+ `program_name` to prevent duplicate entries across semester refresh cycles. Updates the ingestion timestamp for the Path Feasibility silo after a successful batch.
 
     * **Component type/format:** Python data access class; shared with Modules 1.1 and 1.2.
 
@@ -353,11 +425,11 @@ Not applicable. The administrator interacts with the system by submitting a vali
 
     * **Description and purpose:** Produces a structured validation report after the validator runs, listing all records that failed validation along with the specific fields that caused failure. This report is printed to the administrator's terminal or written to a report file so corrections can be made before re-submitting.
 
-    * **Component type/format:** Python utility class; formats output as a human-readable table using tabulate or as a JSON file.
+    * **Component type/format:** Python utility class; formats output as a human-readable table using `tabulate` or as a JSON file.
 
   * **IngestionLogger** 
 
-    * **Description and purpose:** Records the result of the curation ingestion run, including the number of records validated, the number successfully upserted, and any validation or write errors. Also marks the run with the acquisition method flag manual\_curation for audit trail purposes.
+    * **Description and purpose:** Records the result of the curation ingestion run, including the number of records validated, the number successfully upserted, and any validation or write errors. Also marks the run with the acquisition method flag `manual_curation` for audit trail purposes.
 
     * **Component type/format:** Python service class; shared with Modules 1.1 and 1.2.
 
@@ -365,17 +437,17 @@ Not applicable. The administrator interacts with the system by submitting a vali
 
   * Class Diagram
 
-![][image7]  
+![][image8]  
 
 * Sequence Diagram
 
-![][image8]
+![][image9]
 
 * Data Design
 
   * ERD or schema
 
-  ![][image9]
+  ![][image10]
 
 .
 
@@ -385,7 +457,7 @@ Not applicable. The administrator interacts with the system by submitting a vali
 
 * User Interface Design
 
-![][image10]
+![][image11]
 
 * Front-end component(s)
 
@@ -411,13 +483,17 @@ Not applicable. The administrator interacts with the system by submitting a vali
 
   * **FileUploadController** 
 
-    * **Description and purpose:** An HTTP request handler that receives multipart file uploads, validates content type and file size, assigns a unique document ID, writes the raw image to temporary storage, and enqueues a redaction job. The HTTP response returns immediately with a 202 Accepted while redaction runs asynchronously. 
+    * **Description and purpose:** An HTTP request handler that receives multipart file uploads, validates content type and file size, assigns a unique document ID, writes the raw image to temporary storage, and enqueues a redaction job. The HTTP response returns immediately with a `202 Accepted` while redaction runs asynchronously. 
 
-    * **Component type or format:** REST API Controller (FastAPI Route Handler) 
+    * **Component type or format:** Next.js API Route Handler (App Router)
 
   * **PIIRedactionService**
 
-    * **Description and purpose:** An asynchronous worker that consumes redaction jobs from the message queue and applies PII removal to raw document images. It uses named-entity recognition and regex pattern matching to detect student names, birthdates, and ID numbers, then overwrites detected regions with opaque black rectangles. On completion, it updates the document record and pushes a status event to the frontend. 
+    * **Description and purpose:** An asynchronous worker that consumes redaction jobs from the message queue and applies PII removal to raw document images. It uses named-entity recognition and regex pattern matching to detect student names, birthdates, and ID numbers, then overwrites detected regions with opaque black rectangles.
+
+    On successful redaction: the redacted image is passed to DocumentStorageService for storage; the original raw image is immediately and permanently deleted from /tmp by invoking RawImagePurger before any other operation proceeds; the document record is updated to REDACTION\_COMPLETE; and a status event is pushed to the frontend. The raw image deletion is non-optional and non-deferrable — it must complete synchronously before the redacted image path is returned to the pipeline.
+
+    On redaction failure: the raw image is also immediately deleted. A failed redaction must never leave a raw image on disk.
 
     * **Component type or format:**  Asynchronous Background Worker Service 
 
@@ -437,22 +513,35 @@ Not applicable. The administrator interacts with the system by submitting a vali
 
   * Class Diagram
 
-![][image11] 
+![][image12] 
 
 * Sequence Diagram
 
-![][image12]
+![][image13]
 
 * Data Design
 
   * ERD or schema
 
+![][image14]
+
+#### 
+
+#### 
+
+#### 
+
+#### 
+
+#### 
+
+#### 
 
 #### ***2.2 Al Extraction and Counselor Confirmation***
 
 * User Interface Design
 
-![][image13]
+![][image15]
 
 * Front-end component(s)
 
@@ -484,7 +573,9 @@ Not applicable. The administrator interacts with the system by submitting a vali
 
   * **StudentProfileBuilder** 
 
-    * **Description and purpose:** A service that assembles the final student profile object in memory by combining the AI-extracted academic data retrieved from the database with the counselor notes submitted from the CounselorNotesEditor and a session timestamp. The assembled profile is not persisted as a new database record. Instead, it is serialized and published directly to the message queue as a PROFILE\_READY event consumed by the agent orchestration layer. The database in this system serves exclusively as the RAG knowledge store for the analysis agents, not as a general profile persistence layer. 
+    * **Description and purpose:** A service that assembles the final student profile object in memory by combining the AI-extracted academic data retrieved from the database with the counselor notes submitted from the CounselorNotesEditor and a session timestamp. The assembled profile is not persisted as a permanent student record. After counselor approval, the assembled profile is saved as an encrypted session draft in the durable session store (see §5.1) to enable session resume within the configured expiry window. 
+
+    Note: The database does hold session-scoped records that support this pipeline: Session and SessionNotes records (created by SessionInitializationService) and ExtractionResult records (created by GeminiExtractionService). These records are operational data, not a student profile store. They are subject to the data retention policy and must be purged on the schedule defined there. The database does not hold a persisted, assembled ApprovedProfile object.
 
     * **Component type or format:** In-Memory Domain Aggregation Service Class 
 
@@ -492,17 +583,17 @@ Not applicable. The administrator interacts with the system by submitting a vali
 
   * Class Diagram
 
-![][image14] 
+![][image16] 
 
 * Sequence Diagram
 
-![][image15]
+![][image17]
 
 * Data Design
 
   * ERD or schema
 
-![][image16] 
+![][image18] 
 
 ### ***Module 3***
 
@@ -510,7 +601,7 @@ Not applicable. The administrator interacts with the system by submitting a vali
 
 * User Interface Design
 
-The user interface for this module is a dynamic loading and progress screen, providing visual feedback to the counselor while the backend agents run, featuring a bar showing overall progress. It lists step-by-step progress indicators for each of the AI agents: the Feasibility Analyst, Labor Market Analyst, and Job Demands Analyst. 
+The user interface for this module is a dynamic loading and progress screen, providing visual feedback to the counselor while the backend agents run, featuring a bar showing overall progress. It lists step-by-step progress indicators for each of the AI agents: the Academic Auditor, Industry Analyst, and the Feasibility Strategist.
 
 * Front-end component(s)
 
@@ -530,9 +621,9 @@ The user interface for this module is a dynamic loading and progress screen, pro
 
   * **AcademicAuditorAgent** 
 
-    * **Description and purpose:** A specialist agent responsible for analyzing the academic performance dimensions of the counselor-approved student profile. It operates exclusively on the structured data fields already present in the profile (NCAE subscores, NAT composite score, and Form 137 grade records) and returns an academic analysis output containing aptitude signals, subject mastery patterns, and observable strengths and weaknesses relevant to career alignment. 
+    * **Description and purpose:** A specialist agent responsible for analyzing the academic performance dimensions of the counselor-approved student profile and grounding that analysis in occupational employment context. It first queries the Market Analytics silo of the Supabase pgvector instance for PSA occupational employment records relevant to the student’s strongest academic domains, then combines the retrieved context with the profile’s structured academic fields (NCAE subscores, NAT composite score, and Form 137 grade records) to produce an academic analysis output containing aptitude signals, subject mastery patterns, observable strengths and weaknesses, and sector-level occupational demand signals relevant to career alignment.
 
-    * **Component type or format:** AI Agent service class wrapping a structured Gemini API call.
+    * **Component type or format:** AI Agent service class utilizing a Retrieval-Augmented Generation (RAG) architecture connected to the Market Analytics silo in Supabase and the Gemini API.
 
   * **IndustryAnalystAgent** 
 
@@ -546,11 +637,17 @@ The user interface for this module is a dynamic loading and progress screen, pro
 
     * **Component type or format:** AI Agent service class utilizing a Retrieval-Augmented Generation (RAG) architecture connected to Supabase and the Gemini API. 
 
+  * **QueryEmbeddingService**
+
+    * **Description and purpose:** Produces a 768-dimensional embedding vector for an agent’s query string by calling the Gemini text-embedding-004 model via the Google AI REST API. This vector is passed to VectorStoreQueryService as the input for Supabase pgvector similarity search. Must use the identical model and parameters as the ingestion-time EmbeddingService to guarantee that query vectors and stored chunk vectors occupy the same embedding space. If the embedding call fails, the agent query is aborted and the Agent Failure Recovery policy applies.
+
+    * **Component type or format:** TypeScript service class calling the Gemini REST API via the @google/generative-ai Node.js SDK. Shared singleton across all three agents in a single session to avoid redundant API calls.
+
   * **VectorStoreQueryService**
 
-    * **Description and purpose:** Handles similarity search operations against the Supabase pgvector instance. It enforces the Federated RAG architecture by strictly routing the Industry Analyst's queries only to the Labor Demand silo and the Feasibility Strategist's queries only to the Path Feasibility silo, preventing cross-domain contamination. 
+    * **Description and purpose:** Handles similarity search operations against the Supabase pgvector instance. It enforces the Federated RAG architecture by strictly routing each agent’s queries to its designated silo only: the Academic Auditor’s queries to the Market Analytics silo, the Industry Analyst’s queries to the Labor Demand silo, and the Feasibility Strategist’s queries to the Path Feasibility silo. Any query that targets a silo not assigned to the requesting agent is rejected with a routing error before reaching Supabase, preventing cross-domain contamination.
 
-    * **Component type or format:** Python/Node.js data access service class. 
+    * **Component type or format:** Node.js data access service class (TypeScript). This component runs inside the session-time Next.js application on Vercel.
 
 * Object-Oriented Components
 
@@ -581,7 +678,7 @@ The user interface for this module is a dynamic loading and progress screen, pro
 
   * ERD or schema
 
-  ![][image17] 
+![][image19] 
 
 #### ***3.2 Meta-Agent Convergence and Ranking***
 
@@ -613,7 +710,7 @@ Not applicable as a distinct screen. The MetaAgentSynthesizer executes entirely 
 
   * **AlignmentScoreCalculator**
 
-    * **Description and purpose:** Receives the IntermediateSynthesis produced by the SynthesisInterpreter and computes a single numerical Aptitude-Demand Alignment Score for each candidate career path by applying a configurable weighted formula across the three normalized dimension scores: alignmentScore \= (aptitudeWeight × aptitudeScore) \+ (demandWeight × demandScore) \+ (feasibilityWeight × feasibilityScore). The default weights — aptitudeWeight at 0.35, demandWeight at 0.40, and feasibilityWeight at 0.25 — are defined as named environment-level configuration constants so they can be adjusted from MVP evaluation findings without a code change. It returns a list of ScoredCareerPath objects sorted in descending order by their computed alignment score. 
+    * **Description and purpose:** Receives the IntermediateSynthesis produced by the SynthesisInterpreter and computes a single numerical Aptitude-Demand Alignment Score for each candidate career path by applying a configurable weighted formula across the three normalized dimension scores: `alignmentScore = (aptitudeWeight × aptitudeScore) + (demandWeight × demandScore) + (feasibilityWeight × feasibilityScore)`. The default weights — aptitudeWeight at 0.35, demandWeight at 0.40, and feasibilityWeight at 0.25 — are defined as named environment-level configuration constants so they can be adjusted from MVP evaluation findings without a code change. It returns a list of ScoredCareerPath objects sorted in descending order by their computed alignment score. 
 
     * **Component type or format:** Node.js utility class implementing a stateless weighted scoring function with configurable weight parameters.
 
@@ -633,18 +730,18 @@ Not applicable as a distinct screen. The MetaAgentSynthesizer executes entirely 
 
   * Class Diagram
 
-  ![][image18] 
+  ![][image20] 
 
   * Sequence Diagram
 
-  ![][image19]
+  ![][image21]
 
 
 * Data Design
 
   * ERD or schema
 
-  ![][image20] 
+  ![][image22] 
 
   ### ***Module 4***
 
@@ -680,31 +777,31 @@ Not applicable. The frontend receives a completion signal from the backend upon 
 
   * **PDFLayoutRenderer** 
 
-    * **Description and purpose:** Takes the assembled report payload and renders it into a PDF file using a server-side library, applying the Kumpas report template with career panels, alignment scores, reasoning summaries, and audit trail. Writes the output to ephemeral storage.  
+    * **Description and purpose:** Takes the assembled report payload and renders it into a PDF using a server-side library (e.g., pdfkit), applying the Kumpas report template with career panels, alignment scores, reasoning summaries, and audit trail. Returns the rendered PDF as an in-memory Buffer. Does not write to the filesystem.
 
-    * **Component type or format:** TypeScript service class wrapping a server-side PDF library (e.g., pdfkit). Executes entirely server-side. 
+    * **Component type or format:** TypeScript service class wrapping a server-side PDF library. Executes entirely server-side within a single Next.js API route invocation.
 
   * **PDFFileStore** 
 
-    * **Description and purpose:** Registers the rendered PDF's file path and generates a short-lived, session-scoped retrieval token returned to the frontend for use in Module 4.2. 
+    * **Description and purpose:** Receives the in-memory PDF Buffer from PDFLayoutRenderer, uploads it to a private Supabase Storage bucket (bucket: kumpas-reports) using the service\_role key, and generates a signed URL with a TTL of 30 minutes. The object is stored under the key {sessionId}/{sessionId}.pdf. Returns the signed URL to the API route, which forwards it to the frontend as the download endpoint for Module 4.2. No file path is registered; no retrieval token is issued. The signed URL is the only artefact returned.
 
-    * **Component type or format:** TypeScript utility class; operates on the serverless function's ephemeral /tmp directory. 
+    * **Component type or format:** TypeScript utility class using the Supabase Storage JavaScript client (@supabase/storage-js). The /tmp filesystem is not used.
 
 * Object-Oriented Components
 
   * Class Diagram
 
-![][image21]
+![][image23]
 
 * Sequence Diagram
 
-![][image22]
+![][image24]
 
 * Data Design
 
   * ERD or schema 
 
-![][image23]
+![][image25]
 
 #### ***4.2 Report Presentation and Download***
 
@@ -722,33 +819,29 @@ The frontend transitions from the Module 3 progress screen to a completion scree
 
   * **PDFDownloadButton** 
 
-    * **Description and purpose:** Sends a GET request to the PDF serving route using the retrieval token, triggering a native browser file download. Shows loading and error states accordingly. 
+    * **Description and purpose:** Uses the signed URL returned by the Module 4.1 API route to trigger a native browser file download via a dynamically created \<a\> element with the download attribute. The signed URL is passed through session state from the Module 4.1 completion response; no additional API call is made at download time.
 
     * **Component type or format:** React client component using a dynamically created anchor element. 
 
 * Back-end component(s)
 
-  * **PDFServingRoute** 
-
-    * **Description and purpose:** Validates the session-scoped retrieval token, retrieves the PDF from ephemeral storage, and streams it to the client with the appropriate Content-Disposition: attachment headers. 
-
-    * **Component type or format:** Next.js API route handler; uses Node.js stream piping. 
+  * Not applicable. The PDF download in this module requires no server involvement. 
 
 * Object-Oriented Components
 
   * Class Diagram
 
-![][image24]
+![][image26]
 
 * Sequence Diagram
 
-![][image25]
+![][image27]
 
 * Data Design
 
   * ERD or schema
 
-![][image26]
+![][image28]
 
 ### ***Module 5***
 
@@ -776,9 +869,9 @@ The application shell renders a persistent step indicator showing the counselor'
 
   * **SessionStateManager** 
 
-    * **Description and purpose:** Initializes and tracks the server-side session object, including the session identifier, module completion status, and the approved student profile. No student data is persisted to any database. 
+    * **Description and purpose:** Initializes, reads, updates, and expires durable session draft records. It stores module completion status, counselor-approved profile data, completed agent outputs, and report-generation status in the configured durable session store. It supports session resumption after browser timeout or serverless instance recycling.
 
-    * **Component type or format:** TypeScript utility using in-memory state keyed by session identifier within a Vercel serverless function. 
+    * **Component type or format:**TypeScript service class using Supabase sessions table or Vercel KV/Upstash Redis. It does not rely on in-memory process state.
 
   * **ModuleRouteOrchestrator**  
 
@@ -790,19 +883,19 @@ The application shell renders a persistent step indicator showing the counselor'
 
   * Class Diagram
 
-![][image27]
+![][image29]
 
 * Sequence Diagram
 
-![][image28]
+![][image30]
 
 * Data Design
 
   * ERD or schema 
 
-![][image29]
+![][image31]
 
-#### ***5.2** Report Presentation and Download*
+#### ***5.2*** **Local Data and Privacy Management**
 
 * User Interface Design
 
@@ -824,39 +917,45 @@ A confirmation modal is shown when the counselor ends a session or starts a new 
 
     * **Component type or format:** Next.js API route handler. 
 
+  * **PDFStoragePurger**
+
+    * **Description and purpose:** Deletes the session’s PDF object from Supabase Storage (key: {sessionId}/{sessionId}.pdf) using the service\_role key. Called by SessionTerminationHandler immediately after RawImagePurger. If the object does not exist (e.g. the session ended before a PDF was generated, or it was already deleted), the call is a no-op. Deletion failure is logged at WARN level but does not block session reset — the signed URL TTL (30 min) acts as a backstop.
+
+    * **Component type or format:** TypeScript utility using the Supabase Storage client. Operates against the kumpas-reports 
+
   * **RawImagePurger** 
 
-    * **Description and purpose:** Permanently deletes all unredacted raw document images from the session's ephemeral storage directory, ensuring no PII remains after session termination. 
+    * **Description and purpose:** Permanently deletes a raw (unredacted) document image from /tmp immediately after PIIRedactionService completes redaction for that document, whether redaction succeeded or failed. This component is also called by SessionTerminationHandler as a sweep at session end, acting as a safety net to remove any residual raw files that may remain due to unexpected failures. The safety-net call does not replace or defer the primary post-redaction invocation.
 
     * **Component type or format:** TypeScript utility function using Node.js fs; operates on /tmp. 
 
   * **CorrectionLogArchiver** 
 
-    * **Description and purpose:** Writes the counselor's field correction log: field names, extracted values, and corrected values, with no student-identifiable data, to a local log file for post-MVP accuracy evaluation. 
+    * **Description and purpose:** Writes the counselor’s field correction log — field names, AI-extracted values, and counselor-corrected values — to the correction\_logs Supabase table for post-MVP accuracy evaluation. One row is inserted per corrected field per session. Fields that were not corrected are not recorded. No student-identifiable data is written: the log contains the session\_id, field\_name (e.g. 'ncae\_science\_subscore'), extracted\_value (numeric or text), corrected\_value (numeric or text), and correction\_timestamp. No student name, birthdate, or any of the five qualitative session-notes fields is included.
 
-    * **Component type or format:** TypeScript utility function writing JSON entries to a configurable local path outside /tmp. 
+    * **Component type or format:** TypeScript utility function using the Supabase JavaScript client with the service\_role key. The local filesystem is not used.
 
   * **SessionTimeoutWatcher** 
 
-    * **Description and purpose:** Detects inactive sessions exceeding a configured timeout threshold and automatically triggers the SessionTerminationHandler to purge ephemeral data, preventing abandoned sessions from leaving PII in storage. 
+    * **Description and purpose:** Scans the sessions table to detect inactive sessions exceeding the 24-hour timeout threshold (last\_activity \> 24h). It automatically invokes a stored procedure to purge expired session drafts and execute  SessionTerminationHandler-equivalent cleanup, preventing abandoned sessions from leaving PII in storage. 
 
-    * **Component type or format:** TypeScript server-side utility checking last-activity timestamps in the SessionStateManager. 
+    * **Component type or format:** A Postgres function scheduled via pg\_cron (e.g., running every 5–10 minutes). It executes entirely within Supabase with no Vercel or external server involvement. 
 
 * Object-Oriented Components
 
   * Class Diagram
 
-![][image30]
+![][image32]
 
 * Sequence Diagram
 
-![][image31]
+![][image33]
 
 * Data Design
 
   * ERD or schema
 
-![][image32]
+![][image34]
 
 [image1]: docs/images/sdd/image1.png
 
@@ -921,3 +1020,7 @@ A confirmation modal is shown when the counselor ends a session or starts a new 
 [image31]: docs/images/sdd/image31.png
 
 [image32]: docs/images/sdd/image32.png
+
+[image33]: docs/images/sdd/image33.png
+
+[image34]: docs/images/sdd/image34.png
