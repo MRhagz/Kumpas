@@ -36,6 +36,8 @@ const PAGE_HEIGHT = 842;
 const MARGIN_X = 38;
 const MARGIN_BOTTOM = 38;
 const CONTENT_WIDTH = PAGE_WIDTH - MARGIN_X * 2;
+const SPACE_1 = 8;
+const SPACE_3 = 24;
 const INK: Rgb = [0.067, 0.094, 0.153];
 const MUTED: Rgb = [0.42, 0.447, 0.502];
 const LINE: Rgb = [0.898, 0.906, 0.922];
@@ -80,6 +82,7 @@ class StyledReportPdf {
     this.addPage();
     this.renderCoverHeader();
     this.renderStudentProfile();
+    this.renderRecommendationOverview();
     this.renderRecommendations();
     this.renderFooter();
 
@@ -164,6 +167,47 @@ class StyledReportPdf {
     this.drawLabelValue("Strengths", formatList(profile.strengths), rightX, topY - 56, 58);
 
     this.y -= panelHeight + 20;
+  }
+
+  private renderRecommendationOverview(): void {
+    const recommendations = this.payload.rankedRecommendations.recommendations.slice(0, 3);
+    const panelHeight = 86;
+
+    this.ensureSpace(panelHeight + SPACE_3);
+    this.drawSectionLabel("Recommendation Overview");
+
+    const gap = SPACE_1;
+    const cardWidth = (CONTENT_WIDTH - gap * 2) / 3;
+    const cardTop = this.y;
+
+    recommendations.forEach((recommendation, index) => {
+      const x = MARGIN_X + index * (cardWidth + gap);
+      this.drawRoundedPanel(x, cardTop - panelHeight, cardWidth, panelHeight, PANEL);
+      this.drawRect(x, cardTop - 4, cardWidth, 4, statusColor(recommendation.status));
+      this.drawText(`RANK ${recommendation.rank}`, x + SPACE_1, cardTop - 18, {
+        color: MUTED,
+        font: "bold",
+        size: 7,
+      });
+      this.drawText(truncateText(recommendation.careerPath, 25), x + SPACE_1, cardTop - 34, {
+        color: INK,
+        font: "bold",
+        size: 10,
+      });
+      this.drawText(formatPercent(recommendation.alignmentScore), x + SPACE_1, cardTop - 58, {
+        color: SAGE_DARK,
+        font: "bold",
+        size: 18,
+      });
+      this.drawScoreBar(x + 58, cardTop - 62, cardWidth - 70, recommendation.alignmentScore);
+      this.drawText(recommendation.status.toUpperCase(), x + SPACE_1, cardTop - 75, {
+        color: statusColor(recommendation.status),
+        font: "bold",
+        size: 7,
+      });
+    });
+
+    this.y -= panelHeight + SPACE_3;
   }
 
   private renderRecommendations(): void {
@@ -395,7 +439,7 @@ class StyledReportPdf {
   ): number {
     let currentY = y;
     values.slice(0, maxItems).forEach((value) => {
-      this.drawText("•", x, currentY, { color: SAGE, font: "bold", size: 8 });
+      this.drawText("-", x, currentY, { color: SAGE, font: "bold", size: 8 });
       currentY = this.drawParagraph(value, x + 9, currentY, width - 9, 8, 10, color);
       currentY -= 3;
     });
@@ -428,7 +472,7 @@ class StyledReportPdf {
   }
 
   private drawStatusPill(status: RankedRecommendation["status"], x: number, y: number): void {
-    const color = status === "complete" ? SAGE : status === "degraded" ? AMBER : RED;
+    const color = statusColor(status);
     this.drawRect(x, y - 14, 74, 18, color);
     this.drawText(status.toUpperCase(), x + 9, y - 8, {
       color: [1, 1, 1],
@@ -523,6 +567,18 @@ function createPdfDocument(pages: PdfPage[]): Buffer {
   );
 
   return Buffer.from(parts.join(""), "utf8");
+}
+
+function statusColor(status: RankedRecommendation["status"]): Rgb {
+  if (status === "complete") {
+    return SAGE;
+  }
+
+  if (status === "degraded") {
+    return AMBER;
+  }
+
+  return RED;
 }
 
 function text(value: string, x: number, y: number, options: TextOptions = {}): string {
