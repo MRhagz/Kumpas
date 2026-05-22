@@ -1,23 +1,9 @@
-import { mkdir, writeFile } from "node:fs/promises";
-import { tmpdir } from "node:os";
-import { join } from "node:path";
-
 import { formatReasoningSummary } from "@/lib/report/reasoning-formatter";
 import type {
   RankedRecommendation,
   RecommendationSource,
   ReportPayload,
 } from "@/lib/report/types";
-
-export interface PdfRenderResult {
-  filePath: string;
-  byteLength: number;
-}
-
-export interface PdfLayoutRendererOptions {
-  outputDir?: string;
-  fileName?: string;
-}
 
 type Rgb = [number, number, number];
 
@@ -49,20 +35,8 @@ const RED: Rgb = [0.72, 0.11, 0.11];
 
 export async function renderReportPdf(
   payload: ReportPayload,
-  options: PdfLayoutRendererOptions = {},
-): Promise<PdfRenderResult> {
-  const outputDir = options.outputDir ?? tmpdir();
-  const fileName = options.fileName ?? `kumpas-report-${payload.sessionId}.pdf`;
-  const filePath = join(outputDir, fileName);
-  const pdfBuffer = buildReportPdf(payload);
-
-  await mkdir(outputDir, { recursive: true });
-  await writeFile(filePath, pdfBuffer);
-
-  return {
-    filePath,
-    byteLength: pdfBuffer.byteLength,
-  };
+): Promise<Buffer> {
+  return buildReportPdf(payload);
 }
 
 export function buildReportPdf(payload: ReportPayload): Buffer {
