@@ -1,25 +1,37 @@
 "use client";
 
 import { useRef } from "react";
-import { Upload, Check, X, FileText } from "lucide-react";
+import { Upload, Check, X, FileText, Loader2, ShieldCheck, AlertTriangle } from "lucide-react";
 import { FileSlotProps } from "@/types";
 
 const ALL_TYPES = [
   { value: "ncae", label: "NCAE Result" },
-  { value: "report_card", label: "Report Card" },
+  { value: "form_137", label: "Form 137" },
   { value: "nat", label: "NAT Result" },
 ];
 
 const TYPE_LABEL: Record<string, string> = {
-  ncae: "NCAE Result", report_card: "Report Card", nat: "NAT Result",
+  ncae: "NCAE Result", form_137: "Form 137", nat: "NAT Result",
 };
 const TYPE_COLOR: Record<string, { bg: string; fg: string }> = {
   ncae: { bg: "#D4E6D4", fg: "#3D6B3D" },
-  report_card: { bg: "#F5E6CC", fg: "#8B6914" },
+  form_137: { bg: "#F5E6CC", fg: "#8B6914" },
   nat: { bg: "#DBEAFE", fg: "#1E40AF" },
 };
 
-export default function FileSlot({ index, file, docType, excludeTypes = [], onFileChange, onTypeChange }: FileSlotProps) {
+/* ─── Processing step labels ─── */
+const STEP_LABELS: Record<string, string> = {
+  idle: "",
+  ocr_scanning: "Scanning with OCR…",
+  pii_detecting: "Detecting PII…",
+  pii_redacting: "Redacting personal info…",
+  structuring: "Extracting data…",
+  ai_structuring: "AI structuring…",
+  complete: "Extraction complete",
+  error: "Extraction failed",
+};
+
+export default function FileSlot({ index, file, docType, excludeTypes = [], onFileChange, onTypeChange, processingState }: FileSlotProps) {
   const inputRef = useRef<HTMLInputElement>(null);
 
   const handleFile = (f: File | null) => {
@@ -33,13 +45,21 @@ export default function FileSlot({ index, file, docType, excludeTypes = [], onFi
   // Filter out types already used by other slot (but always keep the currently selected one)
   const availableTypes = ALL_TYPES.filter(t => t.value === docType || !excludeTypes.includes(t.value));
 
+  const isProcessing = processingState && !["idle", "complete", "error"].includes(processingState.step);
+  const isComplete = processingState?.step === "complete";
+  const isError = processingState?.step === "error";
+
   return (
-    <div className={`rounded-xl border bg-white overflow-hidden transition-colors ${file ? "border-sage" : "border-black/[0.08]"}`}>
+    <div className={`rounded-xl border bg-white overflow-hidden transition-colors ${
+      isComplete ? "border-sage" : isError ? "border-red-soft" : file ? "border-sage/50" : "border-black/[0.08]"
+    }`}>
       {/* Header */}
       <div className="flex flex-col sm:flex-row sm:items-center gap-3 p-3 bg-black/[0.015]">
         <div className="flex items-center gap-2 sm:min-w-[100px]">
-          <span className={`flex h-[22px] w-[22px] items-center justify-center rounded-full text-[11px] font-bold ${file ? "bg-sage text-white" : "bg-black/[0.06] text-charcoal-3"}`}>
-            {file ? <Check size={13} /> : index}
+          <span className={`flex h-[22px] w-[22px] items-center justify-center rounded-full text-[11px] font-bold ${
+            isComplete ? "bg-sage text-white" : isError ? "bg-red-soft text-white" : file ? "bg-sage/50 text-white" : "bg-black/[0.06] text-charcoal-3"
+          }`}>
+            {isComplete ? <Check size={13} /> : isError ? <AlertTriangle size={11} /> : file ? <Loader2 size={13} className={isProcessing ? "animate-spin" : ""} /> : index}
           </span>
           <span className="text-[13px] font-semibold text-charcoal-2">Document {index}</span>
         </div>
@@ -86,6 +106,35 @@ export default function FileSlot({ index, file, docType, excludeTypes = [], onFi
           <button type="button" className="flex h-6 w-6 items-center justify-center rounded-full text-black/30 hover:bg-black/5 hover:text-charcoal-2 cursor-pointer" onClick={() => handleFile(null)}>
             <X size={14} />
           </button>
+        </div>
+      )}
+
+      {/* Processing Status */}
+      {file && processingState && processingState.step !== "idle" && (
+        <div className={`border-t px-3 py-2.5 text-[12px] ${
+          isError ? "border-red-soft/20 bg-red-light text-red-soft"
+          : isComplete ? "border-sage/20 bg-sage/[0.04] text-sage"
+          : "border-black/[0.06] bg-black/[0.01] text-charcoal-3"
+        }`}>
+          <div className="flex items-center gap-2">
+            {isProcessing && <Loader2 size={13} className="animate-spin shrink-0" />}
+            {isComplete && <ShieldCheck size={13} className="shrink-0" />}
+            {isError && <AlertTriangle size={13} className="shrink-0" />}
+            <span className="font-medium">{STEP_LABELS[processingState.step]}</span>
+            {isError && processingState.error && (
+              <span className="ml-1 font-normal opacity-80">— {processingState.error}</span>
+            )}
+          </div>
+
+          {/* Progress bar for active processing */}
+          {isProcessing && (
+            <div className="mt-1.5 h-1 w-full rounded-full bg-black/[0.06] overflow-hidden">
+              <div
+                className="h-full rounded-full bg-sage transition-all duration-300 ease-out"
+                style={{ width: `${processingState.progress}%` }}
+              />
+            </div>
+          )}
         </div>
       )}
     </div>
