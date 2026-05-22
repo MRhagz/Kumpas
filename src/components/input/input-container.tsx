@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useRef } from "react";
+import { useState, useRef, useCallback, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import {
   FileText, Target, Heart, Wallet, Flag, MessageSquare,
@@ -20,6 +20,9 @@ import {
   AlertDialogContent, AlertDialogDescription, AlertDialogFooter,
   AlertDialogHeader, AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
+import { useDocumentProcessor } from "./document-processor";
+import ExtractionConfirmationPanel from "./extraction-confirmation-panel";
+import type { DocumentProcessingState, ExtractedAcademicData } from "@/types";
 
 /* ─── section config ─── */
 const SECTIONS = [
@@ -48,8 +51,15 @@ export default function InputContainer() {
 
   /* ─── shared state ─── */
   const [guideOpen, setGuideOpen] = useState(false);
-  const [slotFiles, setSlotFiles] = useState<{ 1: File | null; 2: File | null }>({ 1: null, 2: null });
-  const [slotTypes, setSlotTypes] = useState<{ 1: string; 2: string }>({ 1: "", 2: "" });
+  const [slotFiles, setSlotFiles] = useState<{ 1: File | null; 2: File | null; 3: File | null }>({ 1: null, 2: null, 3: null });
+  const [slotTypes, setSlotTypes] = useState<{ 1: string; 2: string; 3: string }>({ 1: "", 2: "", 3: "" });
+
+  /* ─── document processing state ─── */
+  const INITIAL_PROC_STATE: DocumentProcessingState = { step: "idle", progress: 0 };
+  const [slotProcessing, setSlotProcessing] = useState<{ 1: DocumentProcessingState; 2: DocumentProcessingState; 3: DocumentProcessingState }>({
+    1: { ...INITIAL_PROC_STATE }, 2: { ...INITIAL_PROC_STATE }, 3: { ...INITIAL_PROC_STATE },
+  });
+  const [extractedDocs, setExtractedDocs] = useState<{ 1?: ExtractedAcademicData; 2?: ExtractedAcademicData; 3?: ExtractedAcademicData }>({});
 
 
   /* ─── tab state ─── */
@@ -71,10 +81,11 @@ export default function InputContainer() {
   /* ─── derived ─── */
   const sectionHtml = activeTab === "image" ? imageSectionHtml : manualSectionHtml;
   const sectionsReady = activeTab === "image" ? imageSectionsReady : true;
-  const hasDocs = !!(slotFiles[1] || slotFiles[2]);
+  const hasDocs = !!(slotFiles[1] || slotFiles[2] || slotFiles[3]);
+  const anyProcessing = Object.values(slotProcessing).some(s => !["idle", "complete", "error"].includes(s.step));
   const canAnalyze = activeTab === "image"
-    ? imageSectionsReady && !scanning && !scanError
-    : Object.values(manualSectionHtml).some(v => v.trim() !== "");
+    ? imageSectionsReady && !scanning && !scanError && !anyProcessing
+    : Object.values(manualSectionHtml).some(v => v.trim() !== "") && !anyProcessing;
 
   const tabHasData = (tab: InputMode): boolean => {
     if (tab === "image") {
@@ -117,22 +128,40 @@ export default function InputContainer() {
     if (fileInputRef.current) fileInputRef.current.value = "";
   };
 
-  const extractSections = (file: File) => {
+  const extractSections = async (file: File) => {
     setScanning(true); setScanError(null); setImageSectionsReady(false);
-    // TODO: Replace with real API call to new backend
-    // Previously called: fetch("/api/extract-notes", { ... })
-    setTimeout(() => {
-      const notes: ExtractedNotes = {
-        careerGoal: "<p>Extracted career goal will appear here…</p>",
-        interests: "<p>Extracted interests and strengths will appear here…</p>",
-        financial: "<p>Extracted financial situation will appear here…</p>",
-        concerns: "<p>Extracted concerns will appear here…</p>",
-        impression: "<p>Extracted counselor impression will appear here…</p>",
-      };
-      setImageSectionHtml(notes);
+
+    try {
+      const formData = new FormData();
+      formData.append("file", file);
+
+      const res = await fetch("/api/extract-notes", {
+        method: "POST",
+        body: formData,
+      });
+
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({}));
+        throw new Error(err.error || "Failed to extract notes");
+      }
+
+      const data = await res.json();
+
+      setImageSectionHtml({
+        careerGoal: data.careerGoal || "<p></p>",
+        interests: data.interests || "<p></p>",
+        financial: data.financial || "<p></p>",
+        concerns: data.concerns || "<p></p>",
+        impression: data.impression || "<p></p>",
+      });
       setImageSectionsReady(true);
+      toast.success("Notes extracted", { description: "AI Vision extracted your counselor notes", position: "top-center" });
+    } catch (err) {
+      console.error(err);
+      setScanError(err instanceof Error ? err.message : "Extraction failed");
+    } finally {
       setScanning(false);
-    }, 1500);
+    }
   };
 
   const handleNotesSelect = (f: File | null) => {
@@ -145,6 +174,75 @@ export default function InputContainer() {
     extractSections(f);
   };
 
+  /* ─── document processing ─── */
+  const processDocumentForSlot = useCallback(async (slotIndex: 1 | 2 | 3, file: File, docType: string) => {
+    if (!docType) return;
+
+    try {
+      // Send image directly to Gemini Vision via API route
+      setSlotProcessing(p => ({ ...p, [slotIndex]: { step: "ai_structuring", progress: 30 } }));
+
+      const formData = new FormData();
+      formData.append("file", file);
+      formData.append("docType", docType);
+
+      const res = await fetch("/api/extract-document", {
+        method: "POST",
+        body: formData,
+      });
+
+      if (!res.ok) {
+        const errBody = await res.json().catch(() => ({}));
+        throw new Error(errBody.error || "Gemini extraction failed");
+      }
+
+      const extracted = await res.json() as ExtractedAcademicData;
+
+      const finalState: DocumentProcessingState = {
+        step: "complete",
+        progress: 100,
+        extractedData: extracted,
+      };
+      setSlotProcessing(p => ({ ...p, [slotIndex]: finalState }));
+      setExtractedDocs(p => ({ ...p, [slotIndex]: extracted }));
+      toast.success(`Document ${slotIndex} extracted`, { description: "AI Vision extracted your document data", position: "top-center" });
+    } catch (err) {
+      const message = err instanceof Error ? err.message : "Processing failed";
+      setSlotProcessing(p => ({ ...p, [slotIndex]: { step: "error", progress: 0, error: message } }));
+      toast.error(`Document ${slotIndex} failed`, { description: message, position: "top-center" });
+    }
+  }, []);
+
+  // Auto-process when a file is uploaded and docType is set
+  const handleSlotFileChange = useCallback((slotIndex: 1 | 2 | 3, file: File | null) => {
+    setSlotFiles(p => ({ ...p, [slotIndex]: file }));
+    if (!file) {
+      setSlotProcessing(p => ({ ...p, [slotIndex]: { step: "idle", progress: 0 } }));
+      setExtractedDocs(p => { const n = { ...p }; delete n[slotIndex]; return n; });
+      return;
+    }
+    const docType = slotTypes[slotIndex];
+    if (docType) {
+      processDocumentForSlot(slotIndex, file, docType);
+    }
+  }, [slotTypes, processDocumentForSlot]);
+
+  const handleSlotTypeChange = useCallback((slotIndex: 1 | 2 | 3, type: string) => {
+    setSlotTypes(p => ({ ...p, [slotIndex]: type }));
+    const file = slotFiles[slotIndex];
+    if (file && type) {
+      processDocumentForSlot(slotIndex, file, type);
+    }
+  }, [slotFiles, processDocumentForSlot]);
+
+  const handleExtractionDataUpdate = useCallback((slotIndex: number, data: ExtractedAcademicData) => {
+    setExtractedDocs(p => ({ ...p, [slotIndex]: data }));
+    setSlotProcessing(p => ({
+      ...p,
+      [slotIndex]: { ...p[slotIndex as 1 | 2 | 3], extractedData: data },
+    }));
+  }, []);
+
   /* ─── analysis ─── */
   const beginAnalysis = async () => {
     const combined = SECTIONS.map(s => {
@@ -156,9 +254,14 @@ export default function InputContainer() {
 
     const sid = crypto.randomUUID();
 
-    // TODO: Store files via new backend (previously used IndexedDB)
-    // TODO: Store session data via new backend (previously used sessionStorage)
-    console.log("[stub] beginAnalysis — wire to new backend", { sid, combined });
+    // Collect extracted document data
+    const docsPayload = Object.entries(extractedDocs).map(([idx, data]) => ({
+      slotIndex: parseInt(idx),
+      docType: slotTypes[parseInt(idx) as 1 | 2 | 3],
+      extractedData: data,
+    }));
+
+    console.log("[stub] beginAnalysis — wire to new backend", { sid, combined, extractedDocuments: docsPayload });
 
     router.push(`/analysis?session=${sid}`);
   };
@@ -375,21 +478,34 @@ export default function InputContainer() {
             <div>
               <h2 className="text-base font-semibold text-ink leading-snug flex flex-wrap items-center gap-2">
                 Supporting Documents
-                <span className="rounded-full bg-black/[0.04] px-2 py-0.5 text-[10px] whitespace-nowrap font-bold uppercase tracking-wider text-muted-text">Optional — Max 2</span>
+                <span className="rounded-full bg-black/[0.04] px-2 py-0.5 text-[10px] whitespace-nowrap font-bold uppercase tracking-wider text-muted-text">Optional — Max 3</span>
               </h2>
-              <p className="mt-1 text-xs text-muted-text leading-relaxed">Upload student records to improve AI accuracy. Select the document type.</p>
+              <p className="mt-1 text-xs text-muted-text leading-relaxed">Upload student records to improve AI accuracy. Select the document type. PII is automatically redacted.</p>
             </div>
           </div>
 
           <div className="flex items-start sm:items-center gap-2.5 rounded-lg bg-ochre-pale/60 border border-ochre/10 px-3 py-2.5 mb-4 text-xs text-ochre leading-snug">
             <Info size={14} className="shrink-0 mt-0.5 sm:mt-0" />
-            <span>Accepted: NCAE Results, Report Card, or NAT Results — as PDF or photo</span>
+            <span>Accepted: NCAE Results, Form 137, or NAT Results — as PDF or photo</span>
           </div>
 
           <div className="space-y-3">
-            <FileSlot index={1} file={slotFiles[1]} docType={slotTypes[1]} excludeTypes={slotTypes[2] ? [slotTypes[2]] : []} onFileChange={(f) => setSlotFiles(p => ({ ...p, 1: f }))} onTypeChange={(t) => setSlotTypes(p => ({ ...p, 1: t }))} />
-            <FileSlot index={2} file={slotFiles[2]} docType={slotTypes[2]} excludeTypes={slotTypes[1] ? [slotTypes[1]] : []} onFileChange={(f) => setSlotFiles(p => ({ ...p, 2: f }))} onTypeChange={(t) => setSlotTypes(p => ({ ...p, 2: t }))} />
+            <FileSlot index={1} file={slotFiles[1]} docType={slotTypes[1]} excludeTypes={[slotTypes[2], slotTypes[3]].filter(Boolean)} onFileChange={(f) => handleSlotFileChange(1, f)} onTypeChange={(t) => handleSlotTypeChange(1, t)} processingState={slotProcessing[1]} />
+            <FileSlot index={2} file={slotFiles[2]} docType={slotTypes[2]} excludeTypes={[slotTypes[1], slotTypes[3]].filter(Boolean)} onFileChange={(f) => handleSlotFileChange(2, f)} onTypeChange={(t) => handleSlotTypeChange(2, t)} processingState={slotProcessing[2]} />
+            <FileSlot index={3} file={slotFiles[3]} docType={slotTypes[3]} excludeTypes={[slotTypes[1], slotTypes[2]].filter(Boolean)} onFileChange={(f) => handleSlotFileChange(3, f)} onTypeChange={(t) => handleSlotTypeChange(3, t)} processingState={slotProcessing[3]} />
           </div>
+        </div>
+
+        {/* ══════ PART 2.5 — Extraction Confirmation ══════ */}
+        <div className="px-6 sm:px-8">
+          <ExtractionConfirmationPanel
+            slots={([1, 2, 3] as const).filter(i => slotFiles[i] && slotTypes[i]).map(i => ({
+              index: i,
+              docType: slotTypes[i],
+              processingState: slotProcessing[i],
+            }))}
+            onDataUpdate={handleExtractionDataUpdate}
+          />
         </div>
 
         {/* ══════ PART 3 — Analyze Button ══════ */}
