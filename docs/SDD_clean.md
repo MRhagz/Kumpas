@@ -257,9 +257,9 @@ Not applicable. The ingestion timestamp updated by this pipeline is consumed by 
 
   * **EmbeddingService** 
 
-    * **Description and purpose:** The embedding model runs inside the Python ingestion environment triggered by GitHub Actions. If the model load time or memory usage exceeds the GitHub Actions runtime budget, the embedding step shall use a hosted embedding API while preserving the same vector dimension and distance metric.
+    * **Description and purpose:** Embeds each text chunk into a 768-dimensional vector by calling the Gemini `gemini-embedding-001` model via the Google AI REST API, with `outputDimensionality=768` and `taskType=RETRIEVAL_DOCUMENT`. The Google AI REST API is used directly (no local model is loaded inside the GitHub Actions runner) so cold-start cost is bounded and the ingestion runner image stays minimal. Identical model name, output dimensionality, and embedding-space semantics are required across Modules 1.1, 1.2, 1.3, and 3.1; any change here must be applied to the query-side QueryEmbeddingService in the same release.
 
-    * **Component type/format:** Python service class wrapping sentence-transformers, or a Python client for the configured hosted embedding API if local model execution is not feasible.
+    * **Component type/format:** Python service class issuing authenticated HTTPS requests to the Gemini embedding endpoint via `httpx`.
 
   * **VectorStoreRepository**
 
@@ -341,9 +341,9 @@ Not applicable for the same reason stated above. This pipeline has no interactiv
 
   * **EmbeddingService** 
 
-    * **Description and purpose:** Converts each text chunk into a dense vector using the same sentence-level embedding model used in Module 1.1, ensuring embedding-space consistency across all knowledge silos.
+    * **Description and purpose:** Converts each text chunk into a 768-dimensional vector using the same `gemini-embedding-001` hosted call as Module 1.1, with identical `outputDimensionality` and `taskType=RETRIEVAL_DOCUMENT`. Reusing the exact configuration is required to keep all knowledge silos in the same embedding space.
 
-    * **Component type/format:** Python service class; shared singleton instance across all pipeline modules.
+    * **Component type/format:** Python service class; shared with Modules 1.1 and 1.3 through the same `EmbeddingService` implementation.
 
   * **VectorStoreRepository** 
 
@@ -411,9 +411,9 @@ Not applicable. The administrator interacts with the system by submitting a vali
 
   * **EmbeddingService** 
 
-    * **Description and purpose:** Embeds each TESDA text chunk using the shared sentence-level embedding model to ensure vector-space consistency across all three silos.
+    * **Description and purpose:** Embeds each TESDA text chunk through the same `gemini-embedding-001` call used in Modules 1.1 and 1.2, with identical `outputDimensionality=768` and `taskType=RETRIEVAL_DOCUMENT`, so manually curated TESDA records occupy the same embedding space as the rest of the Path Feasibility silo.
 
-    * **Component type/format:** Python service class; shared singleton with Modules 1.1 and 1.2.
+    * **Component type/format:** Python service class; shared implementation with Modules 1.1 and 1.2.
 
   * **VectorStoreRepository** 
 
@@ -639,7 +639,7 @@ The user interface for this module is a dynamic loading and progress screen, pro
 
   * **QueryEmbeddingService**
 
-    * **Description and purpose:** Produces a 768-dimensional embedding vector for an agent’s query string by calling the Gemini text-embedding-004 model via the Google AI REST API. This vector is passed to VectorStoreQueryService as the input for Supabase pgvector similarity search. Must use the identical model and parameters as the ingestion-time EmbeddingService to guarantee that query vectors and stored chunk vectors occupy the same embedding space. If the embedding call fails, the agent query is aborted and the Agent Failure Recovery policy applies.
+    * **Description and purpose:** Produces a 768-dimensional embedding vector for an agent’s query string by calling the Gemini `gemini-embedding-001` model via the Google AI REST API, with `outputDimensionality=768` and `taskType=RETRIEVAL_QUERY`. This vector is passed to VectorStoreQueryService as the input for Supabase pgvector similarity search. The model name, output dimensionality, and request parameters must match the ingestion-time EmbeddingService used in Modules 1.1, 1.2, and 1.3 so query and stored chunk vectors occupy the same embedding space; the only intended difference is `taskType` (RETRIEVAL_QUERY here vs. RETRIEVAL_DOCUMENT at ingestion). If the embedding call fails, the agent query is aborted and the Agent Failure Recovery policy applies.
 
     * **Component type or format:** TypeScript service class calling the Gemini REST API via the @google/generative-ai Node.js SDK. Shared singleton across all three agents in a single session to avoid redundant API calls.
 

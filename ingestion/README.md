@@ -84,8 +84,11 @@ pip install -e ".[psa,pdf,tesda,dev]"
 
 ## Notes
 
-- Embedding model is `text-embedding-004` (768-dim) on both ingestion and
-  query-time paths (SDD §3.1). Do not change one side without the other.
+- Embedding model is `gemini-embedding-001` with `outputDimensionality=768`
+  on both ingestion and query-time paths. (SDD §3.1 names the older
+  `text-embedding-004`, which Google has retired — `gemini-embedding-001`
+  is the supported replacement; update the SDD when convenient.) Do not
+  change one side without the other.
 - Knowledge-base writes use the service-role key and bypass RLS by design;
   this code never runs inside a counselor session.
 - TESDA records have no real source URL — pipelines synthesize one as

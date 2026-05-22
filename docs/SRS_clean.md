@@ -298,7 +298,7 @@ No student data is transmitted to any external destination other than the Gemini
 
 **Brief Description:** On a quarterly schedule (via cron), a GitHub Actions workflow automatically downloads the latest Labor Force Survey (LFS) CSV dataset from PSA OpenSTAT. The automated pipeline parses it using pandas to extract occupation-sector employment records, chunks the text, embeds it, and upserts it into the occupational knowledge silo with full provenance metadata. 
 
-**Pre-conditions:** The PSA OpenSTAT endpoint hosting the LFS CSV dataset is publicly accessible. The GitHub Actions workflow is configured with a quarterly cron trigger. The processing environment within the Action has `pandas` and the required embedding models configured. The database is initialized and accepts write operations. 
+**Pre-conditions:** The PSA OpenSTAT endpoint hosting the LFS CSV dataset is publicly accessible. The GitHub Actions workflow is configured with a quarterly cron trigger. The processing environment within the Action has `pandas` installed and the Gemini embedding API key configured as a repository secret. The database is initialized and accepts write operations. 
 
 **Post-conditions:** At least 10 occupation-sector employment records have been upserted into the occupational silo. Each record carries its source URL, acquisition method (automated CSV download via GitHub Actions), and ingestion timestamp. The ingestion timestamp is updated and visible in the counselor interface. 
 
@@ -309,7 +309,7 @@ No student data is transmitted to any external destination other than the Gemini
 3. The pipeline loads the downloaded file using pandas.  
 4. The pipeline extracts occupation-sector employment records from the parsed dataframe.  
 5. The pipeline splits the records into text chunks.  
-6. The pipeline embeds each chunk using a sentence-level embedding model.  
+6. The pipeline embeds each chunk using the Gemini embedding API.  
 7. The pipeline upserts all records into the database, attaching the source URL, acquisition method, and ingestion timestamp.  
 8. The system updates the ingestion timestamp displayed in the counselor interface.
 
@@ -350,7 +350,7 @@ No student data is transmitted to any external destination other than the Gemini
 5. The pipeline extracts raw text using `pdfplumber`.  
 6. The pipeline strips headers, footers, and page numbers from the extracted text.  
 7. The pipeline splits the cleaned text into manageable chunks.  
-8. The pipeline embeds each chunk using a sentence-level embedding model.  
+8. The pipeline embeds each chunk using the Gemini embedding API.  
 9. The pipeline upserts all records into the database with their source URL, acquisition method, and ingestion timestamp.  
 10. The system updates the ingestion timestamp visible in the counselor interface.
 
@@ -390,7 +390,7 @@ No student data is transmitted to any external destination other than the Gemini
 3. A developer commits and pushes the updated CSV file to the repository.  
 4. The repository detects the commit and triggers the designated GitHub Action workflow.  
 5. The automated workflow validates the CSV format and content.  
-6. The workflow embeds the records using a sentence-level embedding model.  
+6. The workflow embeds the records using the Gemini embedding API.  
 7. The workflow upserts the records into the database with source reference, acquisition method, and ingestion timestamp.
 
 **Alternative Flow:**
