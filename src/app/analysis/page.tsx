@@ -5,167 +5,159 @@ import { useSearchParams, useRouter } from "next/navigation";
 import { Loader2 } from "lucide-react";
 import LoadingScreen from "@/components/analysis/loading-screen";
 
-import type {
-    AnalysisState,
-    StageName,
-} from "@/lib/analysis-types";
+import type { StageName } from "@/lib/analysis-types";
+import type { ReportGenerationResponse } from "@/lib/report/types";
 
 import ErrorView from "@/components/analysis/error-view";
 import ReportDownloadView from "@/components/analysis/report-download-view";
 
-/**
- * Simulates the multi-stage analysis pipeline for UI demonstration.
- * TODO: Replace with real API calls to new backend when ready.
- */
+type AnalysisPageState =
+  | { phase: "processing"; completedStages: StageName[] }
+  | { phase: "reportReady"; report: ReportGenerationResponse }
+  | { phase: "error"; message: string };
+
 function AnalysisContent() {
-    const [state, setState] = useState<AnalysisState>({
-        phase: "processing",
-        completedStages: [],
-    });
-    const hasRun = useRef(false);
+  const [state, setState] = useState<AnalysisPageState>({
+    phase: "processing",
+    completedStages: [],
+  });
+  const hasRun = useRef(false);
 
-    const searchParams = useSearchParams();
-    const router = useRouter();
-    const sessionId = searchParams.get("session");
+  const searchParams = useSearchParams();
+  const router = useRouter();
+  const sessionId = searchParams.get("session");
 
-    const onNewSession = useCallback(async () => {
-        if (sessionId) {
-            try {
-                const response = await fetch(
-                    `/api/sessions/${encodeURIComponent(sessionId)}`,
-                    { method: "DELETE", cache: "no-store" },
-                );
-
-                if (!response.ok) {
-                    const errorBody = await response.json().catch(() => null);
-                    console.warn(
-                        "[analysis] Session cleanup failed before new session.",
-                        errorBody?.error ?? response.statusText,
-                    );
-                }
-            } catch (error) {
-                console.warn(
-                    "[analysis] Session cleanup failed before new session.",
-                    error,
-                );
-            }
-        }
-
-        router.push("/input");
-    }, [router, sessionId]);
-
-    const onReportDownloadStart = useCallback(async () => {
-        if (!sessionId) {
-            return;
-        }
-
+  const onNewSession = useCallback(async () => {
+    if (sessionId) {
+      try {
         const response = await fetch(
-            `/api/sessions/${encodeURIComponent(sessionId)}/complete`,
-            { method: "POST", cache: "no-store" },
+          `/api/sessions/${encodeURIComponent(sessionId)}`,
+          { method: "DELETE" },
         );
-
         if (!response.ok) {
-            const errorBody = await response.json().catch(() => null);
-            throw new Error(
-                errorBody?.error ?? "Failed to mark report download complete.",
-            );
+          const errorBody = await response.json().catch(() => null);
+          console.warn(
+            "[analysis] Session cleanup failed.",
+            errorBody?.error ?? response.statusText,
+          );
         }
-    }, [sessionId]);
+      } catch (error) {
+        console.warn("[analysis] Session cleanup failed.", error);
+      }
+    }
+    router.push("/input");
+  }, [router, sessionId]);
 
-    const runPipeline = useCallback(async () => {
-        if (!sessionId) {
-            setState({ phase: "error", message: "No session ID found. Please start a new session." });
-            return;
-        }
-
-        try {
-            setState({ phase: "processing", completedStages: [] });
-
-            // Simulate upstream modules until Module 3 is available.
-            const stages: StageName[] = [
-                "documentParsing",
-                "notesParsing",
-                "transcriptionLayer",
-                "feasibility",
-                "laborMarket",
-                "jobDemand",
-                "adjacentCareer",
-            ];
-
-            for (let i = 0; i < stages.length; i++) {
-                await new Promise((r) => setTimeout(r, 600));
-                setState((prev) => {
-                    if (prev.phase !== "processing") return prev;
-                    return {
-                        ...prev,
-                        completedStages: stages.slice(0, i + 1),
-                    };
-                });
-            }
-
-            const response = await fetch("/api/reports", {
-                method: "POST",
-                cache: "no-store",
-                headers: {
-                    "Content-Type": "application/json",
-                },
-                body: JSON.stringify({ sessionId }),
-            });
-            const responseBody = await response.json();
-
-            if (!response.ok) {
-                throw new Error(
-                    getReportGenerationErrorMessage(response.status, responseBody),
-                );
-            }
-
-            setState({ phase: "reportReady", report: responseBody });
-        } catch (error) {
-            setState({
-                phase: "error",
-                title: "Report generation failed",
-                message:
-                    error instanceof Error
-                        ? error.message
-                        : "Report generation failed.",
-            });
-        }
-    }, [sessionId]);
-
-    useEffect(() => {
-        if (!sessionId) {
-            router.push("/");
-            return;
-        }
-
-        if (hasRun.current) return;
-        hasRun.current = true;
-
-        runPipeline();
-    }, [runPipeline, sessionId, router]);
-
-    return (
-        <main className="min-h-screen bg-background">
-            {state.phase === "processing" && (
-                <LoadingScreen completedStages={state.completedStages} />
-            )}
-            {state.phase === "error" && (
-                <ErrorView
-                    title={state.title}
-                    message={state.message}
-                    onRetry={runPipeline}
-                    onBack={() => router.push("/")}
-                />
-            )}
-            {state.phase === "reportReady" && (
-                <ReportDownloadView
-                    report={state.report}
-                    onNewSession={onNewSession}
-                    onReportDownloadStart={onReportDownloadStart}
-                />
-            )}
-        </main>
+  const onReportDownloadStart = useCallback(async () => {
+    if (!sessionId) return;
+    const response = await fetch(
+      `/api/sessions/${encodeURIComponent(sessionId)}/complete`,
+      { method: "POST" },
     );
+    if (!response.ok) {
+      const errorBody = await response.json().catch(() => null);
+      throw new Error(
+        errorBody?.error ?? "Failed to mark report download complete.",
+      );
+    }
+  }, [sessionId]);
+
+  const runPipeline = useCallback(async () => {
+    if (!sessionId) {
+      setState({ phase: "error", message: "No session ID found. Please start a new session." });
+      return;
+    }
+
+    setState({ phase: "processing", completedStages: [] });
+
+    const markStages = (stages: StageName[]) => {
+      setState({ phase: "processing", completedStages: stages });
+    };
+
+    markStages(["documentParsing"]);
+    await new Promise((r) => setTimeout(r, 400));
+    markStages(["documentParsing", "notesParsing"]);
+    await new Promise((r) => setTimeout(r, 400));
+    markStages(["documentParsing", "notesParsing", "transcriptionLayer"]);
+
+    try {
+      const res = await fetch(`/api/sessions/${sessionId}/analyze`, {
+        method: "POST",
+      });
+
+      if (!res.ok) {
+        const body = await res.json().catch(() => ({}));
+        throw new Error(body.error || `Analysis failed (${res.status})`);
+      }
+
+      markStages([
+        "documentParsing", "notesParsing", "transcriptionLayer",
+        "feasibility", "laborMarket", "jobDemand",
+      ]);
+      await new Promise((r) => setTimeout(r, 500));
+
+      markStages([
+        "documentParsing", "notesParsing", "transcriptionLayer",
+        "feasibility", "laborMarket", "jobDemand", "synthesis",
+      ]);
+      await new Promise((r) => setTimeout(r, 600));
+
+      const reportRes = await fetch("/api/reports", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ sessionId }),
+      });
+      const reportBody = await reportRes.json();
+
+      if (!reportRes.ok) {
+        throw new Error(reportBody.error ?? "Report generation failed.");
+      }
+
+      setState({ phase: "reportReady", report: reportBody });
+    } catch (err) {
+      setState({
+        phase: "error",
+        message: err instanceof Error ? err.message : "Analysis failed",
+      });
+    }
+  }, [sessionId]);
+
+  useEffect(() => {
+    if (!sessionId) {
+      router.push("/");
+      return;
+    }
+
+    if (hasRun.current) return;
+    hasRun.current = true;
+
+    runPipeline();
+  }, [runPipeline, sessionId, router]);
+
+  return (
+    <main className="min-h-screen bg-background">
+      {state.phase === "processing" && (
+        <LoadingScreen completedStages={state.completedStages} />
+      )}
+      {state.phase === "error" && (
+        <ErrorView
+          message={state.message}
+          onRetry={() => {
+            hasRun.current = false;
+            runPipeline();
+          }}
+          onBack={() => router.push("/")}
+        />
+      )}
+      {state.phase === "reportReady" && (
+        <ReportDownloadView
+          report={state.report}
+          onNewSession={onNewSession}
+          onReportDownloadStart={onReportDownloadStart}
+        />
+      )}
+    </main>
+  );
 }
 
 function getReportGenerationErrorMessage(
@@ -207,15 +199,15 @@ function isReportErrorBody(
 }
 
 export default function Page() {
-    return (
-        <Suspense
-            fallback={
-                <main className="flex min-h-[60vh] items-center justify-center bg-background">
-                    <Loader2 size={24} className="animate-spin text-muted-text" />
-                </main>
-            }
-        >
-            <AnalysisContent />
-        </Suspense>
-    );
+  return (
+    <Suspense
+      fallback={
+        <main className="flex min-h-[60vh] items-center justify-center bg-background">
+          <Loader2 size={24} className="animate-spin text-muted-text" />
+        </main>
+      }
+    >
+      <AnalysisContent />
+    </Suspense>
+  );
 }
