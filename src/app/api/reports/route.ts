@@ -9,20 +9,24 @@ interface ReportRequestBody {
   sessionId?: unknown;
 }
 
+const REPORT_RESPONSE_HEADERS = {
+  "Cache-Control": "no-store",
+};
+
 export async function POST(request: Request): Promise<Response> {
   let body: ReportRequestBody;
 
   try {
     body = (await request.json()) as ReportRequestBody;
   } catch {
-    return Response.json(
+    return createReportJsonResponse(
       { error: "Request body must be valid JSON." },
-      { status: 400 },
+      400,
     );
   }
 
   if (typeof body.sessionId !== "string" || !body.sessionId.trim()) {
-    return Response.json({ error: "sessionId is required." }, { status: 400 });
+    return createReportJsonResponse({ error: "sessionId is required." }, 400);
   }
 
   let sessionId: string;
@@ -33,7 +37,7 @@ export async function POST(request: Request): Promise<Response> {
     const message =
       error instanceof Error ? error.message : "Invalid session id.";
 
-    return Response.json({ error: message }, { status: 400 });
+    return createReportJsonResponse({ error: message }, 400);
   }
 
   try {
@@ -61,7 +65,7 @@ export async function POST(request: Request): Promise<Response> {
       ),
     };
 
-    return Response.json(response);
+    return createReportJsonResponse(response);
   } catch (error) {
     if (error instanceof ReportAssemblyError) {
       logReportGenerationFailure(sessionId, error, {
@@ -69,9 +73,9 @@ export async function POST(request: Request): Promise<Response> {
         detailCount: error.details.length,
       });
 
-      return Response.json(
+      return createReportJsonResponse(
         { error: error.message, details: error.details },
-        { status: 422 },
+        422,
       );
     }
 
@@ -80,8 +84,15 @@ export async function POST(request: Request): Promise<Response> {
 
     logReportGenerationFailure(sessionId, error, { status: 500 });
 
-    return Response.json({ error: message }, { status: 500 });
+    return createReportJsonResponse({ error: message }, 500);
   }
+}
+
+function createReportJsonResponse(body: unknown, status = 200): Response {
+  return Response.json(body, {
+    status,
+    headers: REPORT_RESPONSE_HEADERS,
+  });
 }
 
 function logReportGenerationFailure(
