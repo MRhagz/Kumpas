@@ -71,6 +71,24 @@ export interface StoredReportPdf {
   byteLength: number;
 }
 
+export interface ReportGenerationResponse {
+  sessionId: string;
+  downloadUrl: string;
+  expiresAt: string;
+  generatedAt: string;
+  byteLength: number;
+  recommendationCount: number;
+  recommendations: ReportRecommendationSummary[];
+}
+
+export interface ReportRecommendationSummary {
+  id: string;
+  rank: number;
+  careerPath: string;
+  alignmentScore: number;
+  keySignals: string[];
+}
+
 export function isNormalizedScore(score: number): boolean {
   return Number.isFinite(score) && score >= 0 && score <= 1;
 }
