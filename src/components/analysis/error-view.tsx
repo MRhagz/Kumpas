@@ -3,12 +3,13 @@
 import { AlertCircle, ArrowLeft, ShieldAlert } from "lucide-react";
 
 interface ErrorViewProps {
+    title?: string;
     message: string;
     onRetry: () => void;
     onBack: () => void;
 }
 
-export default function ErrorView({ message, onRetry, onBack }: ErrorViewProps) {
+export default function ErrorView({ title, message, onRetry, onBack }: ErrorViewProps) {
     const isProhibited = message.includes("PROHIBITED_CONTENT") || message.includes("Safety settings");
 
     return (
@@ -37,7 +38,7 @@ export default function ErrorView({ message, onRetry, onBack }: ErrorViewProps) 
                         <AlertCircle size={28} />
                     </div>
                     <div>
-                        <p className="text-base font-medium text-ink">Analysis failed</p>
+                        <p className="text-base font-medium text-ink">{title ?? "Analysis failed"}</p>
                         <p className="mt-1.5 max-w-sm text-sm text-muted-text">{message}</p>
                     </div>
                     <div className="flex gap-3">
