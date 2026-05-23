@@ -5,15 +5,21 @@ import { Download } from "lucide-react";
 interface PdfDownloadButtonProps {
   downloadUrl: string;
   fileName: string;
+  disabled?: boolean;
   onDownloadStart?: () => void | Promise<void>;
 }
 
 export default function PdfDownloadButton({
   downloadUrl,
   fileName,
+  disabled = false,
   onDownloadStart,
 }: PdfDownloadButtonProps) {
   const handleDownload = async () => {
+    if (disabled) {
+      return;
+    }
+
     try {
       await onDownloadStart?.();
     } catch (error) {
@@ -33,10 +39,11 @@ export default function PdfDownloadButton({
     <button
       type="button"
       onClick={handleDownload}
-      className="inline-flex items-center justify-center gap-2 rounded-lg bg-ink px-4 py-2.5 text-sm font-semibold text-white transition-colors hover:bg-forest"
+      disabled={disabled}
+      className="inline-flex items-center justify-center gap-2 rounded-lg bg-ink px-4 py-2.5 text-sm font-semibold text-white transition-colors hover:bg-forest disabled:cursor-not-allowed disabled:bg-muted-text disabled:opacity-70"
     >
       <Download size={16} />
-      Download PDF
+      {disabled ? "Link Expired" : "Download PDF"}
     </button>
   );
 }

@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import {
   CheckCircle2,
   Clock,
@@ -29,8 +29,21 @@ export default function ReportDownloadView({
     dateStyle: "medium",
     timeStyle: "short",
   }).format(new Date(report.expiresAt));
+  const [isDownloadExpired, setIsDownloadExpired] = useState(false);
   const fileName = `Kumpas_Report_${report.sessionId}.pdf`;
   const hasMissingDocuments = report.academicEvidence.missingDocuments.length > 0;
+
+  useEffect(() => {
+    const updateExpiryState = () => {
+      setIsDownloadExpired(Date.now() >= new Date(report.expiresAt).getTime());
+    };
+
+    updateExpiryState();
+
+    const intervalId = window.setInterval(updateExpiryState, 30_000);
+
+    return () => window.clearInterval(intervalId);
+  }, [report.expiresAt]);
 
   const handleNewSession = async () => {
     if (isStartingNewSession) {
@@ -161,11 +174,14 @@ export default function ReportDownloadView({
 
         <div className="mt-7 flex flex-col gap-3 border-t border-black/10 pt-5 sm:flex-row sm:items-center sm:justify-between">
           <p className="text-sm text-muted-text">
-            The signed report link is ready for this counseling session.
+            {isDownloadExpired
+              ? "This signed report link has expired. Generate the report again to download a fresh copy."
+              : "The signed report link is ready for this counseling session."}
           </p>
           <PdfDownloadButton
             downloadUrl={report.downloadUrl}
             fileName={fileName}
+            disabled={isDownloadExpired}
             onDownloadStart={onReportDownloadStart}
           />
         </div>
