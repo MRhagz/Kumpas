@@ -2,11 +2,15 @@
 import type { RecommendationProvider } from "@/lib/report/provider";
 import { mockRecommendationProvider } from "@/lib/report/provider";
 import type {
+  AcademicEvidenceSummary,
   RankedRecommendationList,
   ReportPayload,
   StudentProfile,
 } from "@/lib/report/types";
-import { validateRankedRecommendationList } from "@/lib/report/types";
+import {
+  validateAcademicEvidenceSummary,
+  validateRankedRecommendationList,
+} from "@/lib/report/types";
 
 export interface AssembleReportDataOptions {
   provider?: RecommendationProvider;
@@ -34,7 +38,12 @@ export async function assembleReportData(
     provider.getAcademicEvidenceSummary(sessionId),
   ]);
 
-  validateReportInputs(sessionId, studentProfile, rankedRecommendations);
+  validateReportInputs(
+    sessionId,
+    studentProfile,
+    rankedRecommendations,
+    academicEvidence,
+  );
   const auditTrail = buildAuditTrail(rankedRecommendations);
   validateReportAuditTrail(auditTrail);
 
@@ -52,10 +61,12 @@ function validateReportInputs(
   sessionId: string,
   studentProfile: StudentProfile,
   rankedRecommendations: RankedRecommendationList,
+  academicEvidence: AcademicEvidenceSummary,
 ): void {
   const errors = [
     ...validateStudentProfile(sessionId, studentProfile),
     ...validateRankedRecommendationList(rankedRecommendations),
+    ...validateAcademicEvidenceSummary(academicEvidence),
   ];
 
   if (rankedRecommendations.sessionId !== sessionId) {

@@ -99,8 +99,49 @@ export interface ReportRecommendationSummary {
   keySignals: string[];
 }
 
+const ACADEMIC_DOCUMENT_TYPES: AcademicDocumentType[] = ["form137", "ncae", "nat"];
+
 export function isNormalizedScore(score: number): boolean {
   return Number.isFinite(score) && score >= 0 && score <= 1;
+}
+
+export function validateAcademicEvidenceSummary(
+  evidence: AcademicEvidenceSummary,
+): string[] {
+  const errors: string[] = [];
+  const availableDocuments = new Set(evidence.availableDocuments);
+  const missingDocuments = new Set(evidence.missingDocuments);
+
+  if (!evidence.completenessNote.trim()) {
+    errors.push("Academic evidence requires a completeness note.");
+  }
+
+  ACADEMIC_DOCUMENT_TYPES.forEach((documentType) => {
+    const isAvailable = availableDocuments.has(documentType);
+    const isMissing = missingDocuments.has(documentType);
+
+    if (isAvailable && isMissing) {
+      errors.push(`${documentType} cannot be both available and missing.`);
+    }
+
+    if (!isAvailable && !isMissing) {
+      errors.push(`${documentType} must be marked available or missing.`);
+    }
+  });
+
+  evidence.availableDocuments.forEach((documentType) => {
+    if (!ACADEMIC_DOCUMENT_TYPES.includes(documentType)) {
+      errors.push(`Unknown available document type: ${documentType}.`);
+    }
+  });
+
+  evidence.missingDocuments.forEach((documentType) => {
+    if (!ACADEMIC_DOCUMENT_TYPES.includes(documentType)) {
+      errors.push(`Unknown missing document type: ${documentType}.`);
+    }
+  });
+
+  return errors;
 }
 
 export function validateRankedRecommendationList(
