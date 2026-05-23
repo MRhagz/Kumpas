@@ -28,9 +28,31 @@ function AnalysisContent() {
     const router = useRouter();
     const sessionId = searchParams.get("session");
 
-    const onNewSession = useCallback(() => {
+    const onNewSession = useCallback(async () => {
+        if (sessionId) {
+            try {
+                const response = await fetch(
+                    `/api/sessions/${encodeURIComponent(sessionId)}`,
+                    { method: "DELETE" },
+                );
+
+                if (!response.ok) {
+                    const errorBody = await response.json().catch(() => null);
+                    console.warn(
+                        "[analysis] Session cleanup failed before new session.",
+                        errorBody?.error ?? response.statusText,
+                    );
+                }
+            } catch (error) {
+                console.warn(
+                    "[analysis] Session cleanup failed before new session.",
+                    error,
+                );
+            }
+        }
+
         router.push("/input");
-    }, [router]);
+    }, [router, sessionId]);
 
     const runPipeline = useCallback(async () => {
         if (!sessionId) {
