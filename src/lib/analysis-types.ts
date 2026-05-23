@@ -125,7 +125,7 @@ export type AnalysisState =
     | { phase: "processing"; completedStages: StageName[] }
     | { phase: "complete"; report: AdjacentCareerReport; sessionIntake: SessionIntakeOutput; agentData: Record<AgentKey, AgentPanelData> }
     | { phase: "reportReady"; report: ReportGenerationResponse }
-    | { phase: "error"; message: string };
+    | { phase: "error"; title?: string; message: string };
 
 export interface StoredSession {
     counselorNotes: string;
