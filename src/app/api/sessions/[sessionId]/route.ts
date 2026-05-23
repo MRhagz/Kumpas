@@ -5,6 +5,10 @@ import { sessionTerminationHandler } from "@/lib/report/session-termination";
 
 export const runtime = "nodejs";
 
+const SESSION_RESPONSE_HEADERS = {
+  "Cache-Control": "no-store",
+};
+
 export async function DELETE(
   _request: NextRequest,
   { params }: { params: Promise<{ sessionId: string }> },
@@ -19,16 +23,23 @@ export async function DELETE(
     const message =
       error instanceof Error ? error.message : "Invalid session id.";
 
-    return Response.json({ error: message }, { status: 400 });
+    return createSessionJsonResponse({ error: message }, 400);
   }
 
   const result =
     await sessionTerminationHandler.terminateSession(normalizedSessionId);
 
-  return Response.json({
+  return createSessionJsonResponse({
     sessionId: result.sessionId,
     status: "terminated",
     reportPdfPurged: result.reportPdfPurged,
     warnings: result.warnings,
+  });
+}
+
+function createSessionJsonResponse(body: unknown, status = 200): Response {
+  return Response.json(body, {
+    status,
+    headers: SESSION_RESPONSE_HEADERS,
   });
 }

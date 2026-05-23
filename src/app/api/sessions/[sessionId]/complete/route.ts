@@ -5,6 +5,10 @@ import { sessionCompletionService } from "@/lib/report/session-completion";
 
 export const runtime = "nodejs";
 
+const SESSION_RESPONSE_HEADERS = {
+  "Cache-Control": "no-store",
+};
+
 export async function POST(
   _request: NextRequest,
   { params }: { params: Promise<{ sessionId: string }> },
@@ -19,13 +23,13 @@ export async function POST(
     const message =
       error instanceof Error ? error.message : "Invalid session id.";
 
-    return Response.json({ error: message }, { status: 400 });
+    return createSessionJsonResponse({ error: message }, 400);
   }
 
   try {
     await sessionCompletionService.markReportDownloaded(normalizedSessionId);
 
-    return Response.json({
+    return createSessionJsonResponse({
       sessionId: normalizedSessionId,
       status: "complete",
     });
@@ -33,6 +37,13 @@ export async function POST(
     const message =
       error instanceof Error ? error.message : "Failed to mark session complete.";
 
-    return Response.json({ error: message }, { status: 500 });
+    return createSessionJsonResponse({ error: message }, 500);
   }
+}
+
+function createSessionJsonResponse(body: unknown, status = 200): Response {
+  return Response.json(body, {
+    status,
+    headers: SESSION_RESPONSE_HEADERS,
+  });
 }
