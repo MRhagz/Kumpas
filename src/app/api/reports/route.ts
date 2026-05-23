@@ -64,6 +64,11 @@ export async function POST(request: Request): Promise<Response> {
     return Response.json(response);
   } catch (error) {
     if (error instanceof ReportAssemblyError) {
+      logReportGenerationFailure(sessionId, error, {
+        status: 422,
+        detailCount: error.details.length,
+      });
+
       return Response.json(
         { error: error.message, details: error.details },
         { status: 422 },
@@ -73,6 +78,27 @@ export async function POST(request: Request): Promise<Response> {
     const message =
       error instanceof Error ? error.message : "Report generation failed.";
 
+    logReportGenerationFailure(sessionId, error, { status: 500 });
+
     return Response.json({ error: message }, { status: 500 });
   }
+}
+
+function logReportGenerationFailure(
+  sessionId: string,
+  error: unknown,
+  context: {
+    status: number;
+    detailCount?: number;
+  },
+): void {
+  const message =
+    error instanceof Error ? error.message : "Report generation failed.";
+
+  console.error("[report-generation] failed", {
+    sessionId,
+    status: context.status,
+    detailCount: context.detailCount,
+    message,
+  });
 }
