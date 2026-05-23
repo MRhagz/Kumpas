@@ -13,6 +13,13 @@ interface StorageError {
   message: string;
 }
 
+interface StorageObject {
+  name: string;
+  created_at?: string | null;
+  updated_at?: string | null;
+  last_accessed_at?: string | null;
+}
+
 interface StorageBucketClient {
   upload(
     path: string,
@@ -26,6 +33,13 @@ interface StorageBucketClient {
     path: string,
     expiresIn: number,
   ): Promise<{ data: { signedUrl: string } | null; error: StorageError | null }>;
+  list(
+    path?: string,
+    options?: {
+      limit?: number;
+      offset?: number;
+    },
+  ): Promise<{ data: StorageObject[] | null; error: StorageError | null }>;
   remove(paths: string[]): Promise<{ error: StorageError | null }>;
 }
 
@@ -42,6 +56,13 @@ export interface PdfFileStoreOptions {
   client?: ReportStorageClient;
   supabaseUrl?: string;
   serviceRoleKey?: string;
+}
+
+export interface ReportPdfRetentionResult {
+  cutoff: string;
+  scannedCount: number;
+  deletedCount: number;
+  warnings: string[];
 }
 
 export class PdfFileStore {
@@ -119,6 +140,66 @@ export class PdfFileStore {
     }
   }
 
+  async purgeExpiredReportPdfs(
+    retentionHours = 24,
+  ): Promise<ReportPdfRetentionResult> {
+    if (!Number.isFinite(retentionHours) || retentionHours <= 0) {
+      throw new Error("Retention hours must be greater than zero.");
+    }
+
+    const cutoff = new Date(
+      this.now().getTime() - retentionHours * 60 * 60 * 1000,
+    );
+    const bucket = this.getClient().storage.from(this.bucketName);
+    const sessionFolders = await listAllStorageObjects(bucket);
+    const warnings: string[] = [];
+    let scannedCount = 0;
+    let deletedCount = 0;
+
+    for (const folder of sessionFolders) {
+      if (
+        !folder.name ||
+        folder.name.includes("/") ||
+        folder.name.includes("\\")
+      ) {
+        continue;
+      }
+
+      const reportObjects = await listAllStorageObjects(bucket, folder.name);
+
+      for (const reportObject of reportObjects) {
+        if (!reportObject.name.endsWith(".pdf")) {
+          continue;
+        }
+
+        scannedCount += 1;
+
+        const objectTimestamp = getStorageObjectTimestamp(reportObject);
+
+        if (!objectTimestamp || objectTimestamp > cutoff) {
+          continue;
+        }
+
+        const objectKey = `${folder.name}/${reportObject.name}`;
+        const { error } = await bucket.remove([objectKey]);
+
+        if (error) {
+          warnings.push(`Failed to delete ${objectKey}: ${error.message}`);
+          continue;
+        }
+
+        deletedCount += 1;
+      }
+    }
+
+    return {
+      cutoff: cutoff.toISOString(),
+      scannedCount,
+      deletedCount,
+      warnings,
+    };
+  }
+
   private getClient(): ReportStorageClient {
     const client =
       this.client ??
@@ -137,6 +218,57 @@ export class PdfFileStore {
 
     return client;
   }
+}
+
+async function listAllStorageObjects(
+  bucket: StorageBucketClient,
+  path?: string,
+): Promise<StorageObject[]> {
+  const objects: StorageObject[] = [];
+  const pageSize = 100;
+  let offset = 0;
+
+  while (true) {
+    const { data, error } = await bucket.list(path, {
+      limit: pageSize,
+      offset,
+    });
+
+    if (error) {
+      throw new Error(`Failed to list report PDFs: ${error.message}`);
+    }
+
+    if (!data || data.length === 0) {
+      break;
+    }
+
+    objects.push(...data);
+
+    if (data.length < pageSize) {
+      break;
+    }
+
+    offset += pageSize;
+  }
+
+  return objects;
+}
+
+function getStorageObjectTimestamp(object: StorageObject): Date | null {
+  const timestamp =
+    object.updated_at ?? object.created_at ?? object.last_accessed_at ?? null;
+
+  if (!timestamp) {
+    return null;
+  }
+
+  const parsedTimestamp = Date.parse(timestamp);
+
+  if (Number.isNaN(parsedTimestamp)) {
+    return null;
+  }
+
+  return new Date(parsedTimestamp);
 }
 
 export function getReportPdfObjectKey(sessionId: string): string {
