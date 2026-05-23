@@ -55,13 +55,20 @@ export default function ExtractionResultsPanel({
             {documents.map((d) => {
               const meta = DOC_META[d.docType];
               const Icon = meta?.icon ?? BarChart3;
+              // Disambiguate when the same docType (e.g. multiple Form 137s) appears twice.
+              const sameType = documents.filter((x) => x.docType === d.docType);
+              const baseLabel = meta?.label ?? d.docType;
+              const label =
+                sameType.length > 1
+                  ? `${baseLabel} #${sameType.findIndex((x) => x.slotIndex === d.slotIndex) + 1}`
+                  : baseLabel;
               return (
                 <TabsTrigger
                   key={d.slotIndex}
                   value={`slot-${d.slotIndex}`}
                   className="flex-1 gap-1.5 rounded-lg px-3 py-2 text-[12px] font-semibold transition-all data-[state=active]:bg-white data-[state=active]:shadow-sm data-[state=active]:text-sage data-[state=inactive]:text-muted-text"
                 >
-                  <Icon size={14} /> {meta?.label ?? d.docType}
+                  <Icon size={14} /> {label}
                 </TabsTrigger>
               );
             })}

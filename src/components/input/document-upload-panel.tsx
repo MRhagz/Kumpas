@@ -67,11 +67,13 @@ export default function DocumentUploadPanel({
     if (file && type) await upload(index, file, type);
   };
 
+  // NCAE and NAT may appear at most once. Form 137 may repeat (one document per school
+  // the student attended) so it is intentionally excluded from this exclusion list.
   const getExcluded = (index: 1 | 2 | 3) =>
     ([1, 2, 3] as const)
       .filter((i) => i !== index)
       .map((i) => slots[i].docType)
-      .filter(Boolean);
+      .filter((t): t is string => Boolean(t) && t !== "form_137");
 
   return (
     <div className="p-6 sm:p-8">
@@ -94,7 +96,10 @@ export default function DocumentUploadPanel({
       </div>
       <div className="flex items-start sm:items-center gap-2.5 rounded-lg bg-ochre-pale/60 border border-ochre/10 px-3 py-2.5 mb-4 text-xs text-ochre leading-snug">
         <Info size={14} className="shrink-0 mt-0.5 sm:mt-0" />
-        <span>Accepted: NCAE Results, Form 137, or NAT Results — as PDF or photo (max 10 MB)</span>
+        <span>
+          Accepted: NCAE Results, Form 137, or NAT Results — as PDF or photo (max 10 MB). Form 137
+          can be uploaded multiple times if the student attended different schools.
+        </span>
       </div>
       <div className="space-y-3">
         {([1, 2, 3] as const).map((i) => (

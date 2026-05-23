@@ -25,11 +25,34 @@ export class StudentProfileBuilder {
     if (fetchErr) throw new Error(`Failed to fetch extraction results: ${fetchErr.message}`);
 
     const academicData: ApprovedProfile["academicData"] = {};
+    // Form 137 may be uploaded once per school — concatenate subjects across all uploads.
+    const form137Subjects: Form137Data["subjects"] = [];
+    let form137SchoolYear: string | undefined;
+    let form137Gwa: number | undefined;
+
     for (const ex of extractions ?? []) {
       const d = ex.structured_data as ExtractedAcademicData;
       if (d.type === "ncae") academicData.ncae = d.data as NCAEData;
-      if (d.type === "form_137") academicData.form137 = d.data as Form137Data;
       if (d.type === "nat") academicData.nat = d.data as NATData;
+      if (d.type === "form_137") {
+        const f137 = d.data as Form137Data;
+        form137Subjects.push(...f137.subjects);
+        // School year strings are "YYYY-YYYY" so lexicographic compare matches chronological.
+        if (f137.school_year && (!form137SchoolYear || f137.school_year > form137SchoolYear)) {
+          form137SchoolYear = f137.school_year;
+        }
+        if (typeof f137.gwa === "number" && form137Gwa === undefined) {
+          form137Gwa = f137.gwa;
+        }
+      }
+    }
+
+    if (form137Subjects.length > 0) {
+      academicData.form137 = {
+        subjects: form137Subjects,
+        ...(form137SchoolYear ? { school_year: form137SchoolYear } : {}),
+        ...(form137Gwa !== undefined ? { gwa: form137Gwa } : {}),
+      };
     }
 
     const profile: ApprovedProfile = {

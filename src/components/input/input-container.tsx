@@ -350,7 +350,9 @@ export default function InputContainer() {
             if (origGrade !== s.grade)
               corrections.push({
                 session_id: sessionId,
-                field_name: `form137_subject.${s.name}`,
+                // Include year so corrections from two Form 137s with the same subject names
+                // (e.g. "Filipino" from elementary AND junior high) don't collide.
+                field_name: `form137_subject.${s.year || "unknown"}.${s.name}`,
                 extracted_value: String(origGrade ?? ""),
                 corrected_value: String(s.grade),
               });
