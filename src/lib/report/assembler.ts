@@ -1,6 +1,6 @@
 ﻿import { buildAuditTrail, validateAuditTrail } from "@/lib/report/audit-trail";
+import { module3RecommendationProvider } from "@/lib/module3/recommendation-provider";
 import type { RecommendationProvider } from "@/lib/report/provider";
-import { mockRecommendationProvider } from "@/lib/report/provider";
 import type {
   RankedRecommendationList,
   ReportPayload,
@@ -27,7 +27,7 @@ export async function assembleReportData(
   sessionId: string,
   options: AssembleReportDataOptions = {},
 ): Promise<ReportPayload> {
-  const provider = options.provider ?? mockRecommendationProvider;
+  const provider = options.provider ?? module3RecommendationProvider;
   const [studentProfile, rankedRecommendations] = await Promise.all([
     provider.getApprovedStudentProfile(sessionId),
     provider.getRankedRecommendations(sessionId),
