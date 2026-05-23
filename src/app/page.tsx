@@ -49,7 +49,7 @@ export default function LandingPage() {
   }, []);
 
   const handleGetStarted = () => {
-    router.push("/input");
+    router.push("/login");
   };
 
   return (

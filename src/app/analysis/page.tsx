@@ -4,6 +4,7 @@ import { useEffect, useState, useCallback, Suspense, useRef } from "react";
 import { useSearchParams, useRouter } from "next/navigation";
 import { Loader2 } from "lucide-react";
 import LoadingScreen from "@/components/analysis/loading-screen";
+import ProtectedHeader from "@/components/auth/protected-header";
 
 import type { StageName } from "@/lib/analysis-types";
 import type { ReportGenerationResponse } from "@/lib/report/types";
@@ -200,14 +201,17 @@ function isReportErrorBody(
 
 export default function Page() {
   return (
-    <Suspense
-      fallback={
-        <main className="flex min-h-[60vh] items-center justify-center bg-background">
-          <Loader2 size={24} className="animate-spin text-muted-text" />
-        </main>
-      }
-    >
-      <AnalysisContent />
-    </Suspense>
+    <>
+      <ProtectedHeader />
+      <Suspense
+        fallback={
+          <main className="flex min-h-[60vh] items-center justify-center bg-background">
+            <Loader2 size={24} className="animate-spin text-muted-text" />
+          </main>
+        }
+      >
+        <AnalysisContent />
+      </Suspense>
+    </>
   );
 }
