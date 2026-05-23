@@ -84,6 +84,39 @@ class VectorStoreRepository:
             .execute()
         )
 
+    def known_publication_urls(self, source_type: str) -> set[str]:
+        """Returns publication URLs already recorded for this source_type.
+
+        Backs the PublicationIndexChecker change-detection step for Module 1.2.
+        """
+        result = (
+            self._supabase.table("publication_index_cache")
+            .select("publication_url")
+            .eq("source_type", source_type)
+            .execute()
+        )
+        return {row["publication_url"] for row in result.data or []}
+
+    def record_publication_ingested(
+        self,
+        publication_url: str,
+        source_type: str,
+        log_id: str,
+        ingested_at: datetime | None = None,
+    ) -> None:
+        ts = ingested_at or datetime.now(timezone.utc)
+        payload = {
+            "publication_url": publication_url,
+            "source_type": source_type,
+            "ingested_at": ts.isoformat(),
+            "ingestion_log_id": log_id,
+        }
+        (
+            self._supabase.table("publication_index_cache")
+            .upsert(payload, on_conflict="publication_url")
+            .execute()
+        )
+
     def _fetch_existing_hashes(
         self, chunks: list[ChunkInput]
     ) -> dict[tuple[str, str, int], str]:
