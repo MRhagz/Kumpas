@@ -7,16 +7,11 @@ import LoadingScreen from "@/components/analysis/loading-screen";
 
 import type {
     AnalysisState,
-    SessionIntakeOutput,
-    AdjacentCareerReport,
-    StoredSession,
-    RawAgentResponse,
     StageName,
 } from "@/lib/analysis-types";
 
-import { STAGE_ORDER } from "@/components/analysis/processing-view";
-import ReportView from "@/components/analysis/report-view";
 import ErrorView from "@/components/analysis/error-view";
+import ReportDownloadView from "@/components/analysis/report-download-view";
 
 /**
  * Simulates the multi-stage analysis pipeline for UI demonstration.
@@ -33,9 +28,49 @@ function AnalysisContent() {
     const router = useRouter();
     const sessionId = searchParams.get("session");
 
-    const onNewSession = useCallback(() => {
+    const onNewSession = useCallback(async () => {
+        if (sessionId) {
+            try {
+                const response = await fetch(
+                    `/api/sessions/${encodeURIComponent(sessionId)}`,
+                    { method: "DELETE" },
+                );
+
+                if (!response.ok) {
+                    const errorBody = await response.json().catch(() => null);
+                    console.warn(
+                        "[analysis] Session cleanup failed before new session.",
+                        errorBody?.error ?? response.statusText,
+                    );
+                }
+            } catch (error) {
+                console.warn(
+                    "[analysis] Session cleanup failed before new session.",
+                    error,
+                );
+            }
+        }
+
         router.push("/input");
-    }, [router]);
+    }, [router, sessionId]);
+
+    const onReportDownloadStart = useCallback(async () => {
+        if (!sessionId) {
+            return;
+        }
+
+        const response = await fetch(
+            `/api/sessions/${encodeURIComponent(sessionId)}/complete`,
+            { method: "POST" },
+        );
+
+        if (!response.ok) {
+            const errorBody = await response.json().catch(() => null);
+            throw new Error(
+                errorBody?.error ?? "Failed to mark report download complete.",
+            );
+        }
+    }, [sessionId]);
 
     const runPipeline = useCallback(async () => {
         if (!sessionId) {
@@ -43,36 +78,54 @@ function AnalysisContent() {
             return;
         }
 
-        setState({ phase: "processing", completedStages: [] });
+        try {
+            setState({ phase: "processing", completedStages: [] });
 
-        // Simulate the pipeline stages with delays for UI demonstration
-        const stages: StageName[] = [
-            "documentParsing",
-            "notesParsing",
-            "transcriptionLayer",
-            "feasibility",
-            "laborMarket",
-            "jobDemand",
-            "adjacentCareer",
-        ];
+            // Simulate upstream modules until Module 3 is available.
+            const stages: StageName[] = [
+                "documentParsing",
+                "notesParsing",
+                "transcriptionLayer",
+                "feasibility",
+                "laborMarket",
+                "jobDemand",
+                "adjacentCareer",
+            ];
 
-        for (let i = 0; i < stages.length; i++) {
-            await new Promise((r) => setTimeout(r, 600));
-            setState((prev) => {
-                if (prev.phase !== "processing") return prev;
-                return {
-                    ...prev,
-                    completedStages: stages.slice(0, i + 1),
-                };
+            for (let i = 0; i < stages.length; i++) {
+                await new Promise((r) => setTimeout(r, 600));
+                setState((prev) => {
+                    if (prev.phase !== "processing") return prev;
+                    return {
+                        ...prev,
+                        completedStages: stages.slice(0, i + 1),
+                    };
+                });
+            }
+
+            const response = await fetch("/api/reports", {
+                method: "POST",
+                headers: {
+                    "Content-Type": "application/json",
+                },
+                body: JSON.stringify({ sessionId }),
+            });
+            const responseBody = await response.json();
+
+            if (!response.ok) {
+                throw new Error(responseBody.error ?? "Report generation failed.");
+            }
+
+            setState({ phase: "reportReady", report: responseBody });
+        } catch (error) {
+            setState({
+                phase: "error",
+                message:
+                    error instanceof Error
+                        ? error.message
+                        : "Report generation failed.",
             });
         }
-
-        // After simulation, show informational error
-        await new Promise((r) => setTimeout(r, 800));
-        setState({
-            phase: "error",
-            message: "Analysis pipeline not yet connected. Wire up your new backend API routes to enable real analysis.",
-        });
     }, [sessionId]);
 
     useEffect(() => {
@@ -97,6 +150,13 @@ function AnalysisContent() {
                     message={state.message}
                     onRetry={runPipeline}
                     onBack={() => router.push("/")}
+                />
+            )}
+            {state.phase === "reportReady" && (
+                <ReportDownloadView
+                    report={state.report}
+                    onNewSession={onNewSession}
+                    onReportDownloadStart={onReportDownloadStart}
                 />
             )}
         </main>
