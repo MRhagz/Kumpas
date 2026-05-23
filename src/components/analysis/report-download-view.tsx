@@ -1,5 +1,6 @@
 "use client";
 
+import { useState } from "react";
 import { CheckCircle2, Clock, FileText, RotateCcw, Sparkles } from "lucide-react";
 
 import PdfDownloadButton from "@/components/analysis/pdf-download-button";
@@ -7,18 +8,33 @@ import type { ReportGenerationResponse } from "@/lib/report/types";
 
 interface ReportDownloadViewProps {
   report: ReportGenerationResponse;
-  onNewSession: () => void;
+  onNewSession: () => void | Promise<void>;
 }
 
 export default function ReportDownloadView({
   report,
   onNewSession,
 }: ReportDownloadViewProps) {
+  const [isStartingNewSession, setIsStartingNewSession] = useState(false);
   const expiresAt = new Intl.DateTimeFormat(undefined, {
     dateStyle: "medium",
     timeStyle: "short",
   }).format(new Date(report.expiresAt));
   const fileName = `Kumpas_Report_${report.sessionId}.pdf`;
+
+  const handleNewSession = async () => {
+    if (isStartingNewSession) {
+      return;
+    }
+
+    setIsStartingNewSession(true);
+
+    try {
+      await onNewSession();
+    } finally {
+      setIsStartingNewSession(false);
+    }
+  };
 
   return (
     <div className="mx-auto flex min-h-screen max-w-4xl flex-col justify-center px-4 py-10 sm:px-6">
@@ -37,11 +53,13 @@ export default function ReportDownloadView({
           </div>
           <button
             type="button"
-            onClick={onNewSession}
+            onClick={handleNewSession}
+            disabled={isStartingNewSession}
+            aria-busy={isStartingNewSession}
             className="inline-flex shrink-0 items-center justify-center gap-2 rounded-lg border border-black/10 bg-white px-3.5 py-2 text-xs font-semibold uppercase tracking-wider text-muted-text transition-colors hover:text-ink"
           >
             <RotateCcw size={14} />
-            New Session
+            {isStartingNewSession ? "Starting..." : "New Session"}
           </button>
         </div>
 
