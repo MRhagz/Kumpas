@@ -40,6 +40,7 @@ export async function POST(request: Request): Promise<Response> {
       byteLength: storedPdf.byteLength,
       recommendationCount:
         reportPayload.rankedRecommendations.recommendations.length,
+      academicEvidence: reportPayload.academicEvidence,
       recommendations: reportPayload.rankedRecommendations.recommendations.map(
         (recommendation) => ({
           id: recommendation.id,

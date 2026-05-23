@@ -1,4 +1,5 @@
 ﻿import type {
+  AcademicEvidenceSummary,
   RankedRecommendationList,
   StudentProfile,
 } from "@/lib/report/types";
@@ -111,6 +112,13 @@ export const demoRankedRecommendationList: RankedRecommendationList = {
       incompleteReason: "One contributing analysis output was unavailable.",
     },
   ],
+};
+
+export const demoAcademicEvidenceSummary: AcademicEvidenceSummary = {
+  availableDocuments: ["form137", "ncae"],
+  missingDocuments: ["nat"],
+  completenessNote:
+    "NAT data was not available, so recommendations rely more heavily on Form 137 grades, NCAE aptitude signals, counselor notes, and labor-market context.",
 };
 
 export const demoRankedRecommendationValidationErrors =

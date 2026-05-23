@@ -28,9 +28,10 @@ export async function assembleReportData(
   options: AssembleReportDataOptions = {},
 ): Promise<ReportPayload> {
   const provider = options.provider ?? mockRecommendationProvider;
-  const [studentProfile, rankedRecommendations] = await Promise.all([
+  const [studentProfile, rankedRecommendations, academicEvidence] = await Promise.all([
     provider.getApprovedStudentProfile(sessionId),
     provider.getRankedRecommendations(sessionId),
+    provider.getAcademicEvidenceSummary(sessionId),
   ]);
 
   validateReportInputs(sessionId, studentProfile, rankedRecommendations);
@@ -41,6 +42,7 @@ export async function assembleReportData(
     sessionId,
     studentProfile,
     rankedRecommendations,
+    academicEvidence,
     auditTrail,
     generatedAt: options.generatedAt ?? new Date().toISOString(),
   };

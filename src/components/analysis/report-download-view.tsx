@@ -1,7 +1,14 @@
 "use client";
 
 import { useState } from "react";
-import { CheckCircle2, Clock, FileText, RotateCcw, Sparkles } from "lucide-react";
+import {
+  CheckCircle2,
+  Clock,
+  FileText,
+  FileWarning,
+  RotateCcw,
+  Sparkles,
+} from "lucide-react";
 
 import PdfDownloadButton from "@/components/analysis/pdf-download-button";
 import type { ReportGenerationResponse } from "@/lib/report/types";
@@ -21,6 +28,7 @@ export default function ReportDownloadView({
     timeStyle: "short",
   }).format(new Date(report.expiresAt));
   const fileName = `Kumpas_Report_${report.sessionId}.pdf`;
+  const hasMissingDocuments = report.academicEvidence.missingDocuments.length > 0;
 
   const handleNewSession = async () => {
     if (isStartingNewSession) {
@@ -82,6 +90,34 @@ export default function ReportDownloadView({
           </div>
         </div>
 
+        <div className="mt-7 rounded-lg border border-black/10 bg-background p-4">
+          <div className="flex items-center gap-2 text-xs font-semibold uppercase tracking-wider text-muted-text">
+            <FileWarning size={15} />
+            Academic Evidence
+          </div>
+          <div className="mt-3 grid gap-3 sm:grid-cols-2">
+            <div>
+              <p className="text-[10px] font-semibold uppercase tracking-[0.16em] text-muted-text">
+                Available
+              </p>
+              <p className="mt-1 text-sm font-semibold text-ink">
+                {formatAcademicDocuments(report.academicEvidence.availableDocuments)}
+              </p>
+            </div>
+            <div>
+              <p className="text-[10px] font-semibold uppercase tracking-[0.16em] text-muted-text">
+                Missing
+              </p>
+              <p className={hasMissingDocuments ? "mt-1 text-sm font-semibold text-amber-700" : "mt-1 text-sm font-semibold text-ink"}>
+                {formatAcademicDocuments(report.academicEvidence.missingDocuments)}
+              </p>
+            </div>
+          </div>
+          <p className="mt-3 text-sm text-muted-text">
+            {report.academicEvidence.completenessNote}
+          </p>
+        </div>
+
         <div className="mt-7">
           <div className="mb-3 flex items-center gap-2 text-xs font-semibold uppercase tracking-wider text-muted-text">
             <Sparkles size={15} />
@@ -130,4 +166,20 @@ export default function ReportDownloadView({
       </section>
     </div>
   );
+}
+
+function formatAcademicDocuments(documents: string[]): string {
+  if (documents.length === 0) {
+    return "None";
+  }
+
+  return documents.map(formatAcademicDocument).join(", ");
+}
+
+function formatAcademicDocument(document: string): string {
+  if (document === "form137") {
+    return "Form 137";
+  }
+
+  return document.toUpperCase();
 }
