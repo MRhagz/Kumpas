@@ -5,7 +5,10 @@ import type {
   RankedRecommendationList,
   StudentProfile,
 } from "@/lib/report/types";
-import { validateRankedRecommendationList } from "@/lib/report/types";
+import {
+  validateAcademicEvidenceSummary,
+  validateRankedRecommendationList,
+} from "@/lib/report/types";
 
 export interface RecommendationProvider {
   getApprovedStudentProfile(sessionId: string): Promise<StudentProfile>;
@@ -53,7 +56,16 @@ export async function getMockAcademicEvidenceSummary(
   sessionId: string,
 ): Promise<AcademicEvidenceSummary> {
   assertDemoSession(sessionId);
-  return cloneFixture(demoAcademicEvidenceSummary);
+  const evidence = cloneFixture(demoAcademicEvidenceSummary);
+  const validationErrors = validateAcademicEvidenceSummary(evidence);
+
+  if (validationErrors.length > 0) {
+    throw new Error(
+      `Mock academic evidence is invalid: ${validationErrors.join(" ")}`,
+    );
+  }
+
+  return evidence;
 }
 
 export const mockRecommendationProvider: RecommendationProvider = {

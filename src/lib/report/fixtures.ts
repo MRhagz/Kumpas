@@ -3,7 +3,10 @@
   RankedRecommendationList,
   StudentProfile,
 } from "@/lib/report/types";
-import { validateRankedRecommendationList } from "@/lib/report/types";
+import {
+  validateAcademicEvidenceSummary,
+  validateRankedRecommendationList,
+} from "@/lib/report/types";
 
 export const demoStudentProfile: StudentProfile = {
   sessionId: "demo-session-module-4",
@@ -123,4 +126,7 @@ export const demoAcademicEvidenceSummary: AcademicEvidenceSummary = {
 
 export const demoRankedRecommendationValidationErrors =
   validateRankedRecommendationList(demoRankedRecommendationList);
+
+export const demoAcademicEvidenceValidationErrors =
+  validateAcademicEvidenceSummary(demoAcademicEvidenceSummary);
 
