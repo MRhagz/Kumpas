@@ -99,7 +99,9 @@ export class PdfFileStore {
     });
 
     if (uploadError) {
-      throw new Error(`Failed to upload report PDF: ${uploadError.message}`);
+      throw new Error(
+        `Failed to upload report PDF: ${formatStorageError(uploadError, this.bucketName)}`,
+      );
     }
 
     const { data, error: signedUrlError } = await bucket.createSignedUrl(
@@ -109,7 +111,10 @@ export class PdfFileStore {
 
     if (signedUrlError) {
       throw new Error(
-        `Failed to create signed report URL: ${signedUrlError.message}`,
+        `Failed to create signed report URL: ${formatStorageError(
+          signedUrlError,
+          this.bucketName,
+        )}`,
       );
     }
 
@@ -136,7 +141,9 @@ export class PdfFileStore {
     const { error } = await bucket.remove([objectKey]);
 
     if (error) {
-      throw new Error(`Failed to delete report PDF: ${error.message}`);
+      throw new Error(
+        `Failed to delete report PDF: ${formatStorageError(error, this.bucketName)}`,
+      );
     }
   }
 
@@ -184,7 +191,12 @@ export class PdfFileStore {
         const { error } = await bucket.remove([objectKey]);
 
         if (error) {
-          warnings.push(`Failed to delete ${objectKey}: ${error.message}`);
+          warnings.push(
+            `Failed to delete ${objectKey}: ${formatStorageError(
+              error,
+              this.bucketName,
+            )}`,
+          );
           continue;
         }
 
@@ -269,6 +281,14 @@ function getStorageObjectTimestamp(object: StorageObject): Date | null {
   }
 
   return new Date(parsedTimestamp);
+}
+
+function formatStorageError(error: StorageError, bucketName: string): string {
+  if (/bucket not found/i.test(error.message)) {
+    return `${error.message}. Create the private Supabase Storage bucket "${bucketName}" before generating reports.`;
+  }
+
+  return error.message;
 }
 
 export function getReportPdfObjectKey(sessionId: string): string {
