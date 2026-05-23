@@ -2,11 +2,15 @@
 import { module3RecommendationProvider } from "@/lib/module3/recommendation-provider";
 import type { RecommendationProvider } from "@/lib/report/provider";
 import type {
+  AcademicEvidenceSummary,
   RankedRecommendationList,
   ReportPayload,
   StudentProfile,
 } from "@/lib/report/types";
-import { validateRankedRecommendationList } from "@/lib/report/types";
+import {
+  validateAcademicEvidenceSummary,
+  validateRankedRecommendationList,
+} from "@/lib/report/types";
 
 export interface AssembleReportDataOptions {
   provider?: RecommendationProvider;
@@ -28,12 +32,18 @@ export async function assembleReportData(
   options: AssembleReportDataOptions = {},
 ): Promise<ReportPayload> {
   const provider = options.provider ?? module3RecommendationProvider;
-  const [studentProfile, rankedRecommendations] = await Promise.all([
+  const [studentProfile, rankedRecommendations, academicEvidence] = await Promise.all([
     provider.getApprovedStudentProfile(sessionId),
     provider.getRankedRecommendations(sessionId),
+    provider.getAcademicEvidenceSummary(sessionId),
   ]);
 
-  validateReportInputs(sessionId, studentProfile, rankedRecommendations);
+  validateReportInputs(
+    sessionId,
+    studentProfile,
+    rankedRecommendations,
+    academicEvidence,
+  );
   const auditTrail = buildAuditTrail(rankedRecommendations);
   validateReportAuditTrail(auditTrail);
 
@@ -41,6 +51,7 @@ export async function assembleReportData(
     sessionId,
     studentProfile,
     rankedRecommendations,
+    academicEvidence,
     auditTrail,
     generatedAt: options.generatedAt ?? new Date().toISOString(),
   };
@@ -50,10 +61,12 @@ function validateReportInputs(
   sessionId: string,
   studentProfile: StudentProfile,
   rankedRecommendations: RankedRecommendationList,
+  academicEvidence: AcademicEvidenceSummary,
 ): void {
   const errors = [
     ...validateStudentProfile(sessionId, studentProfile),
     ...validateRankedRecommendationList(rankedRecommendations),
+    ...validateAcademicEvidenceSummary(academicEvidence),
   ];
 
   if (rankedRecommendations.sessionId !== sessionId) {
