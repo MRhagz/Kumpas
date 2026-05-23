@@ -107,3 +107,67 @@ export type ExtractedAcademicData =
   | { type: "ncae"; data: NCAEData }
   | { type: "form_137"; data: Form137Data }
   | { type: "nat"; data: NATData };
+
+/* ─── Module 2 — session lifecycle types ─── */
+
+export interface Session {
+  id: string;
+  counselor_id: string | null;
+  status: "active" | "completed" | "expired" | "cancelled";
+  approved_profile: ApprovedProfile | null;
+  created_at: string;
+  last_activity: string;
+  expires_at: string;
+}
+
+export interface SessionNotes {
+  id: string;
+  session_id: string;
+  career_goal: string;
+  interests: string;
+  financial: string;
+  concerns: string;
+  impression: string;
+}
+
+export interface ExtractionResult {
+  id: string;
+  session_id: string;
+  document_type: "ncae" | "form_137" | "nat";
+  structured_data: ExtractedAcademicData;
+  redacted_image_path: string | null;
+  created_at: string;
+}
+
+export interface CorrectionLog {
+  session_id: string;
+  field_name: string;
+  extracted_value: string | null;
+  corrected_value: string;
+}
+
+export interface ApprovedProfile {
+  sessionId: string;
+  sessionTimestamp: string;
+  counselorNotes: {
+    careerGoal: string;
+    interests: string;
+    financial: string;
+    concerns: string;
+    impression: string;
+  };
+  academicData: {
+    ncae?: NCAEData;
+    form137?: Form137Data;
+    nat?: NATData;
+  };
+}
+
+export interface UploadedDocument {
+  documentId: string;
+  slotIndex: 1 | 2 | 3;
+  docType: string;
+  extractedData: ExtractedAcademicData;
+  redactedImageUrl: string | null;
+  originalExtractedData: ExtractedAcademicData;
+}
