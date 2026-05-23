@@ -100,7 +100,7 @@ Kumpas is a web-based application engineered to assist school guidance counselor
 
 From these inputs, the system performs the following core functions:
 
-* **Knowledge Base Population:** Automated periodic acquisition of Philippine labor market data from PSA OpenSTAT and DOLE BLE LMI publications, scholarship and priority program data from CHED Memorandum Orders, and manually curated TESDA program cost records, stored in a structured, timestamped vector store that serves as the sole factual foundation for all agent-generated recommendations. 
+* **Knowledge Base Population:** Periodic acquisition of Philippine labor market data through three documented tiers: operator-curated CSV exports from PSA OpenSTAT for Labor Force Survey occupational data (downloaded manually each quarter because PSA portals are behind a CDN that blocks non-browser clients), automated PDF parsing of publicly downloadable DOLE BLE LMI reports and CHED Memorandum Orders, and manually curated TESDA program cost records. All records are stored in a structured, timestamped vector store that serves as the sole factual foundation for all agent-generated recommendations. 
 
 * **Multimodal Processing:** Automated academic document parsing featuring strict personally identifiable information (PII) redaction prior to data processing.
 
@@ -185,7 +185,7 @@ De Leon, P. J. (2025). The influence of socioeconomic factors on career choices 
 
 Kumpas is a standalone, counselor-facing web application designed to support career guidance sessions. It does not replace existing DepEd systems but addresses a gap where student assessment data (e.g., NCAE and NAT results) exist only as paper or PDF records with no automated integration into counseling workflows. As a result, counselors currently perform manual review and synthesis of these documents.
 
-The system uses an external multimodal large language model (LLM) accessed via a secure API, configured via prompt engineering, supported by a retrieval-augmented generation (RAG) approach using a Supabase-hosted vector store (pgvector) pre-populated through three documented acquisition tiers: automated structured-file downloads from PSA OpenSTAT for occupational employment data, automated PDF parsing of publicly downloadable DOLE BLE LMI reports and CHED Memorandum Orders for in-demand occupation rankings and scholarship details, and manual curation of TESDA program cost and tuition benchmarks. Each indexed record retains its source reference, acquisition method (automated or manual), and ingestion timestamp. 
+The system uses an external multimodal large language model (LLM) accessed via a secure API, configured via prompt engineering, supported by a retrieval-augmented generation (RAG) approach using a Supabase-hosted vector store (pgvector) pre-populated through three documented acquisition tiers: operator-curated CSV exports from PSA OpenSTAT for occupational employment data, automated PDF parsing of publicly downloadable DOLE BLE LMI reports and CHED Memorandum Orders for in-demand occupation rankings and scholarship details, and manual curation of TESDA program cost and tuition benchmarks. Each indexed record retains its source reference, acquisition method (automated CSV, automated PDF, operator-curated CSV, or manual curation), and ingestion timestamp. 
 
 Kumpas operates through five sequential modules within a single session:   
 (1) document upload and PII redaction  
@@ -213,6 +213,8 @@ Kumpas operates through five sequential modules within a single session:
   The document extraction pipeline must handle variations in image quality (e.g., blur, lighting, layout differences). However, extraction accuracy cannot be guaranteed below the defined threshold when input quality is poor. The system performs best when all required documents (Form 137, NCAE, NAT) are provided; missing inputs will reduce the completeness of generated recommendations.  
 * **Internet Dependency**   
   The system requires a stable internet connection during counseling sessions for two purposes: Gemini API calls for document extraction and agent inference, and Supabase queries for knowledge base retrieval. If either service is unreachable during a session, the affected function cannot proceed and the counselor must be notified. The knowledge base acquisition pipeline also requires internet access when it runs on its defined refresh schedule, but this occurs outside of counseling hours and is the responsibility of the development team.   
+* **External Data Source Constraints**  
+  PSA data portals (psa.gov.ph, openstat.psa.gov.ph, data.gov.ph) are behind a content delivery network that returns HTTP 403 to non-browser clients. Scheduled CI fetch of PSA Labor Force Survey CSVs is therefore not feasible. Until a sanctioned PSA data-sharing arrangement exists, PSA data is acquired through the operator-curated CSV tier: the development team downloads the quarterly LFS table through a real browser, normalizes the columns, and commits the cleaned CSV to the repository, which triggers the ingestion workflow.  
 * **Regulatory and Usage Constraints**  
   The system is intended solely as a decision-support tool for licensed guidance counselors. It does not replace formal counseling sessions or issue official career certifications. Outputs are advisory and must not be used as sole determinants for student decisions.  
 * **Scope Constraints**  
@@ -226,7 +228,7 @@ Kumpas operates through five sequential modules within a single session:
 * **User Accounts:** Counselor accounts are provisioned  by the development team at deployment, from a roster supplied by the school.  
 * **Document Integrity:** Input documents (Form 137, NCAE, NAT) are assumed to be legible photographs or scans of official records. Accuracy may decrease if images are blurred, poorly lit, or obstructed.  
 * **Pre-Deployment Setup:** It is assumed that the development team has already performed the one-time setup, including  configuring the local application environment, indexing the vector store, and ensuring the hardware meets minimum specs.  
-* **Data Recency:** PSA OpenSTAT and DOLE BLE LMI data are refreshed on a quarterly schedule aligned with PSA Labor Force Survey releases. CHED Memorandum Order data is refreshed per new publication. TESDA program cost data is reviewed and updated manually once per semester by the development team via a CSV committed to the repository. Recommendations generated during any session reflect the state of the vector store at the time of that session's counselor approval, as recorded by each record's ingestion timestamp.   
+* **Data Recency:** PSA OpenSTAT data is refreshed each quarter through an operator-curated CSV commit by the development team, aligned with PSA Labor Force Survey releases. DOLE BLE LMI data is refreshed on a quarterly automated schedule. CHED Memorandum Order data is refreshed per new publication. TESDA program cost data is reviewed and updated manually once per semester by the development team via a CSV committed to the repository. Recommendations generated during any session reflect the state of the vector store at the time of that session's counselor approval, as recorded by each record's ingestion timestamp.   
 * **Standard Formats:** The system assumes that test results follow standard DepEd formats. The extraction pipeline may not correctly parse non-standard or third-party assessment layouts.
 
 **Dependencies**
@@ -262,7 +264,7 @@ The frontend and backend shall be implemented within a single Next.js applicatio
 
 The system interfaces with the Google Gemini API as its multimodal AI backbone. The Next.js backend transmits redacted document images and structured prompt payloads to the Gemini API via authenticated HTTPS POST requests. The API serves two distinct functions within the system: multimodal academic data extraction in Module 2, where redacted document images are parsed to populate structured academic data fields, and multi-agent career analysis in Module 3, where each of the three specialist agents — the Academic Auditor, the Industry Analyst, and the Feasibility Strategist — submits independent inference requests grounded in RAG-retrieved context from their respective knowledge silos. All responses are received as JSON and parsed by the backend pipeline. It is a strict and non-negotiable architectural requirement that the PII redaction pipeline must fully complete server-side before any document image or extracted text is transmitted to this interface. This is the sole mechanism by which the system maintains compliance with the Data Privacy Act of 2012 (R.A. 10173). Under no circumstances shall unredacted document content be submitted to the Gemini API under any deployment configuration.
 
-The system interfaces with Supabase as its cloud-hosted vector store, utilizing the pgvector extension to perform similarity searches across three federated and decoupled knowledge silos: Market Analytics, Live Labor Demand, and Path Feasibility. Identity is managed by Supabase Auth. The Next.js backend validates JWTs on every protected route. RLS in Postgres enforces row ownership of session data by counselor\_id \= auth.uid(). The Next.js backend communicates with Supabase via its REST API and PostgreSQL client over authenticated HTTPS connections, querying the designated silo for each specialist agent during the Module 3 analysis phase. The Supabase instance contains only publicly sourced government data acquired through three documented tiers: automated structured-file downloads from PSA OpenSTAT for occupational employment data, automated PDF parsing of publicly downloadable DOLE BLE LMI reports and CHED Memorandum Orders, and manual curation of TESDA program cost and tuition benchmarks. Each indexed record retains its source reference, acquisition method, and ingestion timestamp. No student data is stored in or transmitted to Supabase under any deployment configuration, and its external hosting therefore raises no compliance concerns under R.A. 10173\. Supabase project credentials must be configured in the Vercel environment variables, and all knowledge silos must be fully populated through the acquisition pipeline prior to any live counseling session being conducted.
+The system interfaces with Supabase as its cloud-hosted vector store, utilizing the pgvector extension to perform similarity searches across three federated and decoupled knowledge silos: Market Analytics, Live Labor Demand, and Path Feasibility. Identity is managed by Supabase Auth. The Next.js backend validates JWTs on every protected route. RLS in Postgres enforces row ownership of session data by counselor\_id \= auth.uid(). The Next.js backend communicates with Supabase via its REST API and PostgreSQL client over authenticated HTTPS connections, querying the designated silo for each specialist agent during the Module 3 analysis phase. The Supabase instance contains only publicly sourced government data acquired through three documented tiers: operator-curated CSV exports from PSA OpenSTAT for occupational employment data, automated PDF parsing of publicly downloadable DOLE BLE LMI reports and CHED Memorandum Orders, and manual curation of TESDA program cost and tuition benchmarks. Each indexed record retains its source reference, acquisition method, and ingestion timestamp. No student data is stored in or transmitted to Supabase under any deployment configuration, and its external hosting therefore raises no compliance concerns under R.A. 10173\. Supabase project credentials must be configured in the Vercel environment variables, and all knowledge silos must be fully populated through the acquisition pipeline prior to any live counseling session being conducted.
 
 The system has no interface with a Student Information System in the current version. SIS integration is deferred to a future release.
 
@@ -274,7 +276,7 @@ Kumpas requires a stable internet connection on the counselor's client device th
 
 The system has two session-time external network dependencies beyond the Vercel hosting layer. The first is the Google Gemini API, which is called by the backend for document extraction in Module 2 and for all three specialist agent inferences in Module 3\. The second is the Supabase API, which is queried by the backend for federated knowledge base retrieval during Module 3 analysis. Both dependencies are reached via authenticated HTTPS. If either service is unreachable during an active session, the affected pipeline function cannot proceed and the counselor must be notified immediately with a specific error identifying which external dependency is unavailable.
 
-The knowledge base acquisition pipeline — which downloads structured datasets from PSA OpenSTAT, parses publicly available DOLE BLE LMI publications and CHED Memorandum Orders, and incorporates manually curated TESDA program cost records into the Supabase vector store — also requires internet access. This pipeline operates on a defined administrative refresh schedule outside of active counseling hours and is the exclusive responsibility of the development team. It does not execute during live counseling sessions and must not be triggered concurrently with an active session to avoid degrading query performance against the Supabase instance.
+The knowledge base acquisition pipeline — which ingests operator-curated PSA OpenSTAT CSV exports committed by the development team, parses publicly available DOLE BLE LMI publications and CHED Memorandum Orders, and incorporates manually curated TESDA program cost records into the Supabase vector store — also requires internet access. This pipeline operates on a defined administrative refresh schedule outside of active counseling hours and is the exclusive responsibility of the development team. It does not execute during live counseling sessions and must not be triggered concurrently with an active session to avoid degrading query performance against the Supabase instance.
 
 No student data is transmitted to any external destination other than the Gemini API, and only after confirmed server-side PII redaction. All session-time external communications are conducted exclusively over HTTPS to ensure transport-layer encryption of all data in transit.
 
@@ -290,32 +292,33 @@ No student data is transmitted to any external destination other than the Gemini
 
 * ##### *Use Case Description*
 
-**Use Case Name:** Automated LFS Occupational Data Acquisition
+**Use Case Name:** Operator-Curated PSA LFS Ingestion
 
-**Primary Actor:** GitHub Actions (Scheduled Workflow) 
+**Primary Actor:** Development Team
 
-**Secondary Actors:** Database 
+**Secondary Actors:** Database / GitHub Actions
 
-**Brief Description:** On a quarterly schedule (via cron), a GitHub Actions workflow automatically downloads the latest Labor Force Survey (LFS) CSV dataset from PSA OpenSTAT. The automated pipeline parses it using pandas to extract occupation-sector employment records, chunks the text, embeds it, and upserts it into the occupational knowledge silo with full provenance metadata. 
+**Brief Description:** Each quarter, after a Philippine Statistics Authority Labor Force Survey release, the development team downloads the relevant LFS occupation-sector CSV through a real browser (because the PSA portals are behind a CDN that blocks non-browser clients), normalizes its columns to the canonical schema, and commits the cleaned file to the project repository. Pushing that file triggers a GitHub Actions workflow that parses it with pandas, chunks each record, embeds it, and upserts it into the Market Analytics knowledge silo with full provenance metadata.
 
-**Pre-conditions:** The PSA OpenSTAT endpoint hosting the LFS CSV dataset is publicly accessible. The GitHub Actions workflow is configured with a quarterly cron trigger. The processing environment within the Action has `pandas` installed and the Gemini embedding API key configured as a repository secret. The database is initialized and accepts write operations. 
+**Pre-conditions:** A quarterly PSA LFS table has been downloaded by the development team, normalized to the canonical column schema, and committed to the designated CSV path in the repository. The GitHub Actions workflow is configured with a push trigger on that path. The processing environment within the Action has `pandas` installed and the Gemini embedding API key configured as a repository secret. The database is initialized and accepts write operations.
 
-**Post-conditions:** At least 10 occupation-sector employment records have been upserted into the occupational silo. Each record carries its source URL, acquisition method (automated CSV download via GitHub Actions), and ingestion timestamp. The ingestion timestamp is updated and visible in the counselor interface. 
+**Post-conditions:** At least 10 occupation-sector employment records have been upserted into the Market Analytics silo. Each record carries its source URL, acquisition method (`operator_curated_csv`), and ingestion timestamp. The ingestion timestamp is updated and visible in the counselor interface.
 
 **Main Flow:**
 
-1. A scheduled GitHub Actions workflow triggers the quarterly ingestion pipeline job.  
-2. The pipeline script sends an HTTP GET request to the PSA OpenSTAT CSV endpoint.  
-3. The pipeline loads the downloaded file using pandas.  
-4. The pipeline extracts occupation-sector employment records from the parsed dataframe.  
-5. The pipeline splits the records into text chunks.  
-6. The pipeline embeds each chunk using the Gemini embedding API.  
-7. The pipeline upserts all records into the database, attaching the source URL, acquisition method, and ingestion timestamp.  
-8. The system updates the ingestion timestamp displayed in the counselor interface.
+1. The quarterly PSA LFS release cycle begins, prompting the development team to refresh the data.  
+2. A team member opens the PSA OpenSTAT portal in a browser, exports the latest LFS occupation-sector CSV, and normalizes its columns to the canonical schema (`period`, `occupation_major_group`, `sector`, `region`, `employed_thousands`).  
+3. The team member commits and pushes the cleaned CSV to the designated path in the repository.  
+4. The repository detects the commit and triggers the designated GitHub Actions workflow.  
+5. The automated workflow loads the committed CSV using pandas and validates its column schema.  
+6. The workflow extracts occupation-sector employment records from the parsed dataframe.  
+7. The workflow embeds each record using the Gemini embedding API.  
+8. The workflow upserts all records into the database with their source URL, acquisition method (`operator_curated_csv`), and ingestion timestamp.  
+9. The system updates the ingestion timestamp displayed in the counselor interface.
 
 **Alternative Flow:**
 
-2a. Pipeline/Download Failure: If the HTTP request fails (returns a non-200 response), or if parsing, embedding, or upserting encounters a fatal error, the GitHub Actions workflow terminates. It logs the specific error to the repository logs and triggers a standard alert to notify the development team. No records are written to the database. 
+**5a. Validation / Workflow Failure:** If the committed CSV is missing required columns, contains malformed values, or if embedding or upserting encounters a fatal error, the GitHub Actions workflow terminates and logs the specific error to the repository's run logs. The development team is notified via standard repository alerts to correct the CSV and push a new commit. No partial batches are written to the database.
 
 * Activity Diagram 
 

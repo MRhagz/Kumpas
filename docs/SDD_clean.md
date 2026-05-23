@@ -58,7 +58,7 @@ Kumpas is a web-based application engineered to assist school guidance counselor
 
 From these inputs, the system performs the following core functions:
 
-* **Knowledge Base Population:** Automated periodic acquisition of Philippine labor market data from PSA OpenSTAT and DOLE BLE LMI publications, scholarship and priority program data from CHED Memorandum Orders, and manually curated TESDA program cost records, stored in a structured, timestamped vector store that serves as the sole factual foundation for all agent-generated recommendations. 
+* **Knowledge Base Population:** Periodic acquisition of Philippine labor market data through three documented tiers: operator-curated CSV exports from PSA OpenSTAT for Labor Force Survey occupational data (downloaded manually each quarter because PSA portals are behind a CDN that blocks non-browser clients), automated PDF parsing of publicly downloadable DOLE BLE LMI reports and CHED Memorandum Orders, and manually curated TESDA program cost records. All records are stored in a structured, timestamped vector store that serves as the sole factual foundation for all agent-generated recommendations. 
 
 * **Multimodal Processing:** Automated academic document parsing featuring strict personally identifiable information (PII) redaction prior to data processing.
 
@@ -152,7 +152,7 @@ The deployed system consists of the following units:
 * **Next.js/Vercel application:** counselor UI, protected API routes, report generation route, session orchestration, and Gemini/Supabase coordination.  
 * **Supabase project:** PostgreSQL database, pgvector indexes, RLS policies, storage buckets if generated PDFs or temporary redacted files are stored outside the request lifecycle.  
 * **Gemini API:** external AI provider used only after PII redaction.  
-* **Ingestion scheduler/worker:** GitHub Actions cron responsible for PSA, DOLE/CHED, and TESDA ingestion.
+* **Ingestion scheduler/worker:** GitHub Actions workflows responsible for knowledge base population. DOLE BLE / CHED PDF ingestion runs on a scheduled cron; PSA OpenSTAT CSV ingestion and TESDA program cost ingestion run on push triggers when the development team commits a refreshed CSV.
 
 ***2.3 Runtime View for a Counseling Session***
 
@@ -215,9 +215,13 @@ The system mandates authenticated sessions for all counselor-facing web interfac
 
 #### ***1.1 PSA OpenSTAT CSV Ingestion***
 
+* Design Constraint
+
+The PSA data portals (psa.gov.ph, openstat.psa.gov.ph, and the related data.gov.ph CKAN portal) sit behind a content delivery network that returns HTTP 403 to non-browser clients across all observed endpoints, including statistical-table file attachments, the PX-Web JSON API, and the PX-Web user interface. Scheduled CI fetch of PSA Labor Force Survey CSVs is therefore not feasible without a browser session cookie or a sanctioned PSA data-sharing arrangement. As a consequence, Module 1.1 is structured as an operator-curated CSV pipeline rather than a fully automated download pipeline: the development team manually downloads each quarterly LFS release through a real browser, normalizes its columns to the canonical schema, and commits the cleaned CSV into the repository; pushing that file triggers the ingestion workflow. The pipeline records carry `acquisition_method = operator_curated_csv` for audit trail purposes — semantically distinct from `manual_curation` (Module 1.3 TESDA), because PSA records originate from official PSA exports rather than hand-authored values. If PSA later publishes a sanctioned data-sharing API, or if the team adopts a proxy source such as the ILO ILOSTAT API, the pipeline can be reverted to a fully automated `automated_csv` flow with only a workflow-trigger and source-URL change.
+
 * User Interface Design
 
-Not applicable. This module is a fully automated backend pipeline triggered by a quarterly scheduler. There is no counselor-facing or administrator-facing interface involved in its execution; it operates entirely in the background without any human interaction during a run. Any status it produces is surfaced elsewhere in the counselor interface as a read-only ingestion timestamp. 
+Not applicable. This module is a backend pipeline triggered by a repository push to the designated PSA CSV path. There is no counselor-facing or administrator-facing interface involved in its execution; it operates entirely in the background without any human interaction during a run. Any status it produces is surfaced elsewhere in the counselor interface as a read-only ingestion timestamp. 
 
 * Front-end component(s)
 
@@ -225,17 +229,17 @@ Not applicable. The ingestion timestamp updated by this pipeline is consumed by 
 
 * Back-end component(s)
 
-  * **PipelineScheduler**	
+  * **PushTriggerWorkflow**	
 
-    * **Description and purpose:** Triggers the PSA OpenSTAT ingestion workflow according to the quarterly Labor Force Survey release cycle. The trigger is a GitHub Actions cron workflow that starts the Python ingestion job without requiring an always-running scheduler process. Each run records start time, end time, status, and failure reason in the ingestion log.
+    * **Description and purpose:** Triggers the PSA OpenSTAT ingestion workflow when the development team commits a refreshed quarterly LFS CSV to the designated repository path. The trigger is a GitHub Actions workflow configured with a path-scoped push trigger plus a manual `workflow_dispatch` re-run, replacing the originally specified cron schedule because the PSA portals block non-browser clients (see Design Constraint above). Each run records start time, end time, status, and failure reason in the ingestion log.
 
-    * **Component type/format:** GitHub Actions cron workflow invoking the Python ingestion job.
+    * **Component type/format:** GitHub Actions workflow on `push` to `ingestion/data/psa/**` paths, invoking the Python ingestion job.
 
-  * **PSAOpenSTATClient** 
+  * **OperatorCuratedCSVReader** 
 
-    * **Description and purpose:** Responsible for issuing an authenticated or unauthenticated HTTP GET request to the PSA OpenSTAT CSV endpoint. It checks the HTTP response status and either returns the raw CSV bytes or raises a download failure event to the logger.
+    * **Description and purpose:** Loads the raw bytes of the operator-curated CSV from the GitHub Actions runner's checked-out working copy. The source location is provided via the `PSA_OPENSTAT_URL` environment variable, which the workflow sets to a `file://` path inside the runner. The same reader also supports HTTPS URLs (unused in the default Option A flow) so the pipeline can later switch to an automated source — for example, a sanctioned PSA data-sharing endpoint or an ILO ILOSTAT proxy — without rewriting the data path. On HTTPS failure (non-200 response or unreachable host) it raises a download-failure event to the logger.
 
-    * **Component type/format:** Python service class using the `requests` or `httpx` library.
+    * **Component type/format:** Python service class using `httpx` with a `file://` shortcut for local CSV reads.
 
   * **LFSCSVParser** 
 
