@@ -1,0 +1,13 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(git add *)",
+      "Bash(git commit -m 'feat\\(module2\\): add StudentProfileBuilder and POST /api/sessions/[sessionId]/approve *)",
+      "mcp__plugin_supabase_supabase__execute_sql"
+    ]
+  },
+  "enableAllProjectMcpServers": true,
+  "enabledMcpjsonServers": [
+    "supabase"
+  ]
+}

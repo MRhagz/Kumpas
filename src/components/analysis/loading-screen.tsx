@@ -32,9 +32,9 @@ const STAGE_CONFIG = [
     },
     // parallel group handled separately
     {
-        key: "adjacentCareer",
-        label: "Adjacent Career Generation",
-        sub: "Finding related career opportunities",
+        key: "synthesis",
+        label: "Synthesizing Career Recommendations",
+        sub: "Combining all specialist analyses into ranked career paths",
         icon: Sparkles,
         color: "#8B5E3C",
     },
@@ -52,13 +52,13 @@ const HEADERS: Record<string, { title: string; subtitle: string }> = {
     notesParsing: { title: "Reading Your Notes", subtitle: "Structuring counselor observations..." },
     transcriptionLayer: { title: "Understanding the Session", subtitle: "AI is analyzing career intentions and context..." },
     parallel: { title: "Running Multi-AI Specialist Analysis", subtitle: "Three specialist AIs are evaluating simultaneously..." },
-    adjacentCareer: { title: "Generating Career Insights", subtitle: "Discovering alternative career pathways..." },
+    synthesis: { title: "Generating Career Insights", subtitle: "Synthesizing all agents into final recommendations..." },
     done: { title: "Analysis Complete", subtitle: "Finalizing your career guidance report..." },
 };
 
 function getCurrentPhase(completed: string[]): string {
-    if (completed.includes("adjacentCareer")) return "done";
-    if (completed.includes("laborMarket")) return "adjacentCareer";
+    if (completed.includes("synthesis")) return "done";
+    if (completed.includes("laborMarket")) return "synthesis";
     if (completed.includes("transcriptionLayer")) return "parallel";
     if (completed.includes("notesParsing")) return "transcriptionLayer";
     if (completed.includes("documentParsing")) return "notesParsing";
@@ -74,7 +74,7 @@ export default function LoadingScreen({ completedStages = [] }: { completedStage
         feasibility: 0,
         laborMarket: 0,
         jobDemand: 0,
-        adjacentCareer: 0,
+        synthesis: 0,
     });
 
     const phase = getCurrentPhase(completedStages);
@@ -88,7 +88,7 @@ export default function LoadingScreen({ completedStages = [] }: { completedStage
     const hasNotes = completedStages.includes("notesParsing");
     const hasTranscription = completedStages.includes("transcriptionLayer");
     const hasParallel = completedStages.includes("laborMarket");
-    const hasAdjacent = completedStages.includes("adjacentCareer");
+    const hasSynthesis = completedStages.includes("synthesis");
 
     /* Placebo timers — each stage ticks up while active, snaps to 100 when completed */
     useEffect(() => {
@@ -119,15 +119,15 @@ export default function LoadingScreen({ completedStages = [] }: { completedStage
                     next.jobDemand = Math.min(prev.jobDemand + Math.random() * 4, 96);
                 }
 
-                // Adjacent Career
-                if (hasAdjacent) next.adjacentCareer = 100;
-                else if (hasParallel) next.adjacentCareer = Math.min(prev.adjacentCareer + Math.random() * 5, 97);
+                // Synthesis
+                if (hasSynthesis) next.synthesis = 100;
+                else if (hasParallel) next.synthesis = Math.min(prev.synthesis + Math.random() * 5, 97);
 
                 return next;
             });
         }, 250);
         return () => clearInterval(t);
-    }, [hasDocs, hasNotes, hasTranscription, hasParallel, hasAdjacent]);
+    }, [hasDocs, hasNotes, hasTranscription, hasParallel, hasSynthesis]);
 
     /* ─── UI helpers ─── */
     const StageRow = ({
@@ -300,15 +300,15 @@ export default function LoadingScreen({ completedStages = [] }: { completedStage
                         </div>
                     </div>
 
-                    {/* 5. Adjacent Career */}
+                    {/* 5. Synthesis */}
                     <StageRow
-                        label="Adjacent Career Generation"
-                        sub="Finding related career opportunities"
+                        label="Synthesizing Career Recommendations"
+                        sub="Combining all specialist analyses into ranked career paths"
                         icon={Sparkles}
                         color="#8B5E3C"
-                        pct={progress.adjacentCareer}
-                        isDone={hasAdjacent}
-                        isActive={hasParallel && !hasAdjacent}
+                        pct={progress.synthesis}
+                        isDone={hasSynthesis}
+                        isActive={hasParallel && !hasSynthesis}
                     />
                 </div>
             </div>

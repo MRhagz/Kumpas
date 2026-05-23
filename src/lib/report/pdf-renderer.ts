@@ -1,23 +1,10 @@
-import { mkdir, writeFile } from "node:fs/promises";
-import { tmpdir } from "node:os";
-import { join } from "node:path";
-
 import { formatReasoningSummary } from "@/lib/report/reasoning-formatter";
 import type {
+  AcademicDocumentType,
   RankedRecommendation,
   RecommendationSource,
   ReportPayload,
 } from "@/lib/report/types";
-
-export interface PdfRenderResult {
-  filePath: string;
-  byteLength: number;
-}
-
-export interface PdfLayoutRendererOptions {
-  outputDir?: string;
-  fileName?: string;
-}
 
 type Rgb = [number, number, number];
 
@@ -49,20 +36,8 @@ const RED: Rgb = [0.72, 0.11, 0.11];
 
 export async function renderReportPdf(
   payload: ReportPayload,
-  options: PdfLayoutRendererOptions = {},
-): Promise<PdfRenderResult> {
-  const outputDir = options.outputDir ?? tmpdir();
-  const fileName = options.fileName ?? `kumpas-report-${payload.sessionId}.pdf`;
-  const filePath = join(outputDir, fileName);
-  const pdfBuffer = buildReportPdf(payload);
-
-  await mkdir(outputDir, { recursive: true });
-  await writeFile(filePath, pdfBuffer);
-
-  return {
-    filePath,
-    byteLength: pdfBuffer.byteLength,
-  };
+): Promise<Buffer> {
+  return buildReportPdf(payload);
 }
 
 export function buildReportPdf(payload: ReportPayload): Buffer {
@@ -82,6 +57,7 @@ class StyledReportPdf {
     this.addPage();
     this.renderCoverHeader();
     this.renderStudentProfile();
+    this.renderAcademicEvidence();
     this.renderRecommendationOverview();
     this.renderRecommendations();
     this.renderFooter();
@@ -165,6 +141,45 @@ class StyledReportPdf {
     this.drawLabelValue("Approved At", formatDate(profile.approvedAt), rightX, topY - 28);
     this.drawLabelValue("Interests", formatList(profile.interests), leftX, topY - 56, 58);
     this.drawLabelValue("Strengths", formatList(profile.strengths), rightX, topY - 56, 58);
+
+    this.y -= panelHeight + 20;
+  }
+
+  private renderAcademicEvidence(): void {
+    const evidence = this.payload.academicEvidence;
+    const panelHeight = 78;
+
+    this.ensureSpace(panelHeight + 16);
+    this.drawSectionLabel("Academic Evidence Completeness");
+    this.drawRoundedPanel(MARGIN_X, this.y - panelHeight, CONTENT_WIDTH, panelHeight, PANEL);
+
+    const leftX = MARGIN_X + 16;
+    const rightX = MARGIN_X + CONTENT_WIDTH / 2 + 8;
+    const topY = this.y - 20;
+
+    this.drawLabelValue(
+      "Available Documents",
+      formatAcademicDocuments(evidence.availableDocuments),
+      leftX,
+      topY,
+      48,
+    );
+    this.drawLabelValue(
+      "Missing Documents",
+      formatAcademicDocuments(evidence.missingDocuments),
+      rightX,
+      topY,
+      48,
+    );
+    this.drawParagraph(
+      evidence.completenessNote,
+      leftX,
+      topY - 34,
+      CONTENT_WIDTH - 32,
+      8,
+      10,
+      evidence.missingDocuments.length > 0 ? AMBER : MUTED,
+    );
 
     this.y -= panelHeight + 20;
   }
@@ -691,6 +706,20 @@ function formatNumber(value: number): string {
 
 function formatList(values: string[]): string {
   return values.length > 0 ? values.join(", ") : "None listed";
+}
+
+function formatAcademicDocuments(documents: AcademicDocumentType[]): string {
+  return documents.length > 0
+    ? documents.map(formatAcademicDocument).join(", ")
+    : "None";
+}
+
+function formatAcademicDocument(document: AcademicDocumentType): string {
+  if (document === "form137") {
+    return "Form 137";
+  }
+
+  return document.toUpperCase();
 }
 
 function formatPercent(value: number): string {
