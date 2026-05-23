@@ -92,7 +92,9 @@ export class RankedRecommendationBuilder {
         title: s.title,
         reference: s.reference,
         acquisition_method: s.acquisitionMethod,
-        ingestion_timestamp: s.ingestionTimestamp,
+        ingestion_timestamp: isNaN(Date.parse(s.ingestionTimestamp))
+          ? new Date().toISOString()
+          : s.ingestionTimestamp,
         related_signals: s.relatedSignals,
       })),
     );
