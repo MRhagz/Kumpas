@@ -6,7 +6,12 @@ from pydantic import BaseModel, Field
 
 from .silos import SiloId
 
-AcquisitionMethod = Literal["automated_csv", "automated_pdf", "manual_curation"]
+AcquisitionMethod = Literal[
+    "automated_csv",
+    "automated_pdf",
+    "manual_curation",
+    "operator_curated_csv",
+]
 RunStatus = Literal["success", "no_op", "failure"]
 
 
