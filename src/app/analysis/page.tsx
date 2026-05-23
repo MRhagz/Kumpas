@@ -160,6 +160,44 @@ function AnalysisContent() {
   );
 }
 
+function getReportGenerationErrorMessage(
+    status: number,
+    responseBody: unknown,
+): string {
+    const errorMessage =
+        isReportErrorBody(responseBody) && responseBody.error.trim()
+            ? responseBody.error
+            : "Report generation failed.";
+
+    if (status === 422) {
+        const detailCount =
+            isReportErrorBody(responseBody) && Array.isArray(responseBody.details)
+                ? responseBody.details.length
+                : 0;
+
+        return detailCount > 0
+            ? `${errorMessage} ${detailCount} report input issue${detailCount === 1 ? "" : "s"} must be resolved before the PDF can be generated.`
+            : errorMessage;
+    }
+
+    if (/bucket not found/i.test(errorMessage)) {
+        return "The report storage bucket is not configured yet. Ask the project administrator to create the private kumpas-reports bucket, then try again.";
+    }
+
+    return errorMessage;
+}
+
+function isReportErrorBody(
+    value: unknown,
+): value is { error: string; details?: unknown[] } {
+    return (
+        typeof value === "object" &&
+        value !== null &&
+        "error" in value &&
+        typeof (value as { error?: unknown }).error === "string"
+    );
+}
+
 export default function Page() {
   return (
     <Suspense
