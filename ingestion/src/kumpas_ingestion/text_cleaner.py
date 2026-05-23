@@ -97,7 +97,9 @@ class TextCleaner:
         for lines in pages:
             seen_on_page: set[str] = set()
             for position in (0, 1, -2, -1):
-                if not lines or abs(position) > len(lines):
+                if not lines:
+                    continue
+                if not -len(lines) <= position < len(lines):
                     continue
                 line = lines[position].strip()
                 if 3 <= len(line) <= 120 and line not in seen_on_page:

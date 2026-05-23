@@ -339,9 +339,9 @@ This module is a backend pipeline that operates entirely outside of active couns
 
   * **PDFTextExtractor** 
 
-    * **Description and purpose:** Accepts raw PDF bytes and extracts all page text using pdfplumber. Handles multi-column layouts, running headers/footers, and hyphenation artifacts through pdfplumber’s spatial-layout-aware extraction. This library was chosen over Node.js alternatives (pdf-parse, pdfjs-dist) because neither handles multi-column Philippine government publications reliably. Module 1 must remain a Python service in part to preserve this capability.
+    * **Description and purpose:** Accepts raw PDF bytes and extracts all page text using pdfplumber. Handles multi-column layouts, running headers/footers, and hyphenation artifacts through pdfplumber's spatial-layout-aware extraction. This library was chosen over Node.js alternatives (pdf-parse, pdfjs-dist) because neither handles multi-column Philippine government publications reliably. Module 1 must remain a Python service in part to preserve this capability. **OCR fallback:** A significant fraction of CHED Memorandum Order PDFs (and other Philippine government publications) are scans of physically signed documents with no embedded text layer, for which pdfplumber returns the empty string. When pdfplumber's initial pass averages fewer than `ocr_min_chars_per_page` (default 50) characters per page, `PDFTextExtractor` invokes `ocrmypdf` (which uses the `tesseract` binary with the `eng` language pack) to add a text layer to the PDF in-process, then re-runs pdfplumber on the resulting bytes. The fallback is opt-out via `enable_ocr=False` for unit tests that do not want to pay the OCR cost or require the tesseract binary. The fallback raises a typed `PDFTextExtractionError` if ocrmypdf or tesseract is not available, so the caller records a clear ingestion-log entry instead of silently producing empty chunks.
 
-    * **Component type/format:** Python utility class wrapping pdfplumber.open().
+    * **Component type/format:** Python utility class wrapping `pdfplumber.open()` for the primary extraction path and `ocrmypdf.ocr()` for the OCR fallback path. System dependencies for the OCR path: `tesseract-ocr`, `tesseract-ocr-eng`, `poppler-utils`, `ghostscript` (installed in the GitHub Actions runner via `.github/actions/setup-ingestion`).
 
   * **TextCleaner** 
 
