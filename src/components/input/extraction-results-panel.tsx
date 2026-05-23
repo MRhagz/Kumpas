@@ -28,7 +28,7 @@ const DOC_META: Record<string, { label: string; icon: typeof BarChart3; color: s
 
 interface ExtractionResultsPanelProps {
   documents: UploadedDocument[];
-  onDataUpdate: (slotIndex: number, data: ExtractedAcademicData) => void;
+  onDataUpdate: (documentId: string, data: ExtractedAcademicData) => void;
 }
 
 export default function ExtractionResultsPanel({
@@ -50,22 +50,22 @@ export default function ExtractionResultsPanel({
       {documents.length === 1 ? (
         <DocEditor doc={documents[0]} onDataUpdate={onDataUpdate} />
       ) : (
-        <Tabs defaultValue={`slot-${documents[0].slotIndex}`} className="gap-0">
+        <Tabs defaultValue={`doc-${documents[0].documentId}`} className="gap-0">
           <TabsList className="w-full h-auto p-1 rounded-none border-b border-black/[0.06] bg-black/[0.015]">
             {documents.map((d) => {
               const meta = DOC_META[d.docType];
               const Icon = meta?.icon ?? BarChart3;
-              // Disambiguate when the same docType (e.g. multiple Form 137s) appears twice.
+              // Disambiguate when same docType repeats (e.g. multiple Form 137 files).
               const sameType = documents.filter((x) => x.docType === d.docType);
               const baseLabel = meta?.label ?? d.docType;
               const label =
                 sameType.length > 1
-                  ? `${baseLabel} #${sameType.findIndex((x) => x.slotIndex === d.slotIndex) + 1}`
+                  ? `${baseLabel} #${sameType.findIndex((x) => x.documentId === d.documentId) + 1}`
                   : baseLabel;
               return (
                 <TabsTrigger
-                  key={d.slotIndex}
-                  value={`slot-${d.slotIndex}`}
+                  key={d.documentId}
+                  value={`doc-${d.documentId}`}
                   className="flex-1 gap-1.5 rounded-lg px-3 py-2 text-[12px] font-semibold transition-all data-[state=active]:bg-white data-[state=active]:shadow-sm data-[state=active]:text-sage data-[state=inactive]:text-muted-text"
                 >
                   <Icon size={14} /> {label}
@@ -74,7 +74,7 @@ export default function ExtractionResultsPanel({
             })}
           </TabsList>
           {documents.map((d) => (
-            <TabsContent key={d.slotIndex} value={`slot-${d.slotIndex}`} className="mt-0">
+            <TabsContent key={d.documentId} value={`doc-${d.documentId}`} className="mt-0">
               <DocEditor doc={d} onDataUpdate={onDataUpdate} />
             </TabsContent>
           ))}
@@ -89,10 +89,10 @@ function DocEditor({
   onDataUpdate,
 }: {
   doc: UploadedDocument;
-  onDataUpdate: (i: number, d: ExtractedAcademicData) => void;
+  onDataUpdate: (documentId: string, d: ExtractedAcademicData) => void;
 }) {
   const [showRedacted, setShowRedacted] = useState(false);
-  const { extractedData, redactedImageUrl, slotIndex } = doc;
+  const { extractedData, redactedImageUrl, documentId } = doc;
   return (
     <div className="p-4 space-y-4">
       {redactedImageUrl && (
@@ -128,19 +128,19 @@ function DocEditor({
       {extractedData.type === "ncae" && (
         <NCAEEditor
           data={extractedData.data}
-          onChange={(d) => onDataUpdate(slotIndex, { type: "ncae", data: d })}
+          onChange={(d) => onDataUpdate(documentId, { type: "ncae", data: d })}
         />
       )}
       {extractedData.type === "nat" && (
         <NATEditor
           data={extractedData.data}
-          onChange={(d) => onDataUpdate(slotIndex, { type: "nat", data: d })}
+          onChange={(d) => onDataUpdate(documentId, { type: "nat", data: d })}
         />
       )}
       {extractedData.type === "form_137" && (
         <Form137Editor
           data={extractedData.data}
-          onChange={(d) => onDataUpdate(slotIndex, { type: "form_137", data: d })}
+          onChange={(d) => onDataUpdate(documentId, { type: "form_137", data: d })}
         />
       )}
     </div>

@@ -17,13 +17,17 @@ export interface WysiwygFieldProps {
 
 export interface FileSlotProps {
   index: number;
-  file: File | null;
+  /** All files attached to this slot. One entry for NCAE/NAT; one-or-more for Form 137. */
+  files: File[];
+  /** Per-file processing state, same length as `files`. */
+  perFileProcessing: DocumentProcessingState[];
   docType: string;
   excludeTypes?: string[];
-  onFileChange: (file: File | null) => void;
+  /** Append the given files to this slot and start uploads. */
+  onFilesAdd: (files: File[]) => void;
+  /** Remove the file at the given index in `files`. */
+  onFileRemove: (fileIndex: number) => void;
   onTypeChange: (type: string) => void;
-  /** Optional: processing state from the document pipeline */
-  processingState?: DocumentProcessingState;
 }
 
 /* ─── OCR types ─── */
