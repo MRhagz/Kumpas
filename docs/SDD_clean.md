@@ -58,7 +58,7 @@ Kumpas is a web-based application engineered to assist school guidance counselor
 
 From these inputs, the system performs the following core functions:
 
-* **Knowledge Base Population:** Automated periodic acquisition of Philippine labor market data from PSA OpenSTAT and DOLE BLE LMI publications, scholarship and priority program data from CHED Memorandum Orders, and manually curated TESDA program cost records, stored in a structured, timestamped vector store that serves as the sole factual foundation for all agent-generated recommendations. 
+* **Knowledge Base Population:** Periodic acquisition of Philippine labor market data through three documented tiers: operator-curated CSV exports fromPSA OpenSTAT for Labor Force Survey occupational data (downloaded manually each quarter because PSA portals are behind a CDN that blocks non-browser clients), automated PDF parsing of publicly downloadable DOLE BLE LMI reports and CHED Memorandum Orders, and manually curated TESDA program cost records. All records are stored in a structured, timestamped vector store that serves as the sole factual foundation for all agent-generated recommendations.
 
 * **Multimodal Processing:** Automated academic document parsing featuring strict personally identifiable information (PII) redaction prior to data processing.
 
@@ -152,7 +152,7 @@ The deployed system consists of the following units:
 * **Next.js/Vercel application:** counselor UI, protected API routes, report generation route, session orchestration, and Gemini/Supabase coordination.  
 * **Supabase project:** PostgreSQL database, pgvector indexes, RLS policies, storage buckets if generated PDFs or temporary redacted files are stored outside the request lifecycle.  
 * **Gemini API:** external AI provider used only after PII redaction.  
-* **Ingestion scheduler/worker:** GitHub Actions cron responsible for PSA, DOLE/CHED, and TESDA ingestion.
+* **Ingestion scheduler/worker:** GitHub Actions workflows responsible for knowledge base population. DOLE BLE / CHED PDF ingestion runs on a scheduled cron; PSA OpenSTAT CSV ingestion and TESDA program cost ingestion run on push triggers when the development team commits a refreshed CSV.
 
 ***2.3 Runtime View for a Counseling Session***
 
@@ -215,9 +215,13 @@ The system mandates authenticated sessions for all counselor-facing web interfac
 
 #### ***1.1 PSA OpenSTAT CSV Ingestion***
 
+* Design Constraint
+
+The PSA data portals (psa.gov.ph, openstat.psa.gov.ph, and the related data.gov.ph CKAN portal) sit behind a content delivery network that returns HTTP 403 to non-browser clients across all observed endpoints, including statistical-table file attachments, the PX-Web JSON API, and the PX-Web user interface. Scheduled CI fetch of PSA Labor Force Survey CSVs is therefore not feasible without a browser session cookie or a sanctioned PSA data-sharing arrangement. As a consequence, Module 1.1 is structured as an operator-curated CSV pipeline rather than a fully automated download pipeline: the development team manually downloads each quarterly LFS release through a real browser, normalizes its columns to the canonical schema, and commits the cleaned CSV into the repository; pushing that file triggers the ingestion workflow. The pipeline records carry \`acquisition\_method \= operator\_curated\_csv\` for audit trail purposes — semantically distinct from \`manual\_curation\` (Module 1.3 TESDA), because PSA records originate from official PSA exports rather than hand-authored values. If PSA later publishes a sanctioned data-sharing API, or if the team adopts a proxy source such as the ILO ILOSTAT API, the pipeline can be reverted to a fully automated \`automated\_csv\` flow with only a workflow-trigger and source-URL change.
+
 * User Interface Design
 
-Not applicable. This module is a fully automated backend pipeline triggered by a quarterly scheduler. There is no counselor-facing or administrator-facing interface involved in its execution; it operates entirely in the background without any human interaction during a run. Any status it produces is surfaced elsewhere in the counselor interface as a read-only ingestion timestamp. 
+Not applicable. Not applicable. This module is a backend pipeline triggered by a repository push to the designated PSA CSV path. There is no counselor-facing or administrator-facing interface involved in its execution; it operates entirely in the background without any human interaction during a run. Any status it produces is surfaced elsewhere in the counselor interface as a read-only ingestion timestamp.
 
 * Front-end component(s)
 
@@ -225,17 +229,17 @@ Not applicable. The ingestion timestamp updated by this pipeline is consumed by 
 
 * Back-end component(s)
 
-  * **PipelineScheduler**	
+  * **PushTriggerWorkflow**
 
-    * **Description and purpose:** Triggers the PSA OpenSTAT ingestion workflow according to the quarterly Labor Force Survey release cycle. The trigger is a GitHub Actions cron workflow that starts the Python ingestion job without requiring an always-running scheduler process. Each run records start time, end time, status, and failure reason in the ingestion log.
+    * **Description and purpose:** Triggers the PSA OpenSTAT ingestion workflow when the development team commits a refreshed quarterly LFS CSV to the designated repository path. The trigger is a GitHub Actions workflow configured with a path-scoped push trigger plus a manual \`workflow\_dispatch\` re-run, replacing the originally specified cron schedule because the PSA portals block non-browser clients (see Design Constraint above). Each run records start time, end time, status, and failure reason in the ingestion log.
 
-    * **Component type/format:** GitHub Actions cron workflow invoking the Python ingestion job.
+    * **Component type/format:** GitHub Actions workflow on \`push\` to \`ingestion/data/psa/\*\*\` paths, invoking the Python ingestion job..
 
-  * **PSAOpenSTATClient** 
+  * **OperatorCuratedCSVReader**
 
-    * **Description and purpose:** Responsible for issuing an authenticated or unauthenticated HTTP GET request to the PSA OpenSTAT CSV endpoint. It checks the HTTP response status and either returns the raw CSV bytes or raises a download failure event to the logger.
+    * **Description and purpose:** Loads the raw bytes of the operator-curated CSV from the GitHub Actions runner's checked-out working copy. The source location is provided via the \`PSA\_OPENSTAT\_URL\` environment variable, which the workflow sets to a \`file://\` path inside the runner. The same reader also supports HTTPS URLs (unused in the default Option A flow) so the pipeline can later switch to an automated source — for example, a sanctioned PSA data-sharing endpoint or an ILO ILOSTAT proxy — without rewriting the data path. On HTTPS failure (non-200 response or unreachable host) it raises a download-failure event to the logger.
 
-    * **Component type/format:** Python service class using the `requests` or `httpx` library.
+    * **Component type/format:** Python service class using httpx with a file:// shortcut for local CSV reads.
 
   * **LFSCSVParser** 
 
@@ -257,9 +261,9 @@ Not applicable. The ingestion timestamp updated by this pipeline is consumed by 
 
   * **EmbeddingService** 
 
-    * **Description and purpose:** The embedding model runs inside the Python ingestion environment triggered by GitHub Actions. If the model load time or memory usage exceeds the GitHub Actions runtime budget, the embedding step shall use a hosted embedding API while preserving the same vector dimension and distance metric.
+    * **Description and purpose:** Embeds each text chunk into a 768-dimensional vector by calling the Gemini \`gemini-embedding-001\` model via the Google AI REST API, with outputDimensionality=768 and taskType=RETRIEVAL\_DOCUMENT. The Google AI REST API is used directly (no local model is loaded inside the GitHub Actions runner) so cold-start cost is bounded and the ingestion runner image stays minimal. Identical model name, output dimensionality, and embedding-space semantics are required across Modules  1.1, 1.2, 1.3, and 3.1; any change here must be applied to the query-side QueryEmbeddingService in the same release.
 
-    * **Component type/format:** Python service class wrapping sentence-transformers, or a Python client for the configured hosted embedding API if local model execution is not feasible.
+    * **Component type/format:**  Python service class issuing authenticated HTTPS requests to the Gemini embedding endpoint via httpx
 
   * **VectorStoreRepository**
 
@@ -279,9 +283,9 @@ Not applicable. The ingestion timestamp updated by this pipeline is consumed by 
 
   * Class Diagram
 
-  ![][image2] 
+![][image2]
 
-  * Sequence Diagram
+* Sequence Diagram
 
 ![][image3]
 
@@ -293,27 +297,39 @@ Not applicable. The ingestion timestamp updated by this pipeline is consumed by 
 
 #### ***1.2 DOLE BLE / CHED PDF Parsing & Ingestion***
 
+* Design Constraint
+
+Module 1.2 is implemented as a hybrid pipeline because the two underlying publication portals have different access characteristics. The CHED Memorandum Order index on the legacy WordPress mirror (legacy.ched.gov.ph/{year}-ched-memorandum-orders/) responds normally to non-browser clients and exposes a stable per-year HTML listing of CMO PDFs, so the CHED side runs as the originally specified fully automated weekly cron pipeline (`acquisition_method = automated_pdf`, silo \= path\_feasibility). The DOLE Bureau of Local Employment portal (ble.dole.gov.ph) sits behind the same class of CDN that returns HTTP 403 to non-browser clients across both index pages and PDF attachments — the same root cause that forced the operator-curated CSV pivot in Module 1.1 for PSA OpenSTAT. Scheduled CI fetch of BLE LMI PDFs is therefore not feasible without a browser session cookie or a sanctioned DOLE data-sharing arrangement. The DOLE side is consequently structured as an operator-curated PDF pipeline rather than an automated download: the development team manually downloads each BLE LMI release through a real browser, commits the file (and an optional .meta.json sidecar carrying the official source URL and publication date) into ingestion/data/dole\_ble/, and pushing that file triggers the ingestion workflow. Pipeline records carry acquisition\_method \= operator\_curated\_pdf for audit-trail purposes — semantically distinct from `automated_pdf` (CHED, automated scrape) and from manual\_curation (Module 1.3 TESDA, hand-authored values), because DOLE BLE records originate from official BLE PDF publications and only the delivery path is manual. If DOLE later publishes a sanctioned data-sharing endpoint, or if the team adopts a proxy source, the DOLE side can be reverted to a fully automated `automated_pdf` flow with only a workflow-trigger and source-URL change. 
+
 * User Interface Design
 
 Not applicable. This module is a fully automated, scheduler-driven backend pipeline that operates entirely outside of active counseling sessions. It requires no counselor or end-user interaction. Like Module 1.1, its only output visible to the counselor is the updated ingestion timestamp displayed in the counselor interface, which is rendered by a separate read-only display component in Module 5\. 
 
 * Front-end component(s)
 
-Not applicable for the same reason stated above. This pipeline has no interactive surface; it is a background service whose execution state is logged internally and whose outputs are stored in the vector store. 
+This module is a backend pipeline that operates entirely outside of active counseling sessions. It requires no counselor or end-user interaction. Like Module 1.1, its only output visible to the counselor is the updated ingestion timestamp displayed in the counselor interface, which is rendered by a separate read-only display component in Module 5\.
 
 * Back-end component(s)
 
-  * **WeeklyScheduler**
+  * **WeeklyScheduler (CHED Side)**
 
-    * **Description and purpose:** Triggers the DOLE BLE / CHED publication ingestion workflow according to the configured schedule. The trigger is a GitHub Actions cron workflow that starts the Python ingestion job, checks for new publications, and exits as a no-op when no new publications are detected.
+    * **Description and purpose:** Triggers the CHED Memorandum Order ingestion workflow according to the configured schedule. The trigger is a GitHub Actions cron workflow (weekly, Monday 02:00 UTC by default) that starts the Python ingestion job, asks \`PublicationIndexChecker\` for the current yearCMO listing on \`legacy.ched.gov.ph\`, and exits as a no-op when no new publications are detected.
+
+    * **Component type/format:** GitHub Actions cron workflow invoking the Python ingestion job.
+
+  * **OperatorCuratedDolePushTrigger (DOLE BLE side)**
+
+    * **Description and purpose:** Triggers the DOLE BLE LMI ingestion workflow when the development team commits a refreshed BLE LMI PDF (and optional \`\<filename\>.meta.json\` sidecar) to \`ingestion/data/dole\_ble/\`. Replaces the originally specified weekly cron because \`ble.dole.gov.ph\` blocks non-browser clients (see Design Constraint above). Each run records start time, end time, status, and failure reason in the ingestion log. A manual \`workflow\_dispatch\` re-run is also exposed for ad-hoc triggers without a new commit.
+
+    * 
 
     * **Component type/format:** GitHub Actions cron workflow invoking the Python ingestion job.
 
   * **PublicationIndexChecker** 
 
-    * **Description and purpose:** Queries the DOLE BLE and CHED publication index pages to detect newly released PDFs since the last ingestion timestamp. It compares the detected entries against a local cache of previously processed publication URLs to determine which ones are new. If none are new, it signals a no-op and the pipeline terminates without modifying the vector store.
+    * **Description and purpose:** Queries the CHED publication index page at \`legacy.ched.gov.ph/{year}-ched-memorandum-orders/\` to enumerate the CMO PDFs published in a target year. It returns the list of \`(publication\_url, cmo\_number, year, title)\` tuples; the pipeline compares these against a local cache of previously processed publication URLs (\`publication\_index\_cache\`) to determine which ones are new. On a first run (empty cache) a configurable cap (default 10\) bounds the number of publications processed, so the initial backfill is predictable and cheap. If none are new, it signals a no-op and the pipeline terminates without modifying the vector store. DOLE BLE intentionally does not use this checker because the BLE site is CDN-blocked; for DOLE, change detection is replaced by the path-scoped push trigger above.
 
-    * **Component type/format:** Python service class; uses `httpx` for HTTP requests and `BeautifulSoup` or a structured API client if the index is machine-readable. Reads the last ingestion timestamp from `ingestion_metadata`.
+    * **Component type/format:** Python service class; uses \`httpx\` for HTTP requests and \`BeautifulSoup\` to parse the WordPress index DOM (\`\<div class="entry-content"\> \<table\> \<tr\>\<td\>\<a href="\*.pdf"\>CMO No. N, series of YYYY – ...\`).
 
   * **PDFDownloader** 
 
@@ -323,9 +339,9 @@ Not applicable for the same reason stated above. This pipeline has no interactiv
 
   * **PDFTextExtractor** 
 
-    * **Description and purpose:** Accepts raw PDF bytes and extracts all page text using pdfplumber. Handles multi-column layouts, running headers/footers, and hyphenation artifacts through pdfplumber’s spatial-layout-aware extraction. This library was chosen over Node.js alternatives (pdf-parse, pdfjs-dist) because neither handles multi-column Philippine government publications reliably. Module 1 must remain a Python service in part to preserve this capability.
+    * **Description and purpose:** Accepts raw PDF bytes and extracts all page text using pdfplumber. Handles multi-column layouts, running headers/footers, and hyphenation artifacts through pdfplumber's spatial-layout-aware extraction. This library was chosen over Node.js alternatives (pdf-parse, pdfjs-dist) because neither handles multi-column Philippine government publications reliably. Module 1 must remain a Python service in part to preserve this capability. **OCR fallback:** A significant fraction of CHED Memorandum Order PDFs (and other Philippine government publications) are scans of physically signed documents with no embedded text layer, for which pdfplumber returns the empty string. When pdfplumber's initial pass averages fewer than `ocr_min_chars_per_page` (default 50) characters per page, `PDFTextExtractor` invokes `ocrmypdf` (which uses the `tesseract` binary with the `eng` language pack) to add a text layer to the PDF in-process, then re-runs pdfplumber on the resulting bytes. The fallback is opt-out via `enable_ocr=False` for unit tests that do not want to pay the OCR cost or require the tesseract binary. The fallback raises a typed `PDFTextExtractionError` if ocrmypdf or tesseract is not available, so the caller records a clear ingestion-log entry instead of silently producing empty chunks.
 
-    * **Component type/format:** Python utility class wrapping pdfplumber.open().
+    * **Component type/format:** Python utility class wrapping `pdfplumber.open()` for the primary extraction path and `ocrmypdf.ocr()` for the OCR fallback path. System dependencies for the OCR path: `tesseract-ocr`, `tesseract-ocr-eng`, `poppler-utils`, `ghostscript` (installed in the GitHub Actions runner via `.github/actions/setup-ingestion`).
 
   * **TextCleaner** 
 
@@ -341,9 +357,9 @@ Not applicable for the same reason stated above. This pipeline has no interactiv
 
   * **EmbeddingService** 
 
-    * **Description and purpose:** Converts each text chunk into a dense vector using the same sentence-level embedding model used in Module 1.1, ensuring embedding-space consistency across all knowledge silos.
+    * **Description and purpose:** Converts each text chunk into a 768-dimensional vector using the same gemini-embedding-001 hosted call as Module 1.1, with identical \`outputDimensionality\` and \`taskType=RETRIEVAL\_DOCUMENT\`. Reusing the exact configuration is required to keep all knowledge silos in the same embedding space.
 
-    * **Component type/format:** Python service class; shared singleton instance across all pipeline modules.
+    * **Component type/format:**  Python service class; shared with Modules 1.1 and 1.3 through the same EmbeddingService implementation
 
   * **VectorStoreRepository** 
 
@@ -367,7 +383,7 @@ Not applicable for the same reason stated above. This pipeline has no interactiv
 
   * Class Diagram
 
-![][image5]   
+![][image5]  
 
 * Sequence Diagram
 
@@ -411,9 +427,9 @@ Not applicable. The administrator interacts with the system by submitting a vali
 
   * **EmbeddingService** 
 
-    * **Description and purpose:** Embeds each TESDA text chunk using the shared sentence-level embedding model to ensure vector-space consistency across all three silos.
+    * **Description and purpose:**  Embeds each TESDA text chunk through the same \`gemini-embedding-001\` call used in Modules 1.1 and 1.2, with identical \`outputDimensionality=768\` and \`taskType=RETRIEVAL\_DOCUMENT\`, so manually curated TESDA records occupy the same embedding space as the rest of the Path Feasibility silo.
 
-    * **Component type/format:** Python service class; shared singleton with Modules 1.1 and 1.2.
+    * **Component type/format:** Python service class; shared implementation with Modules 1.1 and 1.2.
 
   * **VectorStoreRepository** 
 
@@ -639,7 +655,7 @@ The user interface for this module is a dynamic loading and progress screen, pro
 
   * **QueryEmbeddingService**
 
-    * **Description and purpose:** Produces a 768-dimensional embedding vector for an agent’s query string by calling the Gemini text-embedding-004 model via the Google AI REST API. This vector is passed to VectorStoreQueryService as the input for Supabase pgvector similarity search. Must use the identical model and parameters as the ingestion-time EmbeddingService to guarantee that query vectors and stored chunk vectors occupy the same embedding space. If the embedding call fails, the agent query is aborted and the Agent Failure Recovery policy applies.
+    * **Description and purpose:** Produces a 768-dimensional embedding vector for an agent’s query string by calling the Gemini gemini-embedding-001\` model via the Google AI REST API, with outputDimensionality=768 and taskType=RETRIEVAL\_QUERY. This vector is passed to VectorStoreQueryService as the input for Supabase pgvector similarity search. The model name, output dimensionality, and request parameters must match the ingestion-time EmbeddingService used in Modules 1.1, 1.2, and 1.3 so query and stored chunk vectors occupy the same embedding space; the only intended difference is \`taskType\` (RETRIEVAL\_QUERY here vs. RETRIEVAL\_DOCUMENT at ingestion). If the embedding call fails, the agent query is aborted and the Agent Failure Recovery policy applies.
 
     * **Component type or format:** TypeScript service class calling the Gemini REST API via the @google/generative-ai Node.js SDK. Shared singleton across all three agents in a single session to avoid redundant API calls.
 
