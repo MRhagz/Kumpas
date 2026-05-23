@@ -146,7 +146,16 @@ const SECTIONS_CONFIG = [
   },
 ] as const;
 
-const IDLE_PROC: DocumentProcessingState = { step: "idle", progress: 0 };
+interface SlotFileEntry {
+  file: File;
+  processingState: DocumentProcessingState;
+  uploaded: UploadedDocument | null;
+}
+
+type SlotKey = 1 | 2 | 3;
+type SlotEntriesMap = Record<SlotKey, SlotFileEntry[]>;
+const SLOT_KEYS: SlotKey[] = [1, 2, 3];
+const EMPTY_ENTRIES: SlotEntriesMap = { 1: [], 2: [], 3: [] };
 
 export default function InputContainer() {
   const router = useRouter();
@@ -155,22 +164,17 @@ export default function InputContainer() {
   const [sessionError, setSessionError] = useState<string | null>(null);
   const [guideOpen, setGuideOpen] = useState(false);
 
-  const [slotFiles, setSlotFiles] = useState<{ 1: File | null; 2: File | null; 3: File | null }>({
-    1: null,
-    2: null,
-    3: null,
-  });
-  const [slotTypes, setSlotTypes] = useState<{ 1: string; 2: string; 3: string }>({
+  const [slotTypes, setSlotTypes] = useState<Record<SlotKey, string>>({
     1: "",
     2: "",
     3: "",
   });
-  const [slotProcessing, setSlotProcessing] = useState<{
-    1: DocumentProcessingState;
-    2: DocumentProcessingState;
-    3: DocumentProcessingState;
-  }>({ 1: { ...IDLE_PROC }, 2: { ...IDLE_PROC }, 3: { ...IDLE_PROC } });
-  const [uploadedDocs, setUploadedDocs] = useState<UploadedDocument[]>([]);
+  const [slotEntries, setSlotEntries] = useState<SlotEntriesMap>(EMPTY_ENTRIES);
+
+  // Derived: every successfully-uploaded document across all slots, in slot/file order.
+  const uploadedDocs: UploadedDocument[] = SLOT_KEYS.flatMap((s) =>
+    slotEntries[s].map((e) => e.uploaded).filter((u): u is UploadedDocument => u !== null),
+  );
 
   const [activeTab, setActiveTab] = useState<InputMode>("image");
   const [pendingTab, setPendingTab] = useState<InputMode | null>(null);
@@ -272,41 +276,89 @@ export default function InputContainer() {
     extractSections(f);
   };
 
-  const handleSlotFileChange = useCallback((index: 1 | 2 | 3, file: File | null) => {
-    setSlotFiles((p) => ({ ...p, [index]: file }));
-    if (!file) {
-      setSlotProcessing((p) => ({ ...p, [index]: IDLE_PROC }));
-      setUploadedDocs((d) => d.filter((u) => u.slotIndex !== index));
-    } else {
-      setSlotProcessing((p) => ({ ...p, [index]: { step: "ai_structuring", progress: 30 } }));
-    }
-  }, []);
+  const handleSlotFilesAdd = useCallback(
+    (slot: SlotKey, files: File[]) => {
+      const docType = slotTypes[slot];
+      const isMulti = docType === "form_137";
+      const newEntries: SlotFileEntry[] = files.map((file) => ({
+        file,
+        processingState: { step: "ai_structuring", progress: 30 },
+        uploaded: null,
+      }));
+      setSlotEntries((prev) => ({
+        ...prev,
+        [slot]: isMulti ? [...prev[slot], ...newEntries] : newEntries,
+      }));
+    },
+    [slotTypes],
+  );
 
-  const handleSlotTypeChange = useCallback((index: 1 | 2 | 3, type: string) => {
-    setSlotTypes((p) => ({ ...p, [index]: type }));
-  }, []);
-
-  const handleDocumentUploaded = useCallback((index: 1 | 2 | 3, result: UploadedDocument) => {
-    setSlotProcessing((p) => ({
-      ...p,
-      [index]: { step: "complete", progress: 100, extractedData: result.extractedData },
+  const handleSlotFileRemove = useCallback((slot: SlotKey, fileIdx: number) => {
+    setSlotEntries((prev) => ({
+      ...prev,
+      [slot]: prev[slot].filter((_, i) => i !== fileIdx),
     }));
-    setUploadedDocs((d) => [...d.filter((u) => u.slotIndex !== index), result]);
-    toast.success(`Document ${index} extracted`, {
-      description: "PII redacted server-side",
-      position: "top-center",
+  }, []);
+
+  const handleSlotTypeChange = useCallback((slot: SlotKey, type: string) => {
+    setSlotTypes((p) => ({ ...p, [slot]: type }));
+    // Changing the type invalidates any already-uploaded files for this slot,
+    // since extraction_results rows are typed at upload time.
+    setSlotEntries((prev) => (prev[slot].length === 0 ? prev : { ...prev, [slot]: [] }));
+  }, []);
+
+  const handleDocumentUploaded = useCallback(
+    (slot: SlotKey, file: File, result: UploadedDocument) => {
+      setSlotEntries((prev) => {
+        const entries = prev[slot];
+        if (!entries.some((e) => e.file === file)) return prev; // file was removed mid-upload
+        return {
+          ...prev,
+          [slot]: entries.map((e) =>
+            e.file === file
+              ? {
+                  ...e,
+                  processingState: {
+                    step: "complete",
+                    progress: 100,
+                    extractedData: result.extractedData,
+                  },
+                  uploaded: result,
+                }
+              : e,
+          ),
+        };
+      });
+      toast.success(`Document extracted`, {
+        description: "PII redacted server-side",
+        position: "top-center",
+      });
+    },
+    [],
+  );
+
+  const handleUploadError = useCallback((slot: SlotKey, file: File, error: string) => {
+    setSlotEntries((prev) => ({
+      ...prev,
+      [slot]: prev[slot].map((e) =>
+        e.file === file ? { ...e, processingState: { step: "error", progress: 0, error } } : e,
+      ),
+    }));
+    toast.error(`Upload failed`, { description: error, position: "top-center" });
+  }, []);
+
+  const handleDataUpdate = useCallback((documentId: string, data: ExtractedAcademicData) => {
+    setSlotEntries((prev) => {
+      const next = { ...prev };
+      for (const s of SLOT_KEYS) {
+        next[s] = prev[s].map((e) =>
+          e.uploaded?.documentId === documentId
+            ? { ...e, uploaded: { ...e.uploaded, extractedData: data } }
+            : e,
+        );
+      }
+      return next;
     });
-  }, []);
-
-  const handleUploadError = useCallback((index: 1 | 2 | 3, error: string) => {
-    setSlotProcessing((p) => ({ ...p, [index]: { step: "error", progress: 0, error } }));
-    toast.error(`Document ${index} failed`, { description: error, position: "top-center" });
-  }, []);
-
-  const handleDataUpdate = useCallback((slotIndex: number, data: ExtractedAcademicData) => {
-    setUploadedDocs((d) =>
-      d.map((u) => (u.slotIndex === slotIndex ? { ...u, extractedData: data } : u)),
-    );
   }, []);
 
   const handleApprove = async () => {
@@ -670,22 +722,23 @@ export default function InputContainer() {
             sessionId={sessionId}
             slots={{
               1: {
-                file: slotFiles[1],
+                files: slotEntries[1].map((e) => e.file),
                 docType: slotTypes[1],
-                processingState: slotProcessing[1],
+                perFileProcessing: slotEntries[1].map((e) => e.processingState),
               },
               2: {
-                file: slotFiles[2],
+                files: slotEntries[2].map((e) => e.file),
                 docType: slotTypes[2],
-                processingState: slotProcessing[2],
+                perFileProcessing: slotEntries[2].map((e) => e.processingState),
               },
               3: {
-                file: slotFiles[3],
+                files: slotEntries[3].map((e) => e.file),
                 docType: slotTypes[3],
-                processingState: slotProcessing[3],
+                perFileProcessing: slotEntries[3].map((e) => e.processingState),
               },
             }}
-            onSlotFileChange={handleSlotFileChange}
+            onSlotFilesAdd={handleSlotFilesAdd}
+            onSlotFileRemove={handleSlotFileRemove}
             onSlotTypeChange={handleSlotTypeChange}
             onDocumentUploaded={handleDocumentUploaded}
             onUploadError={handleUploadError}
