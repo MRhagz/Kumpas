@@ -1,4 +1,4 @@
-import { GoogleGenerativeAI } from "@google/generative-ai";
+import { GoogleGenAI } from "@google/genai";
 import { queryEmbeddingService } from "./query-embedding-service";
 import { vectorStoreQueryService } from "./vector-store-query-service";
 import type { AgentOutput, RetrievedChunk } from "./types";
@@ -95,16 +95,14 @@ export class AcademicAuditorAgent {
     const embedding = await queryEmbeddingService.embed(query, apiKey);
     const chunks = await vectorStoreQueryService.query(AGENT_NAME, embedding);
 
-    const genAI = new GoogleGenerativeAI(apiKey);
-    const model = genAI.getGenerativeModel({
-      model: "gemini-2.0-flash",
-      generationConfig: {
-        responseMimeType: "application/json",
-      },
-    });
+    const ai = new GoogleGenAI({ apiKey });
 
-    const result = await model.generateContent(buildPrompt(profile, chunks));
-    const text = result.response.text();
+    const result = await ai.models.generateContent({
+      model: "gemini-2.5-flash",
+      contents: buildPrompt(profile, chunks),
+      config: { responseMimeType: "application/json" },
+    });
+    const text = result.text ?? "";
 
     return {
       agentName: AGENT_NAME,

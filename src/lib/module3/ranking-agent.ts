@@ -1,4 +1,4 @@
-import { GoogleGenerativeAI } from "@google/generative-ai";
+import { GoogleGenAI } from "@google/genai";
 import type { ScoredCareerPath, RankedCareerPath } from "./types";
 
 function buildPrompt(scoredPaths: ScoredCareerPath[]): string {
@@ -41,16 +41,14 @@ export class RankingAgent {
     scoredPaths: ScoredCareerPath[],
   ): Promise<RankedCareerPath[]> {
     const apiKey = process.env.SYNTHESIS_API_KEY!;
-    const genAI = new GoogleGenerativeAI(apiKey);
-    const model = genAI.getGenerativeModel({
-      model: "gemini-2.0-flash",
-      generationConfig: {
-        responseMimeType: "application/json",
-      },
-    });
+    const ai = new GoogleGenAI({ apiKey });
 
-    const result = await model.generateContent(buildPrompt(scoredPaths));
-    const text = result.response.text();
+    const result = await ai.models.generateContent({
+      model: "gemini-2.5-flash",
+      contents: buildPrompt(scoredPaths),
+      config: { responseMimeType: "application/json" },
+    });
+    const text = result.text ?? "";
     const parsed = JSON.parse(text) as {
       rankings: Array<{
         careerPath: string;
