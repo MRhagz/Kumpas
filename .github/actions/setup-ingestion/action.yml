@@ -11,7 +11,8 @@ inputs:
   extras:
     description: >
       Optional extras to install, comma-separated. Use 'psa' for PSA OpenSTAT,
-      'pdf' for DOLE BLE / CHED PDF parsing, 'tesda' for TESDA curation.
+      'pdf' for DOLE BLE / CHED PDF parsing, 'tesda' for TESDA curation,
+      'fixtures' for reportlab (rebuilding synthetic fixture PDFs locally).
     required: false
     default: ""
 

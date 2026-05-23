@@ -11,6 +11,7 @@ AcquisitionMethod = Literal[
     "automated_pdf",
     "manual_curation",
     "operator_curated_csv",
+    "operator_curated_pdf",
 ]
 RunStatus = Literal["success", "no_op", "failure"]
 
