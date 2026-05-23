@@ -158,7 +158,7 @@ export class PdfFileStore {
       this.now().getTime() - retentionHours * 60 * 60 * 1000,
     );
     const bucket = this.getClient().storage.from(this.bucketName);
-    const sessionFolders = await listAllStorageObjects(bucket);
+    const sessionFolders = await listAllStorageObjects(bucket, this.bucketName);
     const warnings: string[] = [];
     let scannedCount = 0;
     let deletedCount = 0;
@@ -172,7 +172,11 @@ export class PdfFileStore {
         continue;
       }
 
-      const reportObjects = await listAllStorageObjects(bucket, folder.name);
+      const reportObjects = await listAllStorageObjects(
+        bucket,
+        this.bucketName,
+        folder.name,
+      );
 
       for (const reportObject of reportObjects) {
         if (!reportObject.name.endsWith(".pdf")) {
@@ -234,6 +238,7 @@ export class PdfFileStore {
 
 async function listAllStorageObjects(
   bucket: StorageBucketClient,
+  bucketName: string,
   path?: string,
 ): Promise<StorageObject[]> {
   const objects: StorageObject[] = [];
@@ -247,7 +252,9 @@ async function listAllStorageObjects(
     });
 
     if (error) {
-      throw new Error(`Failed to list report PDFs: ${error.message}`);
+      throw new Error(
+        `Failed to list report PDFs: ${formatStorageError(error, bucketName)}`,
+      );
     }
 
     if (!data || data.length === 0) {
