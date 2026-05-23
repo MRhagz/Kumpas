@@ -26,6 +26,7 @@ interface StorageBucketClient {
     path: string,
     expiresIn: number,
   ): Promise<{ data: { signedUrl: string } | null; error: StorageError | null }>;
+  remove(paths: string[]): Promise<{ error: StorageError | null }>;
 }
 
 interface ReportStorageClient {
@@ -106,6 +107,16 @@ export class PdfFileStore {
       ).toISOString(),
       byteLength: pdfBuffer.byteLength,
     };
+  }
+
+  async deleteReportPdf(sessionId: string): Promise<void> {
+    const objectKey = getReportPdfObjectKey(sessionId);
+    const bucket = this.getClient().storage.from(this.bucketName);
+    const { error } = await bucket.remove([objectKey]);
+
+    if (error) {
+      throw new Error(`Failed to delete report PDF: ${error.message}`);
+    }
   }
 
   private getClient(): ReportStorageClient {
