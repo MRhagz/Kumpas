@@ -20,6 +20,7 @@ psa = [
 pdf = [
     "pdfplumber>=0.11,<1",
     "beautifulsoup4>=4.12,<5",
+    "ocrmypdf>=16,<17",
 ]
 tesda = [
     "tabulate>=0.9,<1",
