@@ -33,7 +33,7 @@ function AnalysisContent() {
             try {
                 const response = await fetch(
                     `/api/sessions/${encodeURIComponent(sessionId)}`,
-                    { method: "DELETE" },
+                    { method: "DELETE", cache: "no-store" },
                 );
 
                 if (!response.ok) {
@@ -61,7 +61,7 @@ function AnalysisContent() {
 
         const response = await fetch(
             `/api/sessions/${encodeURIComponent(sessionId)}/complete`,
-            { method: "POST" },
+            { method: "POST", cache: "no-store" },
         );
 
         if (!response.ok) {
@@ -105,6 +105,7 @@ function AnalysisContent() {
 
             const response = await fetch("/api/reports", {
                 method: "POST",
+                cache: "no-store",
                 headers: {
                     "Content-Type": "application/json",
                 },
@@ -113,13 +114,16 @@ function AnalysisContent() {
             const responseBody = await response.json();
 
             if (!response.ok) {
-                throw new Error(responseBody.error ?? "Report generation failed.");
+                throw new Error(
+                    getReportGenerationErrorMessage(response.status, responseBody),
+                );
             }
 
             setState({ phase: "reportReady", report: responseBody });
         } catch (error) {
             setState({
                 phase: "error",
+                title: "Report generation failed",
                 message:
                     error instanceof Error
                         ? error.message
@@ -147,6 +151,7 @@ function AnalysisContent() {
             )}
             {state.phase === "error" && (
                 <ErrorView
+                    title={state.title}
                     message={state.message}
                     onRetry={runPipeline}
                     onBack={() => router.push("/")}
@@ -160,6 +165,44 @@ function AnalysisContent() {
                 />
             )}
         </main>
+    );
+}
+
+function getReportGenerationErrorMessage(
+    status: number,
+    responseBody: unknown,
+): string {
+    const errorMessage =
+        isReportErrorBody(responseBody) && responseBody.error.trim()
+            ? responseBody.error
+            : "Report generation failed.";
+
+    if (status === 422) {
+        const detailCount =
+            isReportErrorBody(responseBody) && Array.isArray(responseBody.details)
+                ? responseBody.details.length
+                : 0;
+
+        return detailCount > 0
+            ? `${errorMessage} ${detailCount} report input issue${detailCount === 1 ? "" : "s"} must be resolved before the PDF can be generated.`
+            : errorMessage;
+    }
+
+    if (/bucket not found/i.test(errorMessage)) {
+        return "The report storage bucket is not configured yet. Ask the project administrator to create the private kumpas-reports bucket, then try again.";
+    }
+
+    return errorMessage;
+}
+
+function isReportErrorBody(
+    value: unknown,
+): value is { error: string; details?: unknown[] } {
+    return (
+        typeof value === "object" &&
+        value !== null &&
+        "error" in value &&
+        typeof (value as { error?: unknown }).error === "string"
     );
 }
 
