@@ -1,6 +1,8 @@
 import { supabaseAdmin } from "@/lib/supabase";
 import type { RecommendationProvider } from "@/lib/report/provider";
 import type {
+  AcademicDocumentType,
+  AcademicEvidenceSummary,
   RankedRecommendation,
   RankedRecommendationList,
   RecommendationSource,
@@ -146,7 +148,52 @@ async function getRankedRecommendations(
   };
 }
 
+const DOC_TYPE_MAP: Record<string, AcademicDocumentType> = {
+  form_137: "form137",
+  ncae: "ncae",
+  nat: "nat",
+};
+
+const ALL_ACADEMIC_TYPES: AcademicDocumentType[] = ["form137", "ncae", "nat"];
+
+async function getAcademicEvidenceSummary(
+  sessionId: string,
+): Promise<AcademicEvidenceSummary> {
+  const { data, error } = await supabaseAdmin
+    .from("extraction_results")
+    .select("document_type")
+    .eq("session_id", sessionId);
+
+  if (error) {
+    throw new Error(`Failed to fetch extraction results: ${error.message}`);
+  }
+
+  const availableDocuments = [
+    ...new Set(
+      (data ?? [])
+        .map((r) => DOC_TYPE_MAP[r.document_type])
+        .filter((t): t is AcademicDocumentType => Boolean(t)),
+    ),
+  ];
+  const missingDocuments = ALL_ACADEMIC_TYPES.filter(
+    (t) => !availableDocuments.includes(t),
+  );
+
+  let completenessNote: string;
+  if (missingDocuments.length === 0) {
+    completenessNote = "All academic documents are available for analysis.";
+  } else if (availableDocuments.length === 0) {
+    completenessNote =
+      "No academic documents were provided. Recommendations are based on counselor notes only.";
+  } else {
+    completenessNote = `Available: ${availableDocuments.join(", ")}. Missing: ${missingDocuments.join(", ")}.`;
+  }
+
+  return { availableDocuments, missingDocuments, completenessNote };
+}
+
 export const module3RecommendationProvider: RecommendationProvider = {
-  getApprovedStudentProfile: getApprovedStudentProfile,
-  getRankedRecommendations: getRankedRecommendations,
+  getApprovedStudentProfile,
+  getRankedRecommendations,
+  getAcademicEvidenceSummary,
 };

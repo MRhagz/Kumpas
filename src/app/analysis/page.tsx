@@ -4,12 +4,16 @@ import { useEffect, useState, useCallback, Suspense, useRef } from "react";
 import { useSearchParams, useRouter } from "next/navigation";
 import { Loader2 } from "lucide-react";
 import LoadingScreen from "@/components/analysis/loading-screen";
-import ErrorView from "@/components/analysis/error-view";
 
 import type { StageName } from "@/lib/analysis-types";
+import type { ReportGenerationResponse } from "@/lib/report/types";
+
+import ErrorView from "@/components/analysis/error-view";
+import ReportDownloadView from "@/components/analysis/report-download-view";
 
 type AnalysisPageState =
   | { phase: "processing"; completedStages: StageName[] }
+  | { phase: "reportReady"; report: ReportGenerationResponse }
   | { phase: "error"; message: string };
 
 function AnalysisContent() {
@@ -22,6 +26,41 @@ function AnalysisContent() {
   const searchParams = useSearchParams();
   const router = useRouter();
   const sessionId = searchParams.get("session");
+
+  const onNewSession = useCallback(async () => {
+    if (sessionId) {
+      try {
+        const response = await fetch(
+          `/api/sessions/${encodeURIComponent(sessionId)}`,
+          { method: "DELETE" },
+        );
+        if (!response.ok) {
+          const errorBody = await response.json().catch(() => null);
+          console.warn(
+            "[analysis] Session cleanup failed.",
+            errorBody?.error ?? response.statusText,
+          );
+        }
+      } catch (error) {
+        console.warn("[analysis] Session cleanup failed.", error);
+      }
+    }
+    router.push("/input");
+  }, [router, sessionId]);
+
+  const onReportDownloadStart = useCallback(async () => {
+    if (!sessionId) return;
+    const response = await fetch(
+      `/api/sessions/${encodeURIComponent(sessionId)}/complete`,
+      { method: "POST" },
+    );
+    if (!response.ok) {
+      const errorBody = await response.json().catch(() => null);
+      throw new Error(
+        errorBody?.error ?? "Failed to mark report download complete.",
+      );
+    }
+  }, [sessionId]);
 
   const runPipeline = useCallback(async () => {
     if (!sessionId) {
@@ -63,14 +102,25 @@ function AnalysisContent() {
       ]);
       await new Promise((r) => setTimeout(r, 600));
 
-      router.push(`/report?session=${sessionId}`);
+      const reportRes = await fetch("/api/reports", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ sessionId }),
+      });
+      const reportBody = await reportRes.json();
+
+      if (!reportRes.ok) {
+        throw new Error(reportBody.error ?? "Report generation failed.");
+      }
+
+      setState({ phase: "reportReady", report: reportBody });
     } catch (err) {
       setState({
         phase: "error",
         message: err instanceof Error ? err.message : "Analysis failed",
       });
     }
-  }, [sessionId, router]);
+  }, [sessionId]);
 
   useEffect(() => {
     if (!sessionId) {
@@ -97,6 +147,13 @@ function AnalysisContent() {
             runPipeline();
           }}
           onBack={() => router.push("/")}
+        />
+      )}
+      {state.phase === "reportReady" && (
+        <ReportDownloadView
+          report={state.report}
+          onNewSession={onNewSession}
+          onReportDownloadStart={onReportDownloadStart}
         />
       )}
     </main>
