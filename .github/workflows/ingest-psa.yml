@@ -1,0 +1,42 @@
+name: Ingest PSA OpenSTAT LFS
+
+# PSA data portals (psa.gov.ph, openstat.psa.gov.ph, data.gov.ph) are
+# behind a CDN that blocks non-browser clients. Automated cron fetch
+# is not feasible. The operator (development team) manually downloads
+# the latest LFS quarterly table, normalizes column names, and commits
+# the cleaned CSV. Pushing that file triggers this workflow.
+
+on:
+  push:
+    branches:
+      - main
+    paths:
+      - "ingestion/data/psa/sample_lfs.csv"
+      - "ingestion/src/kumpas_ingestion/pipelines/psa.py"
+      - ".github/workflows/ingest-psa.yml"
+  workflow_dispatch:
+    inputs:
+      override_url:
+        description: "Optional URL override (defaults to the committed CSV)."
+        required: false
+        type: string
+
+concurrency:
+  group: ingest-psa
+  cancel-in-progress: false
+
+jobs:
+  ingest:
+    runs-on: ubuntu-latest
+    env:
+      SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+      SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
+      GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
+      PSA_OPENSTAT_URL: ${{ inputs.override_url || format('file://{0}/ingestion/data/psa/sample_lfs.csv', github.workspace) }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: ./.github/actions/setup-ingestion
+        with:
+          extras: psa
+      - name: Run PSA OpenSTAT ingestion
+        run: python -m kumpas_ingestion.pipelines.psa

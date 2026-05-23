@@ -1,0 +1,43 @@
+name: Ingest CHED Memorandum Orders
+
+# CHED's current site (ched.gov.ph) sits behind a CDN that returns 403
+# to non-browser clients, but the legacy WordPress mirror at
+# legacy.ched.gov.ph responds normally and exposes a stable per-year
+# CMO index. This workflow scrapes that mirror weekly, downloads any
+# newly published CMO PDFs, and ingests them into path_feasibility.
+
+on:
+  schedule:
+    # Every Monday at 02:00 UTC (10:00 Manila). Off-hours, low traffic.
+    - cron: "0 2 * * 1"
+  workflow_dispatch:
+    inputs:
+      target_year:
+        description: "Override target year (defaults to current UTC year)."
+        required: false
+        type: string
+      first_run_limit:
+        description: "Cap on publications processed when the cache is empty (default 10)."
+        required: false
+        type: string
+
+concurrency:
+  group: ingest-ched
+  cancel-in-progress: false
+
+jobs:
+  ingest:
+    runs-on: ubuntu-latest
+    env:
+      SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+      SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
+      GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
+      CHED_TARGET_YEAR: ${{ inputs.target_year }}
+      CHED_FIRST_RUN_LIMIT: ${{ inputs.first_run_limit }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: ./.github/actions/setup-ingestion
+        with:
+          extras: pdf
+      - name: Run CHED CMO ingestion
+        run: python -m kumpas_ingestion.pipelines.ched_cmo
