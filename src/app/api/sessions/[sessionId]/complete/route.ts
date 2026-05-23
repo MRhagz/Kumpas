@@ -1,5 +1,6 @@
 import { type NextRequest } from "next/server";
 
+import { normalizeReportSessionId } from "@/lib/report/file-store";
 import { sessionCompletionService } from "@/lib/report/session-completion";
 
 export const runtime = "nodejs";
@@ -9,10 +10,16 @@ export async function POST(
   { params }: { params: Promise<{ sessionId: string }> },
 ) {
   const { sessionId } = await params;
-  const normalizedSessionId = sessionId.trim();
 
-  if (!normalizedSessionId) {
-    return Response.json({ error: "sessionId is required." }, { status: 400 });
+  let normalizedSessionId: string;
+
+  try {
+    normalizedSessionId = normalizeReportSessionId(sessionId);
+  } catch (error) {
+    const message =
+      error instanceof Error ? error.message : "Invalid session id.";
+
+    return Response.json({ error: message }, { status: 400 });
   }
 
   try {

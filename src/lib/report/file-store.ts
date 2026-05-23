@@ -145,7 +145,7 @@ export function getReportPdfObjectKey(sessionId: string): string {
   return `${normalizedSessionId}/${normalizedSessionId}.pdf`;
 }
 
-function normalizeSessionId(sessionId: string): string {
+export function normalizeReportSessionId(sessionId: string): string {
   const normalizedSessionId = sessionId.trim();
 
   if (!normalizedSessionId) {
@@ -157,6 +157,10 @@ function normalizeSessionId(sessionId: string): string {
   }
 
   return normalizedSessionId;
+}
+
+function normalizeSessionId(sessionId: string): string {
+  return normalizeReportSessionId(sessionId);
 }
 
 function getRequiredEnv(name: string): string {

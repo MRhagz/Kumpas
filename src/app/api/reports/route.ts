@@ -1,5 +1,5 @@
 import { ReportAssemblyError, assembleReportData } from "@/lib/report/assembler";
-import { pdfFileStore } from "@/lib/report/file-store";
+import { normalizeReportSessionId, pdfFileStore } from "@/lib/report/file-store";
 import { renderReportPdf } from "@/lib/report/pdf-renderer";
 import type { ReportGenerationResponse } from "@/lib/report/types";
 
@@ -21,10 +21,19 @@ export async function POST(request: Request): Promise<Response> {
     );
   }
 
-  const sessionId = typeof body.sessionId === "string" ? body.sessionId.trim() : "";
-
-  if (!sessionId) {
+  if (typeof body.sessionId !== "string" || !body.sessionId.trim()) {
     return Response.json({ error: "sessionId is required." }, { status: 400 });
+  }
+
+  let sessionId: string;
+
+  try {
+    sessionId = normalizeReportSessionId(body.sessionId);
+  } catch (error) {
+    const message =
+      error instanceof Error ? error.message : "Invalid session id.";
+
+    return Response.json({ error: message }, { status: 400 });
   }
 
   try {
