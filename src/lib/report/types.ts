@@ -1,5 +1,7 @@
 ﻿export type RecommendationStatus = "complete" | "degraded" | "incomplete";
 
+export type AcademicDocumentType = "form137" | "ncae" | "nat";
+
 export type SourceAcquisitionMethod =
   | "uploaded_document"
   | "counselor_notes"
@@ -49,6 +51,12 @@ export interface RankedRecommendationList {
   recommendations: RankedRecommendation[];
 }
 
+export interface AcademicEvidenceSummary {
+  availableDocuments: AcademicDocumentType[];
+  missingDocuments: AcademicDocumentType[];
+  completenessNote: string;
+}
+
 export interface AuditTrailEntry {
   recommendationId: string;
   careerPath: string;
@@ -59,20 +67,81 @@ export interface ReportPayload {
   sessionId: string;
   studentProfile: StudentProfile;
   rankedRecommendations: RankedRecommendationList;
+  academicEvidence: AcademicEvidenceSummary;
   auditTrail: AuditTrailEntry[];
   generatedAt: string;
 }
 
-export interface PdfTokenRecord {
-  token: string;
+export interface StoredReportPdf {
   sessionId: string;
-  filePath: string;
+  downloadUrl: string;
   expiresAt: string;
   createdAt: string;
+  byteLength: number;
 }
+
+export interface ReportGenerationResponse {
+  sessionId: string;
+  downloadUrl: string;
+  expiresAt: string;
+  generatedAt: string;
+  byteLength: number;
+  recommendationCount: number;
+  academicEvidence: AcademicEvidenceSummary;
+  recommendations: ReportRecommendationSummary[];
+}
+
+export interface ReportRecommendationSummary {
+  id: string;
+  rank: number;
+  careerPath: string;
+  alignmentScore: number;
+  keySignals: string[];
+}
+
+const ACADEMIC_DOCUMENT_TYPES: AcademicDocumentType[] = ["form137", "ncae", "nat"];
 
 export function isNormalizedScore(score: number): boolean {
   return Number.isFinite(score) && score >= 0 && score <= 1;
+}
+
+export function validateAcademicEvidenceSummary(
+  evidence: AcademicEvidenceSummary,
+): string[] {
+  const errors: string[] = [];
+  const availableDocuments = new Set(evidence.availableDocuments);
+  const missingDocuments = new Set(evidence.missingDocuments);
+
+  if (!evidence.completenessNote.trim()) {
+    errors.push("Academic evidence requires a completeness note.");
+  }
+
+  ACADEMIC_DOCUMENT_TYPES.forEach((documentType) => {
+    const isAvailable = availableDocuments.has(documentType);
+    const isMissing = missingDocuments.has(documentType);
+
+    if (isAvailable && isMissing) {
+      errors.push(`${documentType} cannot be both available and missing.`);
+    }
+
+    if (!isAvailable && !isMissing) {
+      errors.push(`${documentType} must be marked available or missing.`);
+    }
+  });
+
+  evidence.availableDocuments.forEach((documentType) => {
+    if (!ACADEMIC_DOCUMENT_TYPES.includes(documentType)) {
+      errors.push(`Unknown available document type: ${documentType}.`);
+    }
+  });
+
+  evidence.missingDocuments.forEach((documentType) => {
+    if (!ACADEMIC_DOCUMENT_TYPES.includes(documentType)) {
+      errors.push(`Unknown missing document type: ${documentType}.`);
+    }
+  });
+
+  return errors;
 }
 
 export function validateRankedRecommendationList(

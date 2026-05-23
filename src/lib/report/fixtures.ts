@@ -1,8 +1,12 @@
 ﻿import type {
+  AcademicEvidenceSummary,
   RankedRecommendationList,
   StudentProfile,
 } from "@/lib/report/types";
-import { validateRankedRecommendationList } from "@/lib/report/types";
+import {
+  validateAcademicEvidenceSummary,
+  validateRankedRecommendationList,
+} from "@/lib/report/types";
 
 export const demoStudentProfile: StudentProfile = {
   sessionId: "demo-session-module-4",
@@ -113,6 +117,16 @@ export const demoRankedRecommendationList: RankedRecommendationList = {
   ],
 };
 
+export const demoAcademicEvidenceSummary: AcademicEvidenceSummary = {
+  availableDocuments: ["form137", "ncae"],
+  missingDocuments: ["nat"],
+  completenessNote:
+    "NAT data was not available, so recommendations rely more heavily on Form 137 grades, NCAE aptitude signals, counselor notes, and labor-market context.",
+};
+
 export const demoRankedRecommendationValidationErrors =
   validateRankedRecommendationList(demoRankedRecommendationList);
+
+export const demoAcademicEvidenceValidationErrors =
+  validateAcademicEvidenceSummary(demoAcademicEvidenceSummary);
 
