@@ -1,10 +1,16 @@
 ﻿import { demoRankedRecommendationList, demoStudentProfile } from "@/lib/report/fixtures";
-import type { RankedRecommendationList, StudentProfile } from "@/lib/report/types";
+import { demoAcademicEvidenceSummary } from "@/lib/report/fixtures";
+import type {
+  AcademicEvidenceSummary,
+  RankedRecommendationList,
+  StudentProfile,
+} from "@/lib/report/types";
 import { validateRankedRecommendationList } from "@/lib/report/types";
 
 export interface RecommendationProvider {
   getApprovedStudentProfile(sessionId: string): Promise<StudentProfile>;
   getRankedRecommendations(sessionId: string): Promise<RankedRecommendationList>;
+  getAcademicEvidenceSummary(sessionId: string): Promise<AcademicEvidenceSummary>;
 }
 
 export const DEMO_REPORT_SESSION_ID = demoStudentProfile.sessionId;
@@ -43,8 +49,16 @@ export async function getMockRankedRecommendationList(
   return recommendations;
 }
 
+export async function getMockAcademicEvidenceSummary(
+  sessionId: string,
+): Promise<AcademicEvidenceSummary> {
+  assertDemoSession(sessionId);
+  return cloneFixture(demoAcademicEvidenceSummary);
+}
+
 export const mockRecommendationProvider: RecommendationProvider = {
   getApprovedStudentProfile: getMockApprovedStudentProfile,
   getRankedRecommendations: getMockRankedRecommendationList,
+  getAcademicEvidenceSummary: getMockAcademicEvidenceSummary,
 };
 

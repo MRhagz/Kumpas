@@ -1,5 +1,7 @@
 ﻿export type RecommendationStatus = "complete" | "degraded" | "incomplete";
 
+export type AcademicDocumentType = "form137" | "ncae" | "nat";
+
 export type SourceAcquisitionMethod =
   | "uploaded_document"
   | "counselor_notes"
@@ -49,6 +51,12 @@ export interface RankedRecommendationList {
   recommendations: RankedRecommendation[];
 }
 
+export interface AcademicEvidenceSummary {
+  availableDocuments: AcademicDocumentType[];
+  missingDocuments: AcademicDocumentType[];
+  completenessNote: string;
+}
+
 export interface AuditTrailEntry {
   recommendationId: string;
   careerPath: string;
@@ -59,6 +67,7 @@ export interface ReportPayload {
   sessionId: string;
   studentProfile: StudentProfile;
   rankedRecommendations: RankedRecommendationList;
+  academicEvidence: AcademicEvidenceSummary;
   auditTrail: AuditTrailEntry[];
   generatedAt: string;
 }
@@ -78,6 +87,7 @@ export interface ReportGenerationResponse {
   generatedAt: string;
   byteLength: number;
   recommendationCount: number;
+  academicEvidence: AcademicEvidenceSummary;
   recommendations: ReportRecommendationSummary[];
 }
 
