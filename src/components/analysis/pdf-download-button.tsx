@@ -5,13 +5,21 @@ import { Download } from "lucide-react";
 interface PdfDownloadButtonProps {
   downloadUrl: string;
   fileName: string;
+  onDownloadStart?: () => void | Promise<void>;
 }
 
 export default function PdfDownloadButton({
   downloadUrl,
   fileName,
+  onDownloadStart,
 }: PdfDownloadButtonProps) {
-  const handleDownload = () => {
+  const handleDownload = async () => {
+    try {
+      await onDownloadStart?.();
+    } catch (error) {
+      console.warn("[PdfDownloadButton] Download status update failed.", error);
+    }
+
     const anchor = document.createElement("a");
     anchor.href = downloadUrl;
     anchor.download = fileName;

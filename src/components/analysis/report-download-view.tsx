@@ -16,11 +16,13 @@ import type { ReportGenerationResponse } from "@/lib/report/types";
 interface ReportDownloadViewProps {
   report: ReportGenerationResponse;
   onNewSession: () => void | Promise<void>;
+  onReportDownloadStart?: () => void | Promise<void>;
 }
 
 export default function ReportDownloadView({
   report,
   onNewSession,
+  onReportDownloadStart,
 }: ReportDownloadViewProps) {
   const [isStartingNewSession, setIsStartingNewSession] = useState(false);
   const expiresAt = new Intl.DateTimeFormat(undefined, {
@@ -161,7 +163,11 @@ export default function ReportDownloadView({
           <p className="text-sm text-muted-text">
             The signed report link is ready for this counseling session.
           </p>
-          <PdfDownloadButton downloadUrl={report.downloadUrl} fileName={fileName} />
+          <PdfDownloadButton
+            downloadUrl={report.downloadUrl}
+            fileName={fileName}
+            onDownloadStart={onReportDownloadStart}
+          />
         </div>
       </section>
     </div>

@@ -54,6 +54,24 @@ function AnalysisContent() {
         router.push("/input");
     }, [router, sessionId]);
 
+    const onReportDownloadStart = useCallback(async () => {
+        if (!sessionId) {
+            return;
+        }
+
+        const response = await fetch(
+            `/api/sessions/${encodeURIComponent(sessionId)}/complete`,
+            { method: "POST" },
+        );
+
+        if (!response.ok) {
+            const errorBody = await response.json().catch(() => null);
+            throw new Error(
+                errorBody?.error ?? "Failed to mark report download complete.",
+            );
+        }
+    }, [sessionId]);
+
     const runPipeline = useCallback(async () => {
         if (!sessionId) {
             setState({ phase: "error", message: "No session ID found. Please start a new session." });
@@ -135,7 +153,11 @@ function AnalysisContent() {
                 />
             )}
             {state.phase === "reportReady" && (
-                <ReportDownloadView report={state.report} onNewSession={onNewSession} />
+                <ReportDownloadView
+                    report={state.report}
+                    onNewSession={onNewSession}
+                    onReportDownloadStart={onReportDownloadStart}
+                />
             )}
         </main>
     );
