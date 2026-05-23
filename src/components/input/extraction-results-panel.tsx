@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useCallback } from "react";
+import { useState, useCallback, useMemo } from "react";
 import {
   Check,
   Edit3,
@@ -244,63 +244,75 @@ function Form137Editor({
     },
     [data, onChange],
   );
+
+  // Group by year while preserving original indices so edits dispatch correctly.
+  const groups = useMemo(() => {
+    const byYear = new Map<string, { idx: number; subject: Form137Data["subjects"][number] }[]>();
+    data.subjects.forEach((subject, idx) => {
+      const year = subject.year?.trim() || "Unspecified";
+      const arr = byYear.get(year) ?? [];
+      arr.push({ idx, subject });
+      byYear.set(year, arr);
+    });
+    return Array.from(byYear.entries()).sort(([a], [b]) => a.localeCompare(b));
+  }, [data.subjects]);
+
   return (
-    <div className="space-y-3">
-      <div className="flex items-center justify-between">
-        <h4 className="text-[11px] font-bold uppercase tracking-wider text-charcoal-3">
-          Subject Grades
-        </h4>
-        {data.school_year && (
-          <span className="text-[11px] text-muted-text">S.Y. {data.school_year}</span>
-        )}
-      </div>
-      <div className="rounded-lg border border-black/[0.06] overflow-hidden">
-        <table className="w-full text-[13px]">
-          <thead>
-            <tr className="border-b border-black/[0.06] bg-black/[0.015]">
-              <th className="px-3 py-2 text-left font-semibold text-charcoal-3 text-[11px] uppercase tracking-wider">
-                Subject
-              </th>
-              <th className="px-3 py-2 text-right font-semibold text-charcoal-3 text-[11px] uppercase tracking-wider w-20">
-                Grade
-              </th>
-            </tr>
-          </thead>
-          <tbody>
-            {data.subjects.map((s, i) => (
-              <tr
-                key={i}
-                className="border-b border-black/[0.04] last:border-b-0 hover:bg-black/[0.01]"
-              >
-                <td className="px-3 py-2 text-charcoal-2 font-medium">{s.name}</td>
-                <td className="px-3 py-2 text-right">
-                  {editingIdx === i ? (
-                    <input
-                      type="number"
-                      min={60}
-                      max={100}
-                      value={s.grade}
-                      autoFocus
-                      onChange={(e) => updateGrade(i, parseFloat(e.target.value) || 0)}
-                      onBlur={() => setEditingIdx(null)}
-                      onKeyDown={(e) => e.key === "Enter" && setEditingIdx(null)}
-                      className="w-16 rounded border border-sage px-2 py-1 text-[13px] text-right outline-none focus:ring-1 focus:ring-sage"
-                    />
-                  ) : (
-                    <button
-                      type="button"
-                      onClick={() => setEditingIdx(i)}
-                      className="inline-flex items-center gap-1 rounded-md px-2 py-0.5 text-[13px] font-semibold text-sage hover:bg-sage/10 cursor-pointer"
-                    >
-                      {s.grade} <Edit3 size={10} className="text-muted-text" />
-                    </button>
-                  )}
-                </td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
-      </div>
+    <div className="space-y-4">
+      {groups.map(([year, rows]) => (
+        <div key={year} className="space-y-2">
+          <h4 className="text-[11px] font-bold uppercase tracking-wider text-charcoal-3">
+            S.Y. {year}
+          </h4>
+          <div className="rounded-lg border border-black/[0.06] overflow-hidden">
+            <table className="w-full text-[13px]">
+              <thead>
+                <tr className="border-b border-black/[0.06] bg-black/[0.015]">
+                  <th className="px-3 py-2 text-left font-semibold text-charcoal-3 text-[11px] uppercase tracking-wider">
+                    Subject
+                  </th>
+                  <th className="px-3 py-2 text-right font-semibold text-charcoal-3 text-[11px] uppercase tracking-wider w-20">
+                    Grade
+                  </th>
+                </tr>
+              </thead>
+              <tbody>
+                {rows.map(({ idx, subject }) => (
+                  <tr
+                    key={idx}
+                    className="border-b border-black/[0.04] last:border-b-0 hover:bg-black/[0.01]"
+                  >
+                    <td className="px-3 py-2 text-charcoal-2 font-medium">{subject.name}</td>
+                    <td className="px-3 py-2 text-right">
+                      {editingIdx === idx ? (
+                        <input
+                          type="number"
+                          min={60}
+                          max={100}
+                          value={subject.grade}
+                          autoFocus
+                          onChange={(e) => updateGrade(idx, parseFloat(e.target.value) || 0)}
+                          onBlur={() => setEditingIdx(null)}
+                          onKeyDown={(e) => e.key === "Enter" && setEditingIdx(null)}
+                          className="w-16 rounded border border-sage px-2 py-1 text-[13px] text-right outline-none focus:ring-1 focus:ring-sage"
+                        />
+                      ) : (
+                        <button
+                          type="button"
+                          onClick={() => setEditingIdx(idx)}
+                          className="inline-flex items-center gap-1 rounded-md px-2 py-0.5 text-[13px] font-semibold text-sage hover:bg-sage/10 cursor-pointer"
+                        >
+                          {subject.grade} <Edit3 size={10} className="text-muted-text" />
+                        </button>
+                      )}
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      ))}
     </div>
   );
 }
