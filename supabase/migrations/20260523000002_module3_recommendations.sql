@@ -39,11 +39,45 @@ create index if not exists idx_recommendation_sources_recommendation_id
 alter table public.ranked_recommendations enable row level security;
 alter table public.recommendation_sources enable row level security;
 
--- Grant DML to all roles (same pattern as module 2 grants migration)
+grant select
+  on public.ranked_recommendations
+  to authenticated;
+
+grant select
+  on public.recommendation_sources
+  to authenticated;
+
 grant select, insert, update, delete
   on public.ranked_recommendations
-  to anon, authenticated, service_role;
+  to service_role;
 
 grant select, insert, update, delete
   on public.recommendation_sources
-  to anon, authenticated, service_role;
+  to service_role;
+
+create policy "ranked_recommendations_own_session"
+  on public.ranked_recommendations
+  for select
+  to authenticated
+  using (
+    exists (
+      select 1
+      from public.sessions
+      where sessions.id = ranked_recommendations.session_id
+        and sessions.counselor_id = (select auth.uid())
+    )
+  );
+
+create policy "recommendation_sources_own_session"
+  on public.recommendation_sources
+  for select
+  to authenticated
+  using (
+    exists (
+      select 1
+      from public.ranked_recommendations
+      join public.sessions on sessions.id = ranked_recommendations.session_id
+      where ranked_recommendations.id = recommendation_sources.recommendation_id
+        and sessions.counselor_id = (select auth.uid())
+    )
+  );

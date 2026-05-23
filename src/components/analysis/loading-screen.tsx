@@ -1,44 +1,12 @@
 "use client"
 
-import { useEffect, useState, useMemo } from "react";
+import { useEffect, useState } from "react";
 import { AgentSpinner } from "./agent-spinner";
 import {
     FileText, PenLine, BotMessageSquare, Shield, BarChart3,
     Brain, Sparkles, CheckCircle2, CircleDashed, Loader2,
+    type LucideIcon,
 } from "lucide-react";
-
-/* ─── stage config ─── */
-const STAGE_CONFIG = [
-    {
-        key: "documentParsing",
-        label: "Processing Documents",
-        sub: "Reading NCAE scores and academic records",
-        icon: FileText,
-        color: "#C4861C",
-    },
-    {
-        key: "notesParsing",
-        label: "Reading Counselor Notes",
-        sub: "Structuring interview sections for analysis",
-        icon: PenLine,
-        color: "#6B8C6B",
-    },
-    {
-        key: "transcriptionLayer",
-        label: "Session Intake Layer",
-        sub: "Detecting career path and redacting PII",
-        icon: BotMessageSquare,
-        color: "#5B7FA6",
-    },
-    // parallel group handled separately
-    {
-        key: "synthesis",
-        label: "Synthesizing Career Recommendations",
-        sub: "Combining all specialist analyses into ranked career paths",
-        icon: Sparkles,
-        color: "#8B5E3C",
-    },
-] as const;
 
 const PARALLEL_AGENTS = [
     { key: "feasibility", label: "Feasibility Assessor", icon: Shield, color: "#6B8C6B" },
@@ -63,6 +31,73 @@ function getCurrentPhase(completed: string[]): string {
     if (completed.includes("notesParsing")) return "transcriptionLayer";
     if (completed.includes("documentParsing")) return "notesParsing";
     return "documentParsing";
+}
+
+interface StageRowProps {
+    label: string;
+    sub: string;
+    icon: LucideIcon;
+    color: string;
+    pct: number;
+    isDone: boolean;
+    isActive: boolean;
+}
+
+function StageRow({
+    label, sub, icon: Icon, color, pct, isDone, isActive,
+}: StageRowProps) {
+    return (
+        <div
+            className={`flex items-center gap-4 w-full p-4 rounded-2xl border transition-all duration-500 ${isDone
+                    ? "bg-white/80 border-[var(--sage)]/15"
+                    : isActive
+                        ? "bg-white border-[var(--sage)]/25 shadow-md ring-1 ring-[var(--sage)]/10"
+                        : "bg-[var(--cream-mid)]/60 border-transparent opacity-40"
+                }`}
+        >
+            <div
+                className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-xl transition-all duration-500 ${isDone
+                        ? "bg-[var(--charcoal)] text-white"
+                        : isActive
+                            ? "text-white shadow-sm"
+                            : "bg-gray-200 text-gray-400"
+                    }`}
+                style={isActive && !isDone ? { backgroundColor: color } : undefined}
+            >
+                {isDone ? (
+                    <CheckCircle2 size={18} />
+                ) : isActive ? (
+                    <Icon size={18} className="animate-pulse" />
+                ) : (
+                    <CircleDashed size={16} />
+                )}
+            </div>
+            <div className="flex-1 min-w-0">
+                <div className="flex justify-between items-center mb-1.5">
+                    <span className={`text-sm font-semibold ${isDone || isActive ? "text-[var(--charcoal)]" : "text-gray-400"}`}>
+                        {label}
+                    </span>
+                    {(isActive || isDone) && (
+                        <span className={`text-[11px] font-mono tabular-nums ${isDone ? "text-[var(--sage)]" : "text-gray-400"}`}>
+                            {Math.round(pct)}%
+                        </span>
+                    )}
+                </div>
+                {isActive && !isDone && (
+                    <p className="text-[11px] text-gray-400 mb-2 animate-pulse">{sub}</p>
+                )}
+                <div className="h-1.5 w-full bg-gray-100 rounded-full overflow-hidden">
+                    <div
+                        className="h-full rounded-full transition-all duration-300 ease-out"
+                        style={{
+                            width: `${pct}%`,
+                            backgroundColor: isDone ? "var(--sage)" : color,
+                        }}
+                    />
+                </div>
+            </div>
+        </div>
+    );
 }
 
 export default function LoadingScreen({ completedStages = [] }: { completedStages?: string[] }) {
@@ -128,65 +163,6 @@ export default function LoadingScreen({ completedStages = [] }: { completedStage
         }, 250);
         return () => clearInterval(t);
     }, [hasDocs, hasNotes, hasTranscription, hasParallel, hasSynthesis]);
-
-    /* ─── UI helpers ─── */
-    const StageRow = ({
-        label, sub, icon: Icon, color, pct, isDone, isActive,
-    }: {
-        label: string; sub: string; icon: any; color: string;
-        pct: number; isDone: boolean; isActive: boolean;
-    }) => (
-        <div
-            className={`flex items-center gap-4 w-full p-4 rounded-2xl border transition-all duration-500 ${isDone
-                    ? "bg-white/80 border-[var(--sage)]/15"
-                    : isActive
-                        ? "bg-white border-[var(--sage)]/25 shadow-md ring-1 ring-[var(--sage)]/10"
-                        : "bg-[var(--cream-mid)]/60 border-transparent opacity-40"
-                }`}
-        >
-            <div
-                className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-xl transition-all duration-500 ${isDone
-                        ? "bg-[var(--charcoal)] text-white"
-                        : isActive
-                            ? "text-white shadow-sm"
-                            : "bg-gray-200 text-gray-400"
-                    }`}
-                style={isActive && !isDone ? { backgroundColor: color } : undefined}
-            >
-                {isDone ? (
-                    <CheckCircle2 size={18} />
-                ) : isActive ? (
-                    <Icon size={18} className="animate-pulse" />
-                ) : (
-                    <CircleDashed size={16} />
-                )}
-            </div>
-            <div className="flex-1 min-w-0">
-                <div className="flex justify-between items-center mb-1.5">
-                    <span className={`text-sm font-semibold ${isDone || isActive ? "text-[var(--charcoal)]" : "text-gray-400"}`}>
-                        {label}
-                    </span>
-                    {(isActive || isDone) && (
-                        <span className={`text-[11px] font-mono tabular-nums ${isDone ? "text-[var(--sage)]" : "text-gray-400"}`}>
-                            {Math.round(pct)}%
-                        </span>
-                    )}
-                </div>
-                {isActive && !isDone && (
-                    <p className="text-[11px] text-gray-400 mb-2 animate-pulse">{sub}</p>
-                )}
-                <div className="h-1.5 w-full bg-gray-100 rounded-full overflow-hidden">
-                    <div
-                        className="h-full rounded-full transition-all duration-300 ease-out"
-                        style={{
-                            width: `${pct}%`,
-                            backgroundColor: isDone ? "var(--sage)" : color,
-                        }}
-                    />
-                </div>
-            </div>
-        </div>
-    );
 
     return (
         <div className="flex-1 flex flex-col items-center justify-center font-sans text-center min-h-[80vh] py-12">
@@ -319,7 +295,7 @@ export default function LoadingScreen({ completedStages = [] }: { completedStage
 function AgentSubProgress({
     label, icon: Icon, progress, color, active, done,
 }: {
-    label: string; icon: any; progress: number; color: string; active: boolean; done: boolean;
+    label: string; icon: LucideIcon; progress: number; color: string; active: boolean; done: boolean;
 }) {
     return (
         <div className="flex items-center gap-3">
