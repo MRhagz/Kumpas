@@ -14,6 +14,7 @@ export interface SessionTerminationResult {
 }
 
 export interface SessionTerminationOptions {
+  terminalStatus?: "cancelled" | "expired";
   warn?: (message: string) => void;
 }
 
@@ -28,6 +29,7 @@ export class SessionTerminationHandler {
     options: SessionTerminationOptions = {},
   ): Promise<SessionTerminationResult> {
     const warnings: string[] = [];
+    const terminalStatus = options.terminalStatus ?? "cancelled";
     const warn = options.warn ?? this.warn;
     let reportPdfPurged = true;
     let sessionRowsPurged = true;
@@ -77,7 +79,7 @@ export class SessionTerminationHandler {
     }
 
     try {
-      await this.scrubSession(sessionId);
+      await this.scrubSession(sessionId, terminalStatus);
     } catch (error) {
       sessionScrubbed = false;
       const message =
@@ -167,11 +169,14 @@ export class SessionTerminationHandler {
     }
   }
 
-  private async scrubSession(sessionId: string): Promise<void> {
+  private async scrubSession(
+    sessionId: string,
+    terminalStatus: "cancelled" | "expired",
+  ): Promise<void> {
     const { error } = await supabaseAdmin
       .from("sessions")
       .update({
-        status: "cancelled",
+        status: terminalStatus,
         approved_profile: null,
         module_status: {
           intake: "complete",
@@ -179,7 +184,7 @@ export class SessionTerminationHandler {
           analysis: "complete",
           report: "complete",
         },
-        report_status: "downloaded",
+        report_status: "not_started",
         last_activity: new Date().toISOString(),
         completed_at: new Date().toISOString(),
       })
