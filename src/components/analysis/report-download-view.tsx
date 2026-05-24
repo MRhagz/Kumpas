@@ -14,6 +14,16 @@ import {
 } from "lucide-react";
 
 import PdfDownloadButton from "@/components/analysis/pdf-download-button";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
 import type {
   KeySignalDetail,
   ReportGenerationResponse,
@@ -35,6 +45,7 @@ export default function ReportDownloadView({
     report.recommendations[0]?.id ?? "",
   );
   const [isStartingNewSession, setIsStartingNewSession] = useState(false);
+  const [isNewSessionDialogOpen, setIsNewSessionDialogOpen] = useState(false);
   const [isDownloadExpired, setIsDownloadExpired] = useState(false);
   const selectedRecommendation = useMemo(
     () =>
@@ -69,7 +80,7 @@ export default function ReportDownloadView({
     return () => window.clearInterval(intervalId);
   }, [report.expiresAt]);
 
-  const handleNewSession = async () => {
+  const handleConfirmNewSession = async () => {
     if (isStartingNewSession) {
       return;
     }
@@ -80,11 +91,12 @@ export default function ReportDownloadView({
       await onNewSession();
     } finally {
       setIsStartingNewSession(false);
+      setIsNewSessionDialogOpen(false);
     }
   };
 
   return (
-    <div className="mx-auto min-h-screen w-full max-w-6xl px-4 py-6 sm:px-6 sm:py-10">
+    <div className="mx-auto min-h-screen w-full max-w-6xl px-4 pt-2 pb-6 sm:px-6 sm:pt-3 sm:pb-10">
       <header className="mb-6">
         <p className="text-[10px] font-semibold uppercase tracking-[0.2em] text-muted-text">
           Career Assessment - Session Output
@@ -102,7 +114,7 @@ export default function ReportDownloadView({
           </div>
           <button
             type="button"
-            onClick={handleNewSession}
+            onClick={() => setIsNewSessionDialogOpen(true)}
             disabled={isStartingNewSession}
             aria-busy={isStartingNewSession}
             className="inline-flex shrink-0 items-center justify-center gap-2 rounded-lg border border-black/10 bg-white px-3.5 py-2 text-xs font-semibold uppercase tracking-wider text-muted-text transition-colors hover:text-ink disabled:cursor-wait disabled:opacity-70"
@@ -177,6 +189,38 @@ export default function ReportDownloadView({
           </section>
         </aside>
       </section>
+
+      <AlertDialog
+        open={isNewSessionDialogOpen}
+        onOpenChange={(open) => {
+          if (!isStartingNewSession) {
+            setIsNewSessionDialogOpen(open);
+          }
+        }}
+      >
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Start a new session?</AlertDialogTitle>
+            <AlertDialogDescription>
+              This will end the current counseling session and run cleanup for
+              temporary report and session artifacts. This action cannot be
+              undone.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel disabled={isStartingNewSession}>
+              Keep current session
+            </AlertDialogCancel>
+            <AlertDialogAction
+              onClick={handleConfirmNewSession}
+              disabled={isStartingNewSession}
+              className="bg-red-600 text-white hover:bg-red-700"
+            >
+              {isStartingNewSession ? "Starting..." : "End session"}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 }

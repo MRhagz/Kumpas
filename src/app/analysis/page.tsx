@@ -5,6 +5,7 @@ import { useSearchParams, useRouter } from "next/navigation";
 import { Loader2 } from "lucide-react";
 import LoadingScreen from "@/components/analysis/loading-screen";
 import ProtectedHeader from "@/components/auth/protected-header";
+import SessionProgressIndicator from "@/components/session/session-progress-indicator";
 
 import type { StageName } from "@/lib/analysis-types";
 import type { ReportGenerationResponse } from "@/lib/report/types";
@@ -16,6 +17,14 @@ type AnalysisPageState =
   | { phase: "processing"; completedStages: StageName[] }
   | { phase: "reportReady"; report: ReportGenerationResponse }
   | { phase: "error"; message: string };
+
+interface SessionStateResponse {
+  sessionId: string;
+  nextStep: "input" | "analysis" | "report" | "complete" | "start-new-session";
+  hasApprovedProfile: boolean;
+  hasRecommendations: boolean;
+  reportStatus: "not_started" | "generating" | "ready" | "downloaded" | "failed";
+}
 
 function AnalysisContent() {
   const [state, setState] = useState<AnalysisPageState>({
@@ -63,6 +72,27 @@ function AnalysisContent() {
     }
   }, [sessionId]);
 
+  const generateReport = useCallback(async () => {
+    if (!sessionId) {
+      throw new Error("No session ID found. Please start a new session.");
+    }
+
+    const reportRes = await fetch("/api/reports", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ sessionId }),
+    });
+    const reportBody = await reportRes.json();
+
+    if (!reportRes.ok) {
+      throw new Error(
+        getReportGenerationErrorMessage(reportRes.status, reportBody),
+      );
+    }
+
+    setState({ phase: "reportReady", report: reportBody });
+  }, [sessionId]);
+
   const runPipeline = useCallback(async () => {
     if (!sessionId) {
       setState({ phase: "error", message: "No session ID found. Please start a new session." });
@@ -82,6 +112,34 @@ function AnalysisContent() {
     markStages(["documentParsing", "notesParsing", "transcriptionLayer"]);
 
     try {
+      const sessionState = await fetchSessionState(sessionId);
+
+      if (sessionState.nextStep === "start-new-session") {
+        setState({
+          phase: "error",
+          message: "This session has expired. Please start a new session.",
+        });
+        return;
+      }
+
+      if (sessionState.nextStep === "input" || !sessionState.hasApprovedProfile) {
+        router.replace(`/input?session=${encodeURIComponent(sessionId)}`);
+        return;
+      }
+
+      if (sessionState.reportStatus === "downloaded") {
+        setState({
+          phase: "error",
+          message: "This session has already been completed. Start a new session for the next student.",
+        });
+        return;
+      }
+
+      if (sessionState.hasRecommendations || sessionState.nextStep === "report") {
+        await generateReport();
+        return;
+      }
+
       const res = await fetch(`/api/sessions/${sessionId}/analyze`, {
         method: "POST",
       });
@@ -103,27 +161,14 @@ function AnalysisContent() {
       ]);
       await new Promise((r) => setTimeout(r, 600));
 
-      const reportRes = await fetch("/api/reports", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ sessionId }),
-      });
-      const reportBody = await reportRes.json();
-
-      if (!reportRes.ok) {
-        throw new Error(
-          getReportGenerationErrorMessage(reportRes.status, reportBody),
-        );
-      }
-
-      setState({ phase: "reportReady", report: reportBody });
+      await generateReport();
     } catch (err) {
       setState({
         phase: "error",
         message: err instanceof Error ? err.message : "Analysis failed",
       });
     }
-  }, [sessionId]);
+  }, [generateReport, router, sessionId]);
 
   useEffect(() => {
     if (!sessionId) {
@@ -139,6 +184,13 @@ function AnalysisContent() {
 
   return (
     <main className="min-h-screen bg-background">
+      <div className="pt-6 pb-2">
+        <SessionProgressIndicator
+          sessionId={sessionId}
+          fallbackStep={state.phase === "reportReady" ? "report" : "analysis"}
+          className="max-w-6xl"
+        />
+      </div>
       {state.phase === "processing" && (
         <LoadingScreen completedStages={state.completedStages} />
       )}
@@ -188,6 +240,21 @@ function getReportGenerationErrorMessage(
     }
 
     return errorMessage;
+}
+
+async function fetchSessionState(
+  sessionId: string,
+): Promise<SessionStateResponse> {
+  const response = await fetch(
+    `/api/sessions/${encodeURIComponent(sessionId)}`,
+  );
+
+  if (!response.ok) {
+    const errorBody = await response.json().catch(() => null);
+    throw new Error(errorBody?.error ?? "Failed to resume session state.");
+  }
+
+  return (await response.json()) as SessionStateResponse;
 }
 
 function isReportErrorBody(

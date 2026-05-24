@@ -1,4 +1,5 @@
 import { ReportAssemblyError, assembleReportData } from "@/lib/report/assembler";
+import { sessionProgressTracker } from "@/lib/module5/session-progress";
 import { normalizeReportSessionId, pdfFileStore } from "@/lib/report/file-store";
 import { renderReportPdf } from "@/lib/report/pdf-renderer";
 import type { ReportGenerationResponse } from "@/lib/report/types";
@@ -54,9 +55,13 @@ export async function POST(request: Request): Promise<Response> {
   }
 
   try {
+    await sessionProgressTracker.markReportGenerating(sessionId);
+
     const reportPayload = await assembleReportData(sessionId);
     const pdfBuffer = await renderReportPdf(reportPayload);
     const storedPdf = await pdfFileStore.uploadReportPdf(sessionId, pdfBuffer);
+
+    await sessionProgressTracker.markReportReady(sessionId);
 
     const response: ReportGenerationResponse = {
       sessionId,
@@ -82,6 +87,8 @@ export async function POST(request: Request): Promise<Response> {
 
     return createReportJsonResponse(response);
   } catch (error) {
+    await sessionProgressTracker.markReportFailed(sessionId);
+
     if (error instanceof ReportAssemblyError) {
       logReportGenerationFailure(sessionId, error, {
         status: 422,

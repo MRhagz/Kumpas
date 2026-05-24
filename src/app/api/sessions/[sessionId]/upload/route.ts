@@ -4,6 +4,7 @@ import { piiRedactionService } from "@/lib/module2/pii-redaction-service";
 import { documentStorageService } from "@/lib/module2/document-storage-service";
 import { geminiExtractionService } from "@/lib/module2/gemini-extraction-service";
 import { sessionInitializationService } from "@/lib/module2/session-initialization-service";
+import { sessionProgressTracker } from "@/lib/module5/session-progress";
 import {
   notFoundResponse,
   requireUser,
@@ -37,6 +38,8 @@ export async function POST(
     }
 
     // Raw buffer stays in memory — never written to disk (deviation #3, plan §Stated Deviations)
+    await sessionProgressTracker.markIntakeInProgress(sessionId);
+
     const rawBuffer = Buffer.from(await file.arrayBuffer());
     const mimeType = file.type || "image/jpeg";
 

@@ -1,11 +1,18 @@
 import { supabaseAdmin } from "@/lib/supabase";
+import { DEFAULT_MODULE_STATUS } from "@/lib/module5/session-progress";
 import type { Session } from "@/types";
 
 export class SessionInitializationService {
   async createSession(counselorId: string): Promise<Session> {
     const { data, error } = await supabaseAdmin
       .from("sessions")
-      .insert({ counselor_id: counselorId, status: "active" })
+      .insert({
+        counselor_id: counselorId,
+        status: "active",
+        module_status: DEFAULT_MODULE_STATUS,
+        report_status: "not_started",
+        completed_at: null,
+      })
       .select()
       .single();
 

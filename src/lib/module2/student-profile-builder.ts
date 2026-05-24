@@ -1,4 +1,5 @@
 import { supabaseAdmin } from "@/lib/supabase";
+import { sessionProgressTracker } from "@/lib/module5/session-progress";
 import type {
   ApprovedProfile,
   CorrectionLog,
@@ -92,6 +93,8 @@ export class StudentProfileBuilder {
       );
       if (corrErr) throw new Error(`Failed to log corrections: ${corrErr.message}`);
     }
+
+    await sessionProgressTracker.markProfileApproved(sessionId);
 
     return profile;
   }

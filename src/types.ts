@@ -119,9 +119,17 @@ export interface Session {
   counselor_id: string | null;
   status: "active" | "completed" | "expired" | "cancelled";
   approved_profile: ApprovedProfile | null;
+  module_status: {
+    intake: "not_started" | "in_progress" | "complete" | "failed";
+    profile: "not_started" | "in_progress" | "complete" | "failed";
+    analysis: "not_started" | "in_progress" | "complete" | "failed";
+    report: "not_started" | "in_progress" | "complete" | "failed";
+  };
+  report_status: "not_started" | "generating" | "ready" | "downloaded" | "failed";
   created_at: string;
   last_activity: string;
   expires_at: string;
+  completed_at: string | null;
 }
 
 export interface SessionNotes {
