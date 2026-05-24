@@ -2,6 +2,7 @@ import { type NextRequest } from "next/server";
 import { supabaseAdmin } from "@/lib/supabase";
 import { agentDispatcher } from "@/lib/module3/agent-dispatcher";
 import { metaAgentSynthesizer } from "@/lib/module3/meta-agent-synthesizer";
+import { sessionProgressTracker } from "@/lib/module5/session-progress";
 import {
   notFoundResponse,
   requireUser,
@@ -48,6 +49,8 @@ export async function POST(
       );
     }
 
+    await sessionProgressTracker.markAnalysisInProgress(sessionId);
+
     const approvedProfile = session.approved_profile as ApprovedProfile;
 
     const agentOutputs = await agentDispatcher.dispatch({
@@ -57,6 +60,8 @@ export async function POST(
 
     const allFailed = agentOutputs.every((o) => o.status === "FAILED");
     if (allFailed) {
+      await sessionProgressTracker.markAnalysisFailed(sessionId);
+
       return json(
         { error: "All specialist agents failed. Please try again." },
         { status: 502 },
@@ -68,10 +73,7 @@ export async function POST(
       agentOutputs,
     );
 
-    await supabaseAdmin
-      .from("sessions")
-      .update({ last_activity: new Date().toISOString() })
-      .eq("id", sessionId);
+    await sessionProgressTracker.markAnalysisComplete(sessionId);
 
     return json({
       rankedRecommendations,
@@ -82,6 +84,8 @@ export async function POST(
       })),
     });
   } catch (err) {
+    await sessionProgressTracker.markAnalysisFailed(sessionId);
+
     console.error(`[analyze route] sessionId=${sessionId}`, err);
     return json(
       { error: err instanceof Error ? err.message : "Analysis failed" },

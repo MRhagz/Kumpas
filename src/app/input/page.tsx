@@ -1,13 +1,22 @@
 import InputContainer from "@/components/input/input-container";
 import ProtectedHeader from "@/components/auth/protected-header";
 import Link from "next/link";
+import { Suspense } from "react";
 
 export default function InputPage() {
   return (
     <div className="min-h-screen bg-background font-sans">
       <ProtectedHeader />
       <div className="py-10">
-        <InputContainer />
+        <Suspense
+          fallback={
+            <section className="mx-auto w-full max-w-4xl px-4 text-sm text-muted-text sm:px-6">
+              Loading session...
+            </section>
+          }
+        >
+          <InputContainer />
+        </Suspense>
       </div>
 
       {/* Bottom spacer */}

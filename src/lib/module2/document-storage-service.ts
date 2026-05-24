@@ -24,7 +24,13 @@ export class DocumentStorageService {
   }
 
   async deleteRedacted(storagePath: string): Promise<void> {
-    await supabaseAdmin.storage.from(BUCKET).remove([storagePath]);
+    const { error } = await supabaseAdmin.storage
+      .from(BUCKET)
+      .remove([storagePath]);
+
+    if (error) {
+      throw new Error(`Failed to delete redacted image: ${error.message}`);
+    }
   }
 }
 
