@@ -1,10 +1,15 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
-import { Check, ClipboardCheck, FileDown, Sparkles, Upload } from "lucide-react";
-import type { LucideIcon } from "lucide-react";
+import { Fragment, useEffect, useMemo, useState } from "react";
+import {
+  Breadcrumb,
+  BreadcrumbItem,
+  BreadcrumbList,
+  BreadcrumbPage,
+  BreadcrumbSeparator,
+} from "@/components/ui/breadcrumb";
 
-type SessionStep = "upload" | "confirm" | "analysis" | "report";
+type SessionStep = "upload" | "analysis" | "report";
 type StepState = "complete" | "active" | "pending" | "failed";
 type ModuleProgressStatus =
   | "not_started"
@@ -37,12 +42,10 @@ interface SessionStateResponse {
 const STEPS: Array<{
   key: SessionStep;
   label: string;
-  icon: LucideIcon;
 }> = [
-  { key: "upload", label: "Upload", icon: Upload },
-  { key: "confirm", label: "Confirm", icon: ClipboardCheck },
-  { key: "analysis", label: "Analysis", icon: Sparkles },
-  { key: "report", label: "Report", icon: FileDown },
+  { key: "upload", label: "Upload" },
+  { key: "analysis", label: "Analysis" },
+  { key: "report", label: "Report" },
 ];
 
 export default function SessionProgressIndicator({
@@ -96,51 +99,37 @@ export default function SessionProgressIndicator({
   );
 
   return (
-    <nav
-      aria-label="Session progress"
-      className="mx-auto w-full max-w-4xl px-4 sm:px-6"
-    >
-      <ol className="grid grid-cols-4 overflow-hidden rounded-xl border border-black/[0.06] bg-white/70 shadow-sm">
+    <Breadcrumb className="mx-auto w-full max-w-4xl px-4 sm:px-6">
+      <BreadcrumbList className="w-full flex-nowrap justify-center gap-2 py-1">
         {STEPS.map((step, index) => {
           const state = stepStates[step.key];
-          const Icon = state === "complete" ? Check : step.icon;
 
           return (
-            <li
-              key={step.key}
-              aria-current={state === "active" ? "step" : undefined}
-              className={`relative flex min-h-14 items-center justify-center gap-2 px-2 py-3 text-center text-[11px] font-semibold uppercase tracking-wider sm:text-xs ${
-                state === "active"
-                  ? "bg-sage text-white"
-                  : state === "complete"
-                    ? "bg-sage/[0.08] text-sage"
-                    : state === "failed"
-                      ? "bg-red-light text-red-soft"
-                      : "text-muted-text"
-              }`}
-            >
+            <Fragment key={step.key}>
               {index > 0 && (
-                <span className="absolute left-0 top-3 bottom-3 w-px bg-black/[0.06]" />
+                <BreadcrumbSeparator className="shrink-0 text-black/30" />
               )}
-              <span
-                className={`flex h-6 w-6 shrink-0 items-center justify-center rounded-full ${
-                  state === "active"
-                    ? "bg-white/20"
-                    : state === "complete"
-                      ? "bg-white text-sage"
-                      : state === "failed"
-                        ? "bg-white text-red-soft"
-                        : "bg-cream-dark text-muted-text"
-                }`}
-              >
-                <Icon size={14} />
-              </span>
-              <span className="hidden sm:inline">{step.label}</span>
-            </li>
+              <BreadcrumbItem className="min-w-0 gap-2">
+                <BreadcrumbPage
+                  aria-current={state === "active" ? "step" : undefined}
+                  className={`inline-flex min-w-0 items-center justify-center text-[10px] uppercase tracking-wider sm:text-[11px] ${
+                    state === "active"
+                      ? "font-bold text-sage"
+                      : state === "complete"
+                        ? "font-medium text-sage"
+                        : state === "failed"
+                          ? "font-semibold text-red-soft"
+                          : "font-medium text-muted-text"
+                  }`}
+                >
+                  <span>{step.label}</span>
+                </BreadcrumbPage>
+              </BreadcrumbItem>
+            </Fragment>
           );
         })}
-      </ol>
-    </nav>
+      </BreadcrumbList>
+    </Breadcrumb>
   );
 }
 
@@ -160,10 +149,6 @@ function getStepStates(
     sessionState.moduleStatus.profile === "complete"
   ) {
     completeSteps.add("upload");
-  }
-
-  if (sessionState.moduleStatus.profile === "complete") {
-    completeSteps.add("confirm");
   }
 
   if (sessionState.moduleStatus.analysis === "complete") {
@@ -200,6 +185,10 @@ function getActiveStep(
   sessionState: SessionStateResponse,
   fallbackStep: SessionStep,
 ): SessionStep {
+  if (fallbackStep === "report") {
+    return "report";
+  }
+
   if (
     sessionState.nextStep === "report" ||
     sessionState.nextStep === "complete" ||
@@ -221,10 +210,6 @@ function getActiveStep(
     return "analysis";
   }
 
-  if (sessionState.moduleStatus.intake === "complete") {
-    return "confirm";
-  }
-
   return fallbackStep;
 }
 
@@ -238,7 +223,7 @@ function buildSequentialStates(
       if (failedSteps.has(step.key)) {
         states[step.key] = "failed";
       } else if (step.key === activeStep) {
-        states[step.key] = completeSteps.has(step.key) ? "complete" : "active";
+        states[step.key] = "active";
       } else if (completeSteps.has(step.key)) {
         states[step.key] = "complete";
       } else {
