@@ -78,6 +78,7 @@ export async function POST(request: Request): Promise<Response> {
           rank: recommendation.rank,
           careerPath: recommendation.careerPath,
           alignmentScore: recommendation.alignmentScore,
+          reasoningSummary: recommendation.reasoningSummary,
           keySignals: recommendation.keySignals,
           keySignalDetails: recommendation.keySignalDetails,
         }),

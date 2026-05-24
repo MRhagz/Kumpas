@@ -80,6 +80,16 @@ export class RankedRecommendationBuilder {
       incomplete_reason: r.incompleteReason ?? null,
     }));
 
+    const { error: deleteError } = await supabaseAdmin
+      .from("ranked_recommendations")
+      .delete()
+      .eq("session_id", sessionId);
+    if (deleteError) {
+      throw new Error(
+        `Failed to clear prior ranked_recommendations: ${deleteError.message}`,
+      );
+    }
+
     const { error: recError } = await supabaseAdmin
       .from("ranked_recommendations")
       .insert(recRows);

@@ -44,7 +44,7 @@ export async function POST(
 
     return createSessionJsonResponse({
       sessionId: normalizedSessionId,
-      status: "complete",
+      status: "completed",
     });
   } catch (error) {
     const message =
