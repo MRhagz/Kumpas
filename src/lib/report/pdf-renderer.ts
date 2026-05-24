@@ -17,7 +17,6 @@ interface TextOptions {
   color?: Rgb;
   font?: "regular" | "bold";
   size?: number;
-  wordSpace?: number;
 }
 
 const PAGE_WIDTH = 595;
@@ -551,7 +550,6 @@ class StyledReportPdf {
     });
     this.drawText(truncateText(value, maxChars), x, y - 13, {
       color: INK,
-      font: "bold",
       size: 9,
     });
   }
@@ -572,7 +570,6 @@ class StyledReportPdf {
     lines.forEach((line, index) => {
       this.drawText(line, x, y - 13 - index * 11, {
         color: INK,
-        font: "bold",
         size: 9,
       });
     });
@@ -694,15 +691,46 @@ class StyledReportPdf {
 
     lines.forEach((wrappedLine, index) => {
       const isLast = index === lines.length - 1;
-      const wordSpace =
-        justify && !isLast && lines.length > 1
-          ? computeJustifyWordSpace(wrappedLine, width, size)
-          : 0;
-      this.drawText(wrappedLine, x, currentY, { color, size, wordSpace });
+      const shouldJustify = justify && !isLast && lines.length > 1;
+      if (shouldJustify) {
+        this.drawJustifiedLine(wrappedLine, x, currentY, width, { color, size });
+      } else {
+        this.drawText(wrappedLine, x, currentY, { color, size });
+      }
       currentY -= lineHeight;
     });
 
     return currentY;
+  }
+
+  private drawJustifiedLine(
+    value: string,
+    x: number,
+    y: number,
+    width: number,
+    options: TextOptions = {},
+  ): void {
+    const size = options.size ?? 10;
+    const words = value.split(" ").filter(Boolean);
+
+    if (words.length < 2) {
+      this.drawText(value, x, y, options);
+      return;
+    }
+
+    const wordsWidth = words.reduce((total, word) => total + estimateTextWidth(word, size), 0);
+    const gap = (width - wordsWidth) / (words.length - 1);
+
+    if (gap <= 0) {
+      this.drawText(value, x, y, options);
+      return;
+    }
+
+    let currentX = x;
+    words.forEach((word, index) => {
+      this.drawText(word, currentX, y, options);
+      currentX += estimateTextWidth(word, size) + (index === words.length - 1 ? 0 : gap);
+    });
   }
 
   private drawStatusPill(status: RankedRecommendation["status"], x: number, y: number): void {
@@ -843,13 +871,11 @@ function text(value: string, x: number, y: number, options: TextOptions = {}): s
   const color = options.color ?? INK;
   const font = options.font === "bold" ? "F2" : "F1";
   const size = options.size ?? 10;
-  const wordSpace = options.wordSpace ?? 0;
 
   return [
     "BT",
     `${rgb(color)} rg`,
     `/${font} ${size} Tf`,
-    `${formatNumber(wordSpace)} Tw`,
     `${formatNumber(x)} ${formatNumber(y)} Td`,
     `(${escapePdfText(sanitizePdfText(value))}) Tj`,
     "ET",
@@ -887,9 +913,8 @@ function line(
 
 function wrapText(value: string, width: number, size: number): string[] {
   const sanitized = sanitizePdfText(value);
-  const maxChars = Math.max(12, Math.floor(width / (size * 0.52)));
 
-  if (sanitized.length <= maxChars) {
+  if (estimateTextWidth(sanitized, size) <= width) {
     return [sanitized];
   }
 
@@ -900,7 +925,7 @@ function wrapText(value: string, width: number, size: number): string[] {
   words.forEach((word) => {
     const nextLine = currentLine ? `${currentLine} ${word}` : word;
 
-    if (nextLine.length > maxChars) {
+    if (estimateTextWidth(nextLine, size) > width) {
       if (currentLine) {
         lines.push(currentLine);
       }
@@ -931,6 +956,54 @@ function maxCharsForWidth(width: number, size: number): number {
   return Math.max(4, Math.floor(width / (size * 0.52)));
 }
 
+function estimateTextWidth(value: string, size: number): number {
+  const units = Array.from(value).reduce(
+    (total, character) => total + estimateCharacterWidth(character),
+    0,
+  );
+  return (units / 1000) * size;
+}
+
+function estimateCharacterWidth(character: string): number {
+  if (character === " ") {
+    return 278;
+  }
+
+  if ("il.,'`!:;|".includes(character)) {
+    return 222;
+  }
+
+  if ("fjt()[]{}".includes(character)) {
+    return 333;
+  }
+
+  if ("r-/\\".includes(character)) {
+    return 389;
+  }
+
+  if ("I".includes(character)) {
+    return 278;
+  }
+
+  if ("mw".includes(character)) {
+    return 778;
+  }
+
+  if ("MW".includes(character)) {
+    return 889;
+  }
+
+  if (/[A-Z]/.test(character)) {
+    return 667;
+  }
+
+  if (/[0-9]/.test(character)) {
+    return 556;
+  }
+
+  return 500;
+}
+
 function fitToWidth(value: string, width: number, size: number): string {
   return truncateText(value, maxCharsForWidth(width, size));
 }
@@ -948,19 +1021,6 @@ function fitTitleToWidth(
   }
   const smallest = sizes[sizes.length - 1];
   return { text: fitToWidth(sanitized, width, smallest), size: smallest };
-}
-
-function computeJustifyWordSpace(line: string, width: number, size: number): number {
-  const spaces = (line.match(/ /g) ?? []).length;
-  if (spaces === 0) {
-    return 0;
-  }
-  const approxWidth = line.length * size * 0.52;
-  const slack = width - approxWidth;
-  if (slack <= 0) {
-    return 0;
-  }
-  return Math.min(slack / spaces, size * 0.5);
 }
 
 function fitHeadingToBox(
