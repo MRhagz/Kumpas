@@ -9,8 +9,6 @@ import {
   FileWarning,
   Minus,
   RotateCcw,
-  ShieldCheck,
-  Sparkles,
   TrendingDown,
   TrendingUp,
 } from "lucide-react";
@@ -115,19 +113,19 @@ export default function ReportDownloadView({
         </div>
       </header>
 
-      <section className="grid gap-3 sm:grid-cols-3">
-        {report.recommendations.slice(0, 3).map((recommendation) => (
-          <RecommendationCard
-            key={recommendation.id}
-            recommendation={recommendation}
-            isSelected={recommendation.id === selectedRecommendation?.id}
-            onSelect={() => setSelectedRecommendationId(recommendation.id)}
-          />
-        ))}
-      </section>
-
-      <section className="mt-5 grid gap-5 lg:grid-cols-[1fr_340px]">
+      <section className="grid gap-5 lg:grid-cols-[1fr_340px]">
         <div className="space-y-5">
+          <div className="grid gap-3 sm:grid-cols-2">
+            {report.recommendations.slice(0, 2).map((recommendation) => (
+              <RecommendationCard
+                key={recommendation.id}
+                recommendation={recommendation}
+                isSelected={recommendation.id === selectedRecommendation?.id}
+                onSelect={() => setSelectedRecommendationId(recommendation.id)}
+              />
+            ))}
+          </div>
+
           {selectedRecommendation ? (
             <RecommendationDetail recommendation={selectedRecommendation} />
           ) : (
@@ -137,38 +135,21 @@ export default function ReportDownloadView({
               </p>
             </div>
           )}
-
-          <div className="rounded-lg border border-black/10 bg-white p-5 shadow-card">
-            <div className="flex items-center gap-2 text-xs font-semibold uppercase tracking-wider text-muted-text">
-              <Sparkles size={15} />
-              Recommendation Summary
-            </div>
-            <div className="mt-4 grid gap-3">
-              {report.recommendations.map((recommendation) => (
-                <button
-                  key={recommendation.id}
-                  type="button"
-                  onClick={() => setSelectedRecommendationId(recommendation.id)}
-                  className="flex w-full items-center justify-between gap-3 rounded-lg border border-black/10 bg-background px-4 py-3 text-left transition-colors hover:border-forest/40 hover:bg-white"
-                >
-                  <div>
-                    <p className="text-[10px] font-semibold uppercase tracking-[0.16em] text-muted-text">
-                      Rank {recommendation.rank}
-                    </p>
-                    <p className="mt-1 text-sm font-bold text-ink">
-                      {recommendation.careerPath}
-                    </p>
-                  </div>
-                  <p className="shrink-0 text-sm font-bold text-sage">
-                    {formatScore(recommendation.alignmentScore)}
-                  </p>
-                </button>
-              ))}
-            </div>
-          </div>
         </div>
 
         <aside className="space-y-5">
+          {report.recommendations[2] ? (
+            <RecommendationCard
+              recommendation={report.recommendations[2]}
+              isSelected={
+                report.recommendations[2].id === selectedRecommendation?.id
+              }
+              onSelect={() =>
+                setSelectedRecommendationId(report.recommendations[2].id)
+              }
+            />
+          ) : null}
+
           <AcademicEvidencePanel
             hasMissingDocuments={hasMissingDocuments}
             availableDocuments={report.academicEvidence.availableDocuments}
@@ -261,7 +242,7 @@ function RecommendationCard({
           isSelected ? "text-white/60" : "text-muted-text"
         }`}
       >
-        Alignment score based on student data and labor-market signals
+        {getRecommendationSubtitle(recommendation)}
       </p>
     </button>
   );
@@ -291,10 +272,6 @@ function RecommendationDetail({
             </p>
           </div>
         </div>
-        <div className="inline-flex items-center gap-2 rounded-full bg-forest/10 px-3 py-1.5 text-xs font-semibold text-forest">
-          <ShieldCheck size={14} />
-          Explainable Output
-        </div>
       </div>
 
       <div className="mt-6">
@@ -321,10 +298,10 @@ function RecommendationDetail({
         <p className="mb-1 text-[10px] font-semibold uppercase tracking-widest text-forest">
           What This Means
         </p>
-        <p className="text-sm leading-relaxed text-ink">
-          This career path ranked highly because the system found a strong
-          match between the approved student profile, available academic
-          evidence, and career-path signals from the analysis pipeline.
+        <p className="text-sm leading-relaxed text-ink text-justify">
+          {recommendation.reasoningSummary.trim().length > 0
+            ? recommendation.reasoningSummary
+            : "A detailed reasoning summary is not available for this recommendation. Review the alignment score, key signals, and source references before presenting it to the student."}
         </p>
       </div>
     </section>
@@ -443,6 +420,21 @@ function MetadataRow({ label, value }: { label: string; value: string }) {
 
 function formatScore(score: number): string {
   return `${Math.round(score * 100)}%`;
+}
+
+function getRecommendationSubtitle(
+  recommendation: ReportRecommendationSummary,
+): string {
+  const topSignals = recommendation.keySignalDetails
+    .filter((signal) => signal.polarity === "positive")
+    .slice(0, 2)
+    .map((signal) => signal.label);
+
+  if (topSignals.length === 0) {
+    return "Alignment based on student data and labor-market signals";
+  }
+
+  return topSignals.join(" · ");
 }
 
 function formatAcademicDocuments(documents: string[]): string {

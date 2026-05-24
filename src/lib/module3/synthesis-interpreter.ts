@@ -90,9 +90,11 @@ function normalizeKeySignalDetails(
 ): KeySignalDetail[] {
   const normalized = (details ?? [])
     .map((detail) => ({
-      label: String(detail.label ?? "").trim(),
-      value: String(detail.value ?? "").trim(),
-      subNote: detail.subNote ? String(detail.subNote).trim() : undefined,
+      label: stripMarkdownEmphasis(String(detail.label ?? "")),
+      value: stripMarkdownEmphasis(String(detail.value ?? "")),
+      subNote: detail.subNote
+        ? stripMarkdownEmphasis(String(detail.subNote))
+        : undefined,
       polarity: normalizePolarity(detail.polarity),
     }))
     .filter((detail) => detail.label && detail.value);
@@ -103,9 +105,17 @@ function normalizeKeySignalDetails(
 
   return fallbackSignals.slice(0, 5).map((signal, index) => ({
     label: `Signal ${index + 1}`,
-    value: signal,
+    value: stripMarkdownEmphasis(signal),
     polarity: "neutral",
   }));
+}
+
+export function stripMarkdownEmphasis(value: string): string {
+  return value
+    .replace(/\*{1,3}([^*]+)\*{1,3}/g, "$1")
+    .replace(/_{2,3}([^_]+)_{2,3}/g, "$1")
+    .replace(/`([^`]+)`/g, "$1")
+    .trim();
 }
 
 function normalizePolarity(value: unknown): KeySignalDetail["polarity"] {
