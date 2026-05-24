@@ -9,9 +9,9 @@ import {
 } from "lucide-react";
 
 const PARALLEL_AGENTS = [
-    { key: "feasibility", label: "Feasibility Assessor", icon: Shield, color: "#6B8C6B" },
-    { key: "laborMarket", label: "Labor Market Analyst", icon: BarChart3, color: "#C4861C" },
-    { key: "jobDemand", label: "Job Demand Profiler", icon: Brain, color: "#5B7FA6" },
+    { key: "feasibility", label: "Academic Auditor", icon: Shield, color: "#6B8C6B" },
+    { key: "laborMarket", label: "Industry Analyst", icon: BarChart3, color: "#C4861C" },
+    { key: "jobDemand", label: "Feasibility Strategist", icon: Brain, color: "#5B7FA6" },
 ] as const;
 
 /* ─── dynamic headers based on current stage ─── */
