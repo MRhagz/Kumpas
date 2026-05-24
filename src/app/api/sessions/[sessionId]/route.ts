@@ -88,6 +88,9 @@ export async function DELETE(
     sessionId: result.sessionId,
     status: "terminated",
     reportPdfPurged: result.reportPdfPurged,
+    redactedImagesPurged: result.redactedImagesPurged,
+    sessionRowsPurged: result.sessionRowsPurged,
+    sessionScrubbed: result.sessionScrubbed,
     warnings: result.warnings,
   });
 }
