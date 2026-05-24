@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useCallback, useEffect } from "react";
-import { useRouter } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 import {
   FileText,
   Target,
@@ -98,6 +98,11 @@ const GUIDE = [
 
 type InputMode = "image" | "manual";
 
+interface SessionStateResponse {
+  sessionId: string;
+  nextStep: "input" | "analysis" | "report" | "complete" | "start-new-session";
+}
+
 const SECTIONS_CONFIG = [
   {
     key: "careerGoal" as const,
@@ -159,6 +164,8 @@ const EMPTY_ENTRIES: SlotEntriesMap = { 1: [], 2: [], 3: [] };
 
 export default function InputContainer() {
   const router = useRouter();
+  const searchParams = useSearchParams();
+  const resumableSessionId = searchParams.get("session");
 
   const [sessionId, setSessionId] = useState<string | null>(null);
   const [sessionError, setSessionError] = useState<string | null>(null);
@@ -191,11 +198,72 @@ export default function InputContainer() {
   const sectionHtml = activeTab === "image" ? imageSectionHtml : manualSectionHtml;
 
   useEffect(() => {
-    fetch("/api/sessions", { method: "POST" })
-      .then((r) => r.json())
-      .then((d) => setSessionId(d.sessionId))
-      .catch(() => setSessionError("Could not start session. Please refresh the page."));
-  }, []);
+    let isMounted = true;
+
+    const initializeSession = async () => {
+      try {
+        if (resumableSessionId) {
+          const response = await fetch(
+            `/api/sessions/${encodeURIComponent(resumableSessionId)}`,
+          );
+
+          if (!response.ok) {
+            throw new Error("Could not resume this session. Please start a new one.");
+          }
+
+          const sessionState = (await response.json()) as SessionStateResponse;
+
+          if (
+            sessionState.nextStep === "analysis" ||
+            sessionState.nextStep === "report" ||
+            sessionState.nextStep === "complete"
+          ) {
+            router.replace(
+              `/analysis?session=${encodeURIComponent(sessionState.sessionId)}`,
+            );
+            return;
+          }
+
+          if (sessionState.nextStep === "start-new-session") {
+            throw new Error("This session has expired. Please start a new session.");
+          }
+
+          if (isMounted) {
+            setSessionId(sessionState.sessionId);
+          }
+          return;
+        }
+
+        const response = await fetch("/api/sessions", { method: "POST" });
+        if (!response.ok) {
+          throw new Error("Could not start session. Please refresh the page.");
+        }
+
+        const data = (await response.json()) as { sessionId?: string };
+        if (!data.sessionId) {
+          throw new Error("Could not start session. Please refresh the page.");
+        }
+
+        if (isMounted) {
+          setSessionId(data.sessionId);
+        }
+      } catch (error) {
+        if (isMounted) {
+          setSessionError(
+            error instanceof Error
+              ? error.message
+              : "Could not start session. Please refresh the page.",
+          );
+        }
+      }
+    };
+
+    initializeSession();
+
+    return () => {
+      isMounted = false;
+    };
+  }, [resumableSessionId, router]);
 
   const tabHasData = (tab: InputMode) => {
     if (tab === "image")
