@@ -6,6 +6,7 @@
     "dev": "next dev",
     "build": "next build",
     "start": "next start",
+    "smoke:module4": "node scripts/module4-smoke.mjs",
     "lint": "eslint"
   },
   "dependencies": {

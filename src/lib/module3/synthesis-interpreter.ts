@@ -1,5 +1,10 @@
 import { GoogleGenAI } from "@google/genai";
-import type { AgentOutput, IntermediateSynthesis, SourceReference } from "./types";
+import type {
+  AgentOutput,
+  IntermediateSynthesis,
+  KeySignalDetail,
+  SourceReference,
+} from "./types";
 
 function buildPrompt(agentOutputs: AgentOutput[]): string {
   const sections = agentOutputs.map((o) => {
@@ -29,11 +34,19 @@ Identify candidate career paths supported by the combined signals across all thr
    - demandScore: how strong the labor market demand is for this career (from IndustryAnalyst)
    - feasibilityScore: how financially feasible this path is for the student (from FeasibilityStrategist)
 3. The specific signals that substantiate each score
-4. Source references from the retrieved knowledge base chunks
+4. Structured key signal rows suitable for a counselor-facing report UI
+5. Source references from the retrieved knowledge base chunks
 
 If an agent's status is FAILED, base the corresponding dimension score on the available data from other agents and note the limitation.
 
 Produce at least 3 distinct candidate career paths.
+
+For keySignalDetails:
+- Use 3 to 5 rows.
+- Use short counselor-readable labels such as "Academic Fit", "Labor Demand", "Financial Barrier", "Best Pathway", or "Career Awareness".
+- value should be the bold main finding.
+- subNote should briefly explain the evidence or caveat in one sentence.
+- polarity must be "positive", "negative", or "neutral".
 
 Respond in JSON with this exact schema:
 {
@@ -44,11 +57,19 @@ Respond in JSON with this exact schema:
       "demandScore": 0.0-1.0,
       "feasibilityScore": 0.0-1.0,
       "signals": ["signal1", "signal2", ...],
+      "keySignalDetails": [
+        {
+          "label": "string",
+          "value": "string",
+          "subNote": "string",
+          "polarity": "positive | negative | neutral"
+        }
+      ],
       "sourceReferences": [
         {
           "title": "string",
           "reference": "source_url or description",
-          "acquisitionMethod": "automated_csv | automated_pdf | manual_curation",
+          "acquisitionMethod": "automated_csv | automated_pdf | operator_curated_csv | operator_curated_pdf | manual_curation",
           "ingestionTimestamp": "ISO timestamp",
           "relatedSignals": ["signal1", ...]
         }
@@ -60,6 +81,38 @@ Respond in JSON with this exact schema:
 
 function clampScore(score: number): number {
   return Math.max(0, Math.min(1, score));
+}
+
+function normalizeKeySignalDetails(
+  details: KeySignalDetail[] | undefined,
+  fallbackSignals: string[],
+): KeySignalDetail[] {
+  const normalized = (details ?? [])
+    .map((detail) => ({
+      label: String(detail.label ?? "").trim(),
+      value: String(detail.value ?? "").trim(),
+      subNote: detail.subNote ? String(detail.subNote).trim() : undefined,
+      polarity: normalizePolarity(detail.polarity),
+    }))
+    .filter((detail) => detail.label && detail.value);
+
+  if (normalized.length > 0) {
+    return normalized;
+  }
+
+  return fallbackSignals.slice(0, 5).map((signal, index) => ({
+    label: `Signal ${index + 1}`,
+    value: signal,
+    polarity: "neutral",
+  }));
+}
+
+function normalizePolarity(value: unknown): KeySignalDetail["polarity"] {
+  if (value === "positive" || value === "negative" || value === "neutral") {
+    return value;
+  }
+
+  return "neutral";
 }
 
 export class SynthesisInterpreter {
@@ -80,6 +133,7 @@ export class SynthesisInterpreter {
         demandScore: number;
         feasibilityScore: number;
         signals: string[];
+        keySignalDetails?: KeySignalDetail[];
         sourceReferences: SourceReference[];
       }>;
     };
@@ -91,6 +145,10 @@ export class SynthesisInterpreter {
         demandScore: clampScore(c.demandScore),
         feasibilityScore: clampScore(c.feasibilityScore),
         signals: c.signals ?? [],
+        keySignalDetails: normalizeKeySignalDetails(
+          c.keySignalDetails,
+          c.signals ?? [],
+        ),
         sourceReferences: c.sourceReferences ?? [],
       })),
     };

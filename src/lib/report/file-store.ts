@@ -8,6 +8,9 @@ export const REPORT_PDF_BUCKET = "kumpas-reports";
 export const REPORT_PDF_SIGNED_URL_TTL_SECONDS = 30 * 60;
 
 const REPORT_PDF_CONTENT_TYPE = "application/pdf";
+const MINIMAL_HEALTHCHECK_PDF = Buffer.from(
+  "%PDF-1.4\n1 0 obj\n<<>>\nendobj\ntrailer\n<<>>\n%%EOF\n",
+);
 
 interface StorageError {
   message: string;
@@ -62,6 +65,14 @@ export interface ReportPdfRetentionResult {
   cutoff: string;
   scannedCount: number;
   deletedCount: number;
+  warnings: string[];
+}
+
+export interface ReportPdfStorageCheckResult {
+  bucketName: string;
+  objectKey: string;
+  signedUrlCreated: boolean;
+  cleanupCompleted: boolean;
   warnings: string[];
 }
 
@@ -132,6 +143,41 @@ export class PdfFileStore {
         createdAt.getTime() + this.signedUrlTtlSeconds * 1000,
       ).toISOString(),
       byteLength: pdfBuffer.byteLength,
+    };
+  }
+
+  async checkReportPdfStorage(): Promise<ReportPdfStorageCheckResult> {
+    const sessionId = `report-storage-check-${this.now().getTime()}`;
+    const objectKey = getReportPdfObjectKey(sessionId);
+    const warnings: string[] = [];
+    let cleanupCompleted = false;
+
+    try {
+      const storedPdf = await this.uploadReportPdf(sessionId, MINIMAL_HEALTHCHECK_PDF);
+
+      if (!storedPdf.downloadUrl || Number.isNaN(Date.parse(storedPdf.expiresAt))) {
+        throw new Error("Report storage check did not return a valid signed URL.");
+      }
+    } finally {
+      try {
+        await this.deleteReportPdf(sessionId);
+        cleanupCompleted = true;
+      } catch (error) {
+        const message =
+          error instanceof Error
+            ? error.message
+            : "Failed to clean up report storage check PDF.";
+
+        warnings.push(message);
+      }
+    }
+
+    return {
+      bucketName: this.bucketName,
+      objectKey,
+      signedUrlCreated: true,
+      cleanupCompleted,
+      warnings,
     };
   }
 

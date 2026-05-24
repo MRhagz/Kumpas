@@ -111,7 +111,9 @@ function AnalysisContent() {
       const reportBody = await reportRes.json();
 
       if (!reportRes.ok) {
-        throw new Error(reportBody.error ?? "Report generation failed.");
+        throw new Error(
+          getReportGenerationErrorMessage(reportRes.status, reportBody),
+        );
       }
 
       setState({ phase: "reportReady", report: reportBody });
