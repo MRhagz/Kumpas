@@ -48,7 +48,7 @@ Respond in JSON with this exact schema:
         {
           "title": "string",
           "reference": "source_url or description",
-          "acquisitionMethod": "automated_csv | automated_pdf | manual_curation",
+          "acquisitionMethod": "automated_csv | automated_pdf | operator_curated_csv | operator_curated_pdf | manual_curation",
           "ingestionTimestamp": "ISO timestamp",
           "relatedSignals": ["signal1", ...]
         }
