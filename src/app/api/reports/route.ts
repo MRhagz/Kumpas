@@ -2,6 +2,12 @@ import { ReportAssemblyError, assembleReportData } from "@/lib/report/assembler"
 import { normalizeReportSessionId, pdfFileStore } from "@/lib/report/file-store";
 import { renderReportPdf } from "@/lib/report/pdf-renderer";
 import type { ReportGenerationResponse } from "@/lib/report/types";
+import {
+  notFoundResponse,
+  requireUser,
+  unauthorizedResponse,
+  userOwnsSession,
+} from "@/lib/auth/api-auth";
 
 export const runtime = "nodejs";
 
@@ -14,6 +20,9 @@ const REPORT_RESPONSE_HEADERS = {
 };
 
 export async function POST(request: Request): Promise<Response> {
+  const user = await requireUser();
+  if (!user) return unauthorizedResponse();
+
   let body: ReportRequestBody;
 
   try {
@@ -38,6 +47,10 @@ export async function POST(request: Request): Promise<Response> {
       error instanceof Error ? error.message : "Invalid session id.";
 
     return createReportJsonResponse({ error: message }, 400);
+  }
+
+  if (!(await userOwnsSession(sessionId, user.id))) {
+    return notFoundResponse();
   }
 
   try {

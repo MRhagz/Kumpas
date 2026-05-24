@@ -1,6 +1,12 @@
 import { type NextRequest } from "next/server";
 import { studentProfileBuilder } from "@/lib/module2/student-profile-builder";
 import type { CorrectionLog, ApprovedProfile } from "@/types";
+import {
+  notFoundResponse,
+  requireUser,
+  unauthorizedResponse,
+  userOwnsSession,
+} from "@/lib/auth/api-auth";
 
 interface ApproveBody {
   counselorNotes: ApprovedProfile["counselorNotes"];
@@ -18,6 +24,10 @@ export async function POST(
   { params }: { params: Promise<{ sessionId: string }> },
 ) {
   const { sessionId } = await params;
+
+  const user = await requireUser();
+  if (!user) return unauthorizedResponse();
+  if (!(await userOwnsSession(sessionId, user.id))) return notFoundResponse();
 
   try {
     const body = (await request.json()) as ApproveBody;

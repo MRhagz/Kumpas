@@ -2,6 +2,12 @@ import { type NextRequest } from "next/server";
 import { supabaseAdmin } from "@/lib/supabase";
 import { agentDispatcher } from "@/lib/module3/agent-dispatcher";
 import { metaAgentSynthesizer } from "@/lib/module3/meta-agent-synthesizer";
+import {
+  notFoundResponse,
+  requireUser,
+  unauthorizedResponse,
+  userOwnsSession,
+} from "@/lib/auth/api-auth";
 import type { ApprovedProfile } from "@/types";
 
 function json(data: unknown, init?: ResponseInit) {
@@ -14,49 +20,25 @@ function json(data: unknown, init?: ResponseInit) {
   });
 }
 
-function getBearerToken(request: NextRequest): string | null {
-  const authorization = request.headers.get("authorization");
-  if (!authorization?.startsWith("Bearer ")) {
-    return null;
-  }
-
-  const token = authorization.slice("Bearer ".length).trim();
-  return token.length > 0 ? token : null;
-}
-
 export async function POST(
-  request: NextRequest,
+  _request: NextRequest,
   { params }: { params: Promise<{ sessionId: string }> },
 ) {
   const { sessionId } = await params;
 
+  const user = await requireUser();
+  if (!user) return unauthorizedResponse();
+  if (!(await userOwnsSession(sessionId, user.id))) return notFoundResponse();
+
   try {
-    const token = getBearerToken(request);
-    if (!token) {
-      return json({ error: "Unauthorized" }, { status: 401 });
-    }
-
-    const {
-      data: { user },
-      error: authErr,
-    } = await supabaseAdmin.auth.getUser(token);
-
-    if (authErr || !user) {
-      return json({ error: "Unauthorized" }, { status: 401 });
-    }
-
     const { data: session, error: fetchErr } = await supabaseAdmin
       .from("sessions")
-      .select("approved_profile, status, counselor_id")
+      .select("approved_profile, status")
       .eq("id", sessionId)
       .single();
 
     if (fetchErr || !session) {
-      return json({ error: "Session not found" }, { status: 404 });
-    }
-
-    if (session.counselor_id !== user.id) {
-      return json({ error: "Session not found" }, { status: 404 });
+      return notFoundResponse();
     }
 
     if (!session.approved_profile) {
