@@ -98,7 +98,7 @@ export default function ReportDownloadView({
   };
 
   return (
-    <div className="mx-auto min-h-screen w-full max-w-6xl px-4 py-6 sm:px-6 sm:py-10">
+    <div className="mx-auto min-h-screen w-full max-w-6xl px-4 pt-2 pb-6 sm:px-6 sm:pt-3 sm:pb-10">
       <header className="mb-6">
         <p className="text-[10px] font-semibold uppercase tracking-[0.2em] text-muted-text">
           Career Assessment - Session Output

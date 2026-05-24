@@ -8,6 +8,7 @@ import {
   BreadcrumbPage,
   BreadcrumbSeparator,
 } from "@/components/ui/breadcrumb";
+import { cn } from "@/lib/utils";
 
 type SessionStep = "upload" | "analysis" | "report";
 type StepState = "complete" | "active" | "pending" | "failed";
@@ -26,6 +27,7 @@ type ReportStatus =
 interface SessionProgressIndicatorProps {
   sessionId?: string | null;
   fallbackStep: SessionStep;
+  className?: string;
 }
 
 interface SessionStateResponse {
@@ -51,6 +53,7 @@ const STEPS: Array<{
 export default function SessionProgressIndicator({
   sessionId,
   fallbackStep,
+  className,
 }: SessionProgressIndicatorProps) {
   const [loadedSession, setLoadedSession] = useState<{
     sessionId: string;
@@ -99,8 +102,8 @@ export default function SessionProgressIndicator({
   );
 
   return (
-    <Breadcrumb className="mx-auto w-full max-w-4xl px-4 sm:px-6">
-      <BreadcrumbList className="w-full flex-nowrap justify-center gap-2 py-1">
+    <Breadcrumb className={cn("mx-auto w-full max-w-4xl px-4 sm:px-6", className)}>
+      <BreadcrumbList className="w-full flex-nowrap justify-start gap-2 py-1">
         {STEPS.map((step, index) => {
           const state = stepStates[step.key];
 
