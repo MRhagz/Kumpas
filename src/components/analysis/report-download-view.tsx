@@ -113,19 +113,19 @@ export default function ReportDownloadView({
         </div>
       </header>
 
+      <div className="mb-5 grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+        {report.recommendations.slice(0, 3).map((recommendation) => (
+          <RecommendationCard
+            key={recommendation.id}
+            recommendation={recommendation}
+            isSelected={recommendation.id === selectedRecommendation?.id}
+            onSelect={() => setSelectedRecommendationId(recommendation.id)}
+          />
+        ))}
+      </div>
+
       <section className="grid gap-5 lg:grid-cols-[1fr_340px]">
         <div className="space-y-5">
-          <div className="grid gap-3 sm:grid-cols-2">
-            {report.recommendations.slice(0, 2).map((recommendation) => (
-              <RecommendationCard
-                key={recommendation.id}
-                recommendation={recommendation}
-                isSelected={recommendation.id === selectedRecommendation?.id}
-                onSelect={() => setSelectedRecommendationId(recommendation.id)}
-              />
-            ))}
-          </div>
-
           {selectedRecommendation ? (
             <RecommendationDetail recommendation={selectedRecommendation} />
           ) : (
@@ -138,18 +138,6 @@ export default function ReportDownloadView({
         </div>
 
         <aside className="space-y-5">
-          {report.recommendations[2] ? (
-            <RecommendationCard
-              recommendation={report.recommendations[2]}
-              isSelected={
-                report.recommendations[2].id === selectedRecommendation?.id
-              }
-              onSelect={() =>
-                setSelectedRecommendationId(report.recommendations[2].id)
-              }
-            />
-          ) : null}
-
           <AcademicEvidencePanel
             hasMissingDocuments={hasMissingDocuments}
             availableDocuments={report.academicEvidence.availableDocuments}
