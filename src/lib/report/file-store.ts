@@ -266,7 +266,7 @@ export class PdfFileStore {
     const client =
       this.client ??
       createClient(
-        this.supabaseUrl ?? getRequiredEnv("SUPABASE_URL"),
+        this.supabaseUrl ?? getRequiredEnv("NEXT_PUBLIC_SUPABASE_URL"),
         this.serviceRoleKey ?? getRequiredEnv("SUPABASE_SERVICE_ROLE_KEY"),
         {
           auth: {
