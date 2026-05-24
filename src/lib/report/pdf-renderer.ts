@@ -1,23 +1,11 @@
-import { mkdir, writeFile } from "node:fs/promises";
-import { tmpdir } from "node:os";
-import { join } from "node:path";
-
 import { formatReasoningSummary } from "@/lib/report/reasoning-formatter";
 import type {
+  AcademicDocumentType,
+  KeySignalDetail,
   RankedRecommendation,
   RecommendationSource,
   ReportPayload,
 } from "@/lib/report/types";
-
-export interface PdfRenderResult {
-  filePath: string;
-  byteLength: number;
-}
-
-export interface PdfLayoutRendererOptions {
-  outputDir?: string;
-  fileName?: string;
-}
 
 type Rgb = [number, number, number];
 
@@ -38,6 +26,8 @@ const MARGIN_BOTTOM = 38;
 const CONTENT_WIDTH = PAGE_WIDTH - MARGIN_X * 2;
 const SPACE_1 = 8;
 const SPACE_3 = 24;
+const HEADER_FONT_SIZES = [25, 22, 19, 17, 15];
+const OVERVIEW_TITLE_SIZES = [11, 10, 9, 8];
 const INK: Rgb = [0.067, 0.094, 0.153];
 const MUTED: Rgb = [0.42, 0.447, 0.502];
 const LINE: Rgb = [0.898, 0.906, 0.922];
@@ -49,20 +39,8 @@ const RED: Rgb = [0.72, 0.11, 0.11];
 
 export async function renderReportPdf(
   payload: ReportPayload,
-  options: PdfLayoutRendererOptions = {},
-): Promise<PdfRenderResult> {
-  const outputDir = options.outputDir ?? tmpdir();
-  const fileName = options.fileName ?? `kumpas-report-${payload.sessionId}.pdf`;
-  const filePath = join(outputDir, fileName);
-  const pdfBuffer = buildReportPdf(payload);
-
-  await mkdir(outputDir, { recursive: true });
-  await writeFile(filePath, pdfBuffer);
-
-  return {
-    filePath,
-    byteLength: pdfBuffer.byteLength,
-  };
+): Promise<Buffer> {
+  return buildReportPdf(payload);
 }
 
 export function buildReportPdf(payload: ReportPayload): Buffer {
@@ -82,6 +60,7 @@ class StyledReportPdf {
     this.addPage();
     this.renderCoverHeader();
     this.renderStudentProfile();
+    this.renderAcademicEvidence();
     this.renderRecommendationOverview();
     this.renderRecommendations();
     this.renderFooter();
@@ -95,32 +74,16 @@ class StyledReportPdf {
     this.pages.push(this.currentPage);
     this.y = PAGE_HEIGHT - 38;
     this.drawRect(0, 0, PAGE_WIDTH, PAGE_HEIGHT, [1, 1, 1]);
-
-    if (this.pageNumber > 1) {
-      this.drawText("Kumpas Career Recommendation Report", MARGIN_X, this.y, {
-        color: MUTED,
-        font: "bold",
-        size: 9,
-      });
-      this.drawText(`Page ${this.pageNumber}`, PAGE_WIDTH - MARGIN_X - 42, this.y, {
-        color: MUTED,
-        font: "bold",
-        size: 9,
-      });
-      this.y -= 20;
-      this.drawLine(MARGIN_X, this.y, PAGE_WIDTH - MARGIN_X, this.y, LINE);
-      this.y -= 24;
-    }
   }
 
   private renderCoverHeader(): void {
     const profile = this.payload.studentProfile;
     const title =
-      profile.targetCareer ??
       this.payload.rankedRecommendations.recommendations[0]?.careerPath ??
+      profile.targetCareer ??
       "Career Recommendation";
 
-    this.drawText("Kumpas · Career Recommendation Report", MARGIN_X, this.y, {
+    this.drawText("Kumpas Career Recommendation Report", MARGIN_X, this.y, {
       color: MUTED,
       font: "bold",
       size: 9,
@@ -132,12 +95,23 @@ class StyledReportPdf {
     });
     this.y -= 24;
 
-    this.drawText(title, MARGIN_X, this.y, {
-      color: INK,
-      font: "bold",
-      size: 25,
+    const headerText = `Assessment for ${title}`;
+    const { lines: headerLines, size: headerSize } = fitHeadingToBox(
+      headerText,
+      CONTENT_WIDTH,
+      HEADER_FONT_SIZES,
+      3,
+    );
+    const headerLineHeight = Math.ceil(headerSize * 1.15);
+    headerLines.forEach((headerLine) => {
+      this.drawText(headerLine, MARGIN_X, this.y, {
+        color: INK,
+        font: "bold",
+        size: headerSize,
+      });
+      this.y -= headerLineHeight;
     });
-    this.y -= 16;
+    this.y -= 4;
     this.drawText(`Session ID: ${this.payload.sessionId}`, MARGIN_X, this.y, {
       color: MUTED,
       size: 9,
@@ -149,58 +123,179 @@ class StyledReportPdf {
 
   private renderStudentProfile(): void {
     const profile = this.payload.studentProfile;
-    const panelHeight = 92;
+    const leftX = MARGIN_X + 16;
+    const rightX = MARGIN_X + CONTENT_WIDTH / 2 + 8;
+    const columnWidth = CONTENT_WIDTH / 2 - 24;
 
-    this.ensureSpace(panelHeight + 16);
+    const targetText = profile.targetCareer ?? "Not specified";
+    const interestsText = formatList(profile.interests);
+    const strengthsText = formatList(profile.strengths);
+    const sharedInterests =
+      normalizeForCompare(interestsText) === normalizeForCompare(strengthsText);
+
+    const row2Lines = Math.max(
+      wrapText(targetText, columnWidth, 9).length,
+      1,
+    );
+    const row3Lines = sharedInterests
+      ? wrapText(interestsText, CONTENT_WIDTH - 32, 9).length
+      : Math.max(
+          wrapText(interestsText, columnWidth, 9).length,
+          wrapText(strengthsText, columnWidth, 9).length,
+        );
+
+    const topPad = 20;
+    const bottomPad = 16;
+    const rowGap = 12;
+    const row1Height = 26;
+    const row2Height = 13 + row2Lines * 11;
+    const row3Height = 13 + Math.max(1, row3Lines) * 11;
+    const panelHeight = topPad + row1Height + rowGap + row2Height + rowGap + row3Height + bottomPad;
+
+    this.ensureSpace(panelHeight + 30);
     this.drawSectionLabel("Student Profile");
+    this.drawRoundedPanel(MARGIN_X, this.y - panelHeight, CONTENT_WIDTH, panelHeight, PANEL);
+
+    let cursorY = this.y - topPad;
+    this.drawLabelValue("Student", profile.displayName ?? "Not specified", leftX, cursorY);
+    this.drawLabelValue("Financial Status", capitalize(profile.financialStatus), rightX, cursorY);
+    cursorY -= row1Height + rowGap;
+
+    this.drawLabelWrapped("Target Career", targetText, leftX, cursorY, columnWidth);
+    this.drawLabelValue("Approved At", formatDate(profile.approvedAt), rightX, cursorY);
+    cursorY -= row2Height + rowGap;
+
+    if (sharedInterests) {
+      this.drawLabelWrapped(
+        "Interests & Strengths",
+        interestsText,
+        leftX,
+        cursorY,
+        CONTENT_WIDTH - 32,
+      );
+    } else {
+      this.drawLabelWrapped("Interests", interestsText, leftX, cursorY, columnWidth);
+      this.drawLabelWrapped("Strengths", strengthsText, rightX, cursorY, columnWidth);
+    }
+
+    this.y -= panelHeight + 20;
+  }
+
+  private renderAcademicEvidence(): void {
+    const evidence = this.payload.academicEvidence;
+    const noteLines = Math.max(
+      1,
+      wrapText(evidence.completenessNote, CONTENT_WIDTH - 32, 9).length,
+    );
+    const topPad = 20;
+    const bottomPad = 14;
+    const documentsRowHeight = 26;
+    const rowGap = 18;
+    const noteHeight = noteLines * 11;
+    const panelHeight = topPad + documentsRowHeight + rowGap + noteHeight + bottomPad;
+
+    this.ensureSpace(panelHeight + 30);
+    this.drawSectionLabel("Academic Evidence Completeness");
     this.drawRoundedPanel(MARGIN_X, this.y - panelHeight, CONTENT_WIDTH, panelHeight, PANEL);
 
     const leftX = MARGIN_X + 16;
     const rightX = MARGIN_X + CONTENT_WIDTH / 2 + 8;
-    const topY = this.y - 20;
+    const topY = this.y - topPad;
 
-    this.drawLabelValue("Student", profile.displayName ?? "Not specified", leftX, topY);
-    this.drawLabelValue("Financial Status", profile.financialStatus, rightX, topY);
-    this.drawLabelValue("Target Career", profile.targetCareer ?? "Not specified", leftX, topY - 28);
-    this.drawLabelValue("Approved At", formatDate(profile.approvedAt), rightX, topY - 28);
-    this.drawLabelValue("Interests", formatList(profile.interests), leftX, topY - 56, 58);
-    this.drawLabelValue("Strengths", formatList(profile.strengths), rightX, topY - 56, 58);
+    this.drawLabelValue(
+      "Available Documents",
+      formatAcademicDocuments(evidence.availableDocuments),
+      leftX,
+      topY,
+      48,
+    );
+    this.drawLabelValue(
+      "Missing Documents",
+      formatAcademicDocuments(evidence.missingDocuments),
+      rightX,
+      topY,
+      48,
+    );
+    this.drawParagraph(
+      evidence.completenessNote,
+      leftX,
+      topY - documentsRowHeight - rowGap + 8,
+      CONTENT_WIDTH - 32,
+      9,
+      11,
+      evidence.missingDocuments.length > 0 ? AMBER : MUTED,
+    );
 
     this.y -= panelHeight + 20;
   }
 
   private renderRecommendationOverview(): void {
     const recommendations = this.payload.rankedRecommendations.recommendations.slice(0, 3);
-    const panelHeight = 86;
-
-    this.ensureSpace(panelHeight + SPACE_3);
-    this.drawSectionLabel("Recommendation Overview");
-
     const gap = SPACE_1;
     const cardWidth = (CONTENT_WIDTH - gap * 2) / 3;
+
+    const maxTitleLines = 3;
+    let chosenSize = OVERVIEW_TITLE_SIZES[OVERVIEW_TITLE_SIZES.length - 1];
+    let perCardLines: number[] = [];
+    for (const size of OVERVIEW_TITLE_SIZES) {
+      const lines = recommendations.map(
+        (r) => wrapText(r.careerPath, cardWidth - SPACE_1 * 2, size).length,
+      );
+      if (Math.max(...lines, 1) <= maxTitleLines) {
+        chosenSize = size;
+        perCardLines = lines;
+        break;
+      }
+    }
+    if (perCardLines.length === 0) {
+      perCardLines = recommendations.map(
+        (r) => wrapText(r.careerPath, cardWidth - SPACE_1 * 2, chosenSize).length,
+      );
+    }
+    const titleLineHeight = Math.ceil(chosenSize * 1.25);
+    const titleAreaLines = Math.min(maxTitleLines, Math.max(...perCardLines, 1));
+
+    const topRule = 4;
+    const rankRowHeight = 22;
+    const titleAreaHeight = titleAreaLines * titleLineHeight;
+    const scoreBlockHeight = 50;
+    const bottomPad = 12;
+    const panelHeight = topRule + rankRowHeight + titleAreaHeight + 14 + scoreBlockHeight + bottomPad;
+
+    this.ensureSpace(panelHeight + SPACE_3 + 14);
+    this.drawSectionLabel("Recommendation Overview");
     const cardTop = this.y;
 
     recommendations.forEach((recommendation, index) => {
       const x = MARGIN_X + index * (cardWidth + gap);
       this.drawRoundedPanel(x, cardTop - panelHeight, cardWidth, panelHeight, PANEL);
-      this.drawRect(x, cardTop - 4, cardWidth, 4, statusColor(recommendation.status));
+      this.drawRect(x, cardTop - topRule, cardWidth, topRule, statusColor(recommendation.status));
       this.drawText(`RANK ${recommendation.rank}`, x + SPACE_1, cardTop - 18, {
         color: MUTED,
         font: "bold",
         size: 7,
       });
-      this.drawText(truncateText(recommendation.careerPath, 25), x + SPACE_1, cardTop - 34, {
-        color: INK,
-        font: "bold",
-        size: 10,
+      const overviewTitleLines = wrapText(
+        recommendation.careerPath,
+        cardWidth - SPACE_1 * 2,
+        chosenSize,
+      ).slice(0, maxTitleLines);
+      const titleTop = cardTop - topRule - rankRowHeight - 4;
+      overviewTitleLines.forEach((overviewLine, lineIndex) => {
+        this.drawText(overviewLine, x + SPACE_1, titleTop - lineIndex * titleLineHeight, {
+          color: INK,
+          font: "bold",
+          size: chosenSize,
+        });
       });
-      this.drawText(formatPercent(recommendation.alignmentScore), x + SPACE_1, cardTop - 58, {
+      const scoreY = titleTop - titleAreaHeight - 18;
+      this.drawText(formatPercent(recommendation.alignmentScore), x + SPACE_1, scoreY, {
         color: SAGE_DARK,
         font: "bold",
         size: 18,
       });
-      this.drawScoreBar(x + 58, cardTop - 62, cardWidth - 70, recommendation.alignmentScore);
-      this.drawText(recommendation.status.toUpperCase(), x + SPACE_1, cardTop - 75, {
+      this.drawScoreBar(x + 58, scoreY - 4, cardWidth - 70, recommendation.alignmentScore);
+      this.drawText(recommendation.status.toUpperCase(), x + SPACE_1, scoreY - 17, {
         color: statusColor(recommendation.status),
         font: "bold",
         size: 7,
@@ -211,44 +306,86 @@ class StyledReportPdf {
   }
 
   private renderRecommendations(): void {
+    this.addPage();
     this.drawSectionLabel("Ranked Career Recommendations");
     this.y -= 4;
-
     this.payload.rankedRecommendations.recommendations.forEach((recommendation) => {
       this.renderRecommendation(recommendation);
     });
   }
 
   private renderRecommendation(recommendation: RankedRecommendation): void {
-    const minCardHeight = 342;
-    this.ensureSpace(minCardHeight);
+    const leftX = MARGIN_X + 16;
+    const rightX = MARGIN_X + 342;
+    const leftWidth = 300;
+    const rightWidth = 164;
+    const headerHeight = 46;
+    const scoreBlockHeight = 90;
+    const bodyBottomPad = 14;
+
+    const formattedReasoning = formatReasoningSummary(recommendation, { maxLength: 4000 });
+
+    const signalsHeight = measureKeySignalRows(
+      recommendation.keySignalDetails,
+      recommendation.keySignals,
+      leftWidth,
+      4,
+    );
+    const reasoningLines = Math.max(
+      1,
+      wrapText(formattedReasoning.summary, leftWidth, 9).length,
+    );
+    const reasoningHeight = reasoningLines * 11;
+    const concernsBlockHeight =
+      formattedReasoning.concerns.length > 0 ? 52 : 0;
+
+    const leftBodyHeight =
+      16 + signalsHeight + 10 + 16 + reasoningHeight + concernsBlockHeight;
+
+    const auditTrail = this.payload.auditTrail.find(
+      (entry) => entry.recommendationId === recommendation.id,
+    );
+    const sources = auditTrail?.sources ?? [];
+    const sourceCount = Math.max(1, sources.length);
+    const sourcesHeight = 70 + (sourceCount - 1) * 77;
+    const rightBodyHeight = 16 + sourcesHeight;
+
+    const bodyHeight = Math.max(leftBodyHeight, rightBodyHeight);
+    const cardHeight = headerHeight + scoreBlockHeight + bodyHeight + bodyBottomPad;
+
+    this.ensureSpace(cardHeight + 18);
 
     const cardTop = this.y;
-    this.drawRoundedPanel(MARGIN_X, cardTop - minCardHeight, CONTENT_WIDTH, minCardHeight, [1, 1, 1]);
-    this.drawRect(MARGIN_X, cardTop - 46, CONTENT_WIDTH, 46, SAGE_DARK);
+    this.drawRoundedPanel(MARGIN_X, cardTop - cardHeight, CONTENT_WIDTH, cardHeight, [1, 1, 1]);
+    this.drawRect(MARGIN_X, cardTop - headerHeight, CONTENT_WIDTH, headerHeight, SAGE_DARK);
 
     this.drawText(`Recommendation ${recommendation.rank}`, MARGIN_X + 16, cardTop - 15, {
       color: [0.82, 0.92, 0.88],
       font: "bold",
       size: 7,
     });
-    this.drawText(recommendation.careerPath, MARGIN_X + 16, cardTop - 31, {
+    const pillX = PAGE_WIDTH - MARGIN_X - 96;
+    const titleX = MARGIN_X + 16;
+    const titleMaxWidth = pillX - titleX - 12;
+    const { text: titleText, size: titleSize } = fitTitleToWidth(
+      recommendation.careerPath,
+      titleMaxWidth,
+      [15, 13, 11],
+    );
+    this.drawText(titleText, titleX, cardTop - 31, {
       color: [1, 1, 1],
       font: "bold",
-      size: 15,
+      size: titleSize,
     });
-    this.drawStatusPill(recommendation.status, PAGE_WIDTH - MARGIN_X - 96, cardTop - 26);
+    this.drawStatusPill(recommendation.status, pillX, cardTop - 26);
 
     this.renderScoreCards(recommendation, cardTop - 64);
 
-    const bodyTop = cardTop - 136;
-    const leftX = MARGIN_X + 16;
-    const rightX = MARGIN_X + 342;
-    const leftWidth = 300;
-    const rightWidth = 164;
+    const bodyTop = cardTop - headerHeight - scoreBlockHeight;
 
     this.drawMiniHeading("Key Signals", leftX, bodyTop);
-    const signalsEndY = this.drawBullets(
+    const signalsEndY = this.drawKeySignalDetails(
+      recommendation.keySignalDetails,
       recommendation.keySignals,
       leftX,
       bodyTop - 16,
@@ -256,7 +393,6 @@ class StyledReportPdf {
       4,
     );
 
-    const formattedReasoning = formatReasoningSummary(recommendation, { maxLength: 520 });
     this.drawMiniHeading("Reasoning Summary", leftX, signalsEndY - 10);
     const reasoningEndY = this.drawParagraph(
       formattedReasoning.summary,
@@ -283,7 +419,7 @@ class StyledReportPdf {
     this.drawMiniHeading("Audit Trail", rightX, bodyTop);
     this.renderAuditTrailSources(recommendation.id, rightX, bodyTop - 16, rightWidth);
 
-    this.y = cardTop - minCardHeight - 18;
+    this.y = cardTop - cardHeight - 18;
   }
 
   private renderScoreCards(recommendation: RankedRecommendation, topY: number): void {
@@ -324,7 +460,7 @@ class StyledReportPdf {
     const auditTrail = this.payload.auditTrail.find(
       (entry) => entry.recommendationId === recommendationId,
     );
-    const sources = auditTrail?.sources.slice(0, 2) ?? [];
+    const sources = auditTrail?.sources ?? [];
 
     if (sources.length === 0) {
       this.drawSourceBox(
@@ -350,26 +486,33 @@ class StyledReportPdf {
   }
 
   private drawSourceBox(source: RecommendationSource, x: number, y: number, width: number): number {
-    const height = 64;
+    const height = 70;
+    const textX = x + 9;
+    const textWidth = width - 18;
     this.drawRect(x, y - height, width, height, [0.992, 0.992, 0.992]);
     this.drawRect(x, y - height, 3, height, SAGE);
     this.drawLine(x, y - height, x + width, y - height, LINE);
     this.drawLine(x, y, x + width, y, LINE);
-    this.drawText(truncateText(source.title, 24), x + 9, y - 14, {
-      color: INK,
-      font: "bold",
-      size: 8,
+
+    const titleLines = wrapHeading(source.title, textWidth, 8, 2);
+    titleLines.forEach((titleLine, index) => {
+      this.drawText(titleLine, textX, y - 14 - index * 10, {
+        color: INK,
+        font: "bold",
+        size: 8,
+      });
     });
-    this.drawText(truncateText(source.reference, 31), x + 9, y - 28, {
+
+    this.drawText(fitToWidth(formatSourceReference(source.reference), textWidth, 7), textX, y - 38, {
       color: MUTED,
       size: 7,
     });
-    this.drawText(source.acquisitionMethod, x + 9, y - 42, {
+    this.drawText(formatAcquisitionMethod(source.acquisitionMethod), textX, y - 50, {
       color: SAGE_DARK,
       font: "bold",
       size: 7,
     });
-    this.drawText(formatDate(source.ingestionTimestamp), x + 9, y - 54, {
+    this.drawText(`Ingested ${formatDate(source.ingestionTimestamp)}`, textX, y - 62, {
       color: MUTED,
       size: 6,
     });
@@ -381,7 +524,7 @@ class StyledReportPdf {
     this.pages.forEach((page, index) => {
       page.commands.push(
         line(MARGIN_X, 28, PAGE_WIDTH - MARGIN_X, 28, LINE),
-        text("Kumpas · Module 4 report rendering demo", MARGIN_X, 16, {
+        text("Kumpas Career Recommendation Report", MARGIN_X, 16, {
           color: MUTED,
           size: 7,
         }),
@@ -407,8 +550,28 @@ class StyledReportPdf {
     });
     this.drawText(truncateText(value, maxChars), x, y - 13, {
       color: INK,
-      font: "bold",
       size: 9,
+    });
+  }
+
+  private drawLabelWrapped(
+    label: string,
+    value: string,
+    x: number,
+    y: number,
+    width: number,
+  ): void {
+    this.drawText(label, x, y, {
+      color: MUTED,
+      font: "bold",
+      size: 7,
+    });
+    const lines = wrapText(value, width, 9);
+    lines.forEach((line, index) => {
+      this.drawText(line, x, y - 13 - index * 11, {
+        color: INK,
+        size: 9,
+      });
     });
   }
 
@@ -451,6 +614,68 @@ class StyledReportPdf {
     return currentY;
   }
 
+  private drawKeySignalDetails(
+    details: KeySignalDetail[],
+    fallbackSignals: string[],
+    x: number,
+    y: number,
+    width: number,
+    maxItems: number,
+  ): number {
+    const rows: KeySignalDetail[] =
+      details.length > 0
+        ? details.slice(0, maxItems)
+        : fallbackSignals.slice(0, maxItems).map((signal, index) => ({
+            label: `Signal ${index + 1}`,
+            value: signal,
+            polarity: "neutral" as const,
+          }));
+
+    if (rows.length === 0) {
+      return this.drawParagraph("None listed", x, y, width, 8, 10, MUTED);
+    }
+
+    let currentY = y;
+    rows.forEach((row) => {
+      const color = signalPolarityColor(row.polarity);
+      this.drawText(signalPolarityGlyph(row.polarity), x, currentY, {
+        color,
+        font: "bold",
+        size: 8,
+      });
+      this.drawText(truncateText(row.label, 22), x + 10, currentY, {
+        color: INK,
+        font: "bold",
+        size: 8,
+      });
+      currentY = this.drawParagraph(
+        row.value,
+        x + 92,
+        currentY,
+        width - 92,
+        8,
+        10,
+        INK,
+      );
+
+      if (row.subNote) {
+        currentY = this.drawParagraph(
+          row.subNote,
+          x + 92,
+          currentY - 1,
+          width - 92,
+          7,
+          9,
+          MUTED,
+        );
+      }
+
+      currentY -= 4;
+    });
+
+    return currentY;
+  }
+
   private drawParagraph(
     value: string,
     x: number,
@@ -459,16 +684,53 @@ class StyledReportPdf {
     size: number,
     lineHeight: number,
     color: Rgb = INK,
+    justify: boolean = true,
   ): number {
     const lines = wrapText(value, width, size);
     let currentY = y;
 
-    lines.forEach((wrappedLine) => {
-      this.drawText(wrappedLine, x, currentY, { color, size });
+    lines.forEach((wrappedLine, index) => {
+      const isLast = index === lines.length - 1;
+      const shouldJustify = justify && !isLast && lines.length > 1;
+      if (shouldJustify) {
+        this.drawJustifiedLine(wrappedLine, x, currentY, width, { color, size });
+      } else {
+        this.drawText(wrappedLine, x, currentY, { color, size });
+      }
       currentY -= lineHeight;
     });
 
     return currentY;
+  }
+
+  private drawJustifiedLine(
+    value: string,
+    x: number,
+    y: number,
+    width: number,
+    options: TextOptions = {},
+  ): void {
+    const size = options.size ?? 10;
+    const words = value.split(" ").filter(Boolean);
+
+    if (words.length < 2) {
+      this.drawText(value, x, y, options);
+      return;
+    }
+
+    const wordsWidth = words.reduce((total, word) => total + estimateTextWidth(word, size), 0);
+    const gap = (width - wordsWidth) / (words.length - 1);
+
+    if (gap <= 0) {
+      this.drawText(value, x, y, options);
+      return;
+    }
+
+    let currentX = x;
+    words.forEach((word, index) => {
+      this.drawText(word, currentX, y, options);
+      currentX += estimateTextWidth(word, size) + (index === words.length - 1 ? 0 : gap);
+    });
   }
 
   private drawStatusPill(status: RankedRecommendation["status"], x: number, y: number): void {
@@ -581,6 +843,30 @@ function statusColor(status: RankedRecommendation["status"]): Rgb {
   return RED;
 }
 
+function signalPolarityColor(polarity: KeySignalDetail["polarity"]): Rgb {
+  if (polarity === "positive") {
+    return SAGE;
+  }
+
+  if (polarity === "negative") {
+    return RED;
+  }
+
+  return MUTED;
+}
+
+function signalPolarityGlyph(polarity: KeySignalDetail["polarity"]): string {
+  if (polarity === "positive") {
+    return "+";
+  }
+
+  if (polarity === "negative") {
+    return "-";
+  }
+
+  return "=";
+}
+
 function text(value: string, x: number, y: number, options: TextOptions = {}): string {
   const color = options.color ?? INK;
   const font = options.font === "bold" ? "F2" : "F1";
@@ -627,9 +913,8 @@ function line(
 
 function wrapText(value: string, width: number, size: number): string[] {
   const sanitized = sanitizePdfText(value);
-  const maxChars = Math.max(12, Math.floor(width / (size * 0.52)));
 
-  if (sanitized.length <= maxChars) {
+  if (estimateTextWidth(sanitized, size) <= width) {
     return [sanitized];
   }
 
@@ -640,7 +925,7 @@ function wrapText(value: string, width: number, size: number): string[] {
   words.forEach((word) => {
     const nextLine = currentLine ? `${currentLine} ${word}` : word;
 
-    if (nextLine.length > maxChars) {
+    if (estimateTextWidth(nextLine, size) > width) {
       if (currentLine) {
         lines.push(currentLine);
       }
@@ -667,12 +952,155 @@ function truncateText(value: string, maxLength: number): string {
   return `${sanitized.slice(0, maxLength - 3).trimEnd()}...`;
 }
 
+function maxCharsForWidth(width: number, size: number): number {
+  return Math.max(4, Math.floor(width / (size * 0.52)));
+}
+
+function estimateTextWidth(value: string, size: number): number {
+  const units = Array.from(value).reduce(
+    (total, character) => total + estimateCharacterWidth(character),
+    0,
+  );
+  return (units / 1000) * size;
+}
+
+function estimateCharacterWidth(character: string): number {
+  if (character === " ") {
+    return 278;
+  }
+
+  if ("il.,'`!:;|".includes(character)) {
+    return 222;
+  }
+
+  if ("fjt()[]{}".includes(character)) {
+    return 333;
+  }
+
+  if ("r-/\\".includes(character)) {
+    return 389;
+  }
+
+  if ("I".includes(character)) {
+    return 278;
+  }
+
+  if ("mw".includes(character)) {
+    return 778;
+  }
+
+  if ("MW".includes(character)) {
+    return 889;
+  }
+
+  if (/[A-Z]/.test(character)) {
+    return 667;
+  }
+
+  if (/[0-9]/.test(character)) {
+    return 556;
+  }
+
+  return 500;
+}
+
+function fitToWidth(value: string, width: number, size: number): string {
+  return truncateText(value, maxCharsForWidth(width, size));
+}
+
+function fitTitleToWidth(
+  value: string,
+  width: number,
+  sizes: number[],
+): { text: string; size: number } {
+  const sanitized = sanitizePdfText(value);
+  for (const size of sizes) {
+    if (sanitized.length <= maxCharsForWidth(width, size)) {
+      return { text: sanitized, size };
+    }
+  }
+  const smallest = sizes[sizes.length - 1];
+  return { text: fitToWidth(sanitized, width, smallest), size: smallest };
+}
+
+function fitHeadingToBox(
+  value: string,
+  width: number,
+  sizes: number[],
+  maxLines: number,
+): { lines: string[]; size: number } {
+  for (const size of sizes) {
+    const lines = wrapText(value, width, size);
+    if (lines.length <= maxLines) {
+      return { lines, size };
+    }
+  }
+  const smallest = sizes[sizes.length - 1];
+  return { lines: wrapHeading(value, width, smallest, maxLines), size: smallest };
+}
+
+function measureKeySignalRows(
+  details: KeySignalDetail[],
+  fallbackSignals: string[],
+  width: number,
+  maxItems: number,
+): number {
+  const rows: KeySignalDetail[] =
+    details.length > 0
+      ? details.slice(0, maxItems)
+      : fallbackSignals.slice(0, maxItems).map((signal, index) => ({
+          label: `Signal ${index + 1}`,
+          value: signal,
+          polarity: "neutral" as const,
+        }));
+
+  if (rows.length === 0) {
+    return 10;
+  }
+
+  let total = 0;
+  rows.forEach((row) => {
+    const valueLines = Math.max(1, wrapText(row.value, width - 92, 8).length);
+    total += valueLines * 10;
+    if (row.subNote) {
+      const subNoteLines = Math.max(1, wrapText(row.subNote, width - 92, 7).length);
+      total += 1 + subNoteLines * 9;
+    }
+    total += 4;
+  });
+  return total;
+}
+
+function wrapHeading(
+  value: string,
+  width: number,
+  size: number,
+  maxLines: number,
+): string[] {
+  const lines = wrapText(value, width, size);
+
+  if (lines.length <= maxLines) {
+    return lines;
+  }
+
+  const kept = lines.slice(0, maxLines - 1);
+  const remaining = lines.slice(maxLines - 1).join(" ");
+  const maxChars = maxCharsForWidth(width, size);
+  const lastLine = remaining.length > maxChars
+    ? `${remaining.slice(0, maxChars - 3).trimEnd()}...`
+    : remaining;
+  kept.push(lastLine);
+  return kept;
+}
+
 function escapePdfText(value: string): string {
   return value.replace(/\\/g, "\\\\").replace(/\(/g, "\\(").replace(/\)/g, "\\)");
 }
 
 function sanitizePdfText(value: string): string {
   return value
+    .replace(/\*\*([^*]+)\*\*/g, "$1")
+    .replace(/__([^_]+)__/g, "$1")
     .replace(/[\u201C\u201D]/g, '"')
     .replace(/[\u2018\u2019]/g, "'")
     .replace(/[\u2013\u2014]/g, "-")
@@ -691,6 +1119,68 @@ function formatNumber(value: number): string {
 
 function formatList(values: string[]): string {
   return values.length > 0 ? values.join(", ") : "None listed";
+}
+
+function normalizeForCompare(value: string): string {
+  return value.trim().toLowerCase().replace(/\s+/g, " ");
+}
+
+function capitalize(value: string): string {
+  if (!value) return value;
+  return value.charAt(0).toUpperCase() + value.slice(1);
+}
+
+function formatAcademicDocuments(documents: AcademicDocumentType[]): string {
+  return documents.length > 0
+    ? documents.map(formatAcademicDocument).join(", ")
+    : "None";
+}
+
+function formatAcademicDocument(document: AcademicDocumentType): string {
+  if (document === "form137") {
+    return "Form 137";
+  }
+
+  return document.toUpperCase();
+}
+
+function formatSourceReference(reference: string): string {
+  const trimmed = reference.trim();
+
+  if (/^file:\/\//i.test(trimmed)) {
+    const path = trimmed.replace(/^file:\/\//i, "");
+    const filename = path.split(/[\\/]/).filter(Boolean).pop();
+    return filename ? `Local file: ${filename}` : "Local document";
+  }
+
+  if (/^https?:\/\//i.test(trimmed)) {
+    try {
+      const url = new URL(trimmed);
+      const path = url.pathname === "/" ? "" : url.pathname;
+      return `${url.hostname}${path}`;
+    } catch {
+      return trimmed;
+    }
+  }
+
+  return trimmed;
+}
+
+const ACQUISITION_METHOD_LABELS: Record<string, string> = {
+  automated_csv: "Automated CSV",
+  automated_pdf: "Automated PDF",
+  operator_curated_csv: "Operator-curated CSV",
+  operator_curated_pdf: "Operator-curated PDF",
+  manual_curation: "Manual curation",
+  uploaded_document: "Uploaded document",
+  counselor_notes: "Counselor notes",
+  retrieved_context: "Retrieved context",
+  system_generated: "System generated",
+  unknown: "Source pending",
+};
+
+function formatAcquisitionMethod(method: string): string {
+  return ACQUISITION_METHOD_LABELS[method] ?? method;
 }
 
 function formatPercent(value: number): string {

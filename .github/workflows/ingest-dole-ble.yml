@@ -1,0 +1,45 @@
+name: Ingest DOLE BLE LMI PDFs
+
+# ble.dole.gov.ph is behind a CDN that blocks non-browser clients
+# (same root cause as the PSA OpenSTAT block in Module 1.1). The
+# development team manually downloads the latest BLE LMI PDF through a
+# real browser, commits it (and an optional <name>.meta.json sidecar)
+# under ingestion/data/dole_ble/, and pushing that file triggers this
+# workflow. The pipeline ingests into live_labor_demand with
+# acquisition_method=operator_curated_pdf.
+
+on:
+  push:
+    branches:
+      - main
+    paths:
+      - "ingestion/data/dole_ble/**/*.pdf"
+      - "ingestion/data/dole_ble/**/*.meta.json"
+      - "ingestion/src/kumpas_ingestion/pipelines/dole_ble.py"
+      - ".github/workflows/ingest-dole-ble.yml"
+  workflow_dispatch:
+    inputs:
+      directory:
+        description: "Override directory of PDFs (defaults to ingestion/data/dole_ble)."
+        required: false
+        type: string
+
+concurrency:
+  group: ingest-dole-ble
+  cancel-in-progress: false
+
+jobs:
+  ingest:
+    runs-on: ubuntu-latest
+    env:
+      SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+      SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
+      GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
+      DOLE_BLE_DIR: ${{ inputs.directory }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: ./.github/actions/setup-ingestion
+        with:
+          extras: pdf
+      - name: Run DOLE BLE LMI ingestion
+        run: python -m kumpas_ingestion.pipelines.dole_ble

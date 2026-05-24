@@ -23,6 +23,7 @@
 # misc
 .DS_Store
 *.pem
+supabase/.temp/
 
 # debug
 npm-debug.log*
@@ -39,3 +40,14 @@ yarn-error.log*
 # typescript
 *.tsbuildinfo
 next-env.d.ts
+
+# python
+__pycache__/
+*.py[cod]
+*$py.class
+.venv/
+venv/
+*.egg-info/
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/

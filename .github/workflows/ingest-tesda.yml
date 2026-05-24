@@ -1,0 +1,30 @@
+name: Ingest TESDA programs
+
+on:
+  push:
+    branches:
+      - main
+    paths:
+      - "ingestion/data/tesda/programs.csv"
+      - "ingestion/src/kumpas_ingestion/pipelines/tesda.py"
+      - ".github/workflows/ingest-tesda.yml"
+  workflow_dispatch: {}
+
+concurrency:
+  group: ingest-tesda
+  cancel-in-progress: false
+
+jobs:
+  ingest:
+    runs-on: ubuntu-latest
+    env:
+      SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+      SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
+      GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: ./.github/actions/setup-ingestion
+        with:
+          extras: tesda
+      - name: Run TESDA ingestion
+        run: python -m kumpas_ingestion.pipelines.tesda

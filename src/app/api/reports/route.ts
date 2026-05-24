@@ -1,68 +1,137 @@
 import { ReportAssemblyError, assembleReportData } from "@/lib/report/assembler";
-import { pdfFileStore } from "@/lib/report/file-store";
+import { sessionProgressTracker } from "@/lib/module5/session-progress";
+import { normalizeReportSessionId, pdfFileStore } from "@/lib/report/file-store";
 import { renderReportPdf } from "@/lib/report/pdf-renderer";
+import type { ReportGenerationResponse } from "@/lib/report/types";
+import {
+  notFoundResponse,
+  requireUser,
+  unauthorizedResponse,
+  userOwnsSession,
+} from "@/lib/auth/api-auth";
 
-interface GenerateReportRequest {
+export const runtime = "nodejs";
+
+interface ReportRequestBody {
   sessionId?: unknown;
 }
 
-interface GenerateReportResponse {
-  sessionId: string;
-  token: string;
-  downloadUrl: string;
-  expiresAt: string;
-  byteLength: number;
-}
+const REPORT_RESPONSE_HEADERS = {
+  "Cache-Control": "no-store",
+};
 
 export async function POST(request: Request): Promise<Response> {
-  let body: GenerateReportRequest;
+  const user = await requireUser();
+  if (!user) return unauthorizedResponse();
+
+  let body: ReportRequestBody;
 
   try {
-    body = await request.json();
+    body = (await request.json()) as ReportRequestBody;
   } catch {
-    return Response.json({ error: "Request body must be valid JSON." }, { status: 400 });
+    return createReportJsonResponse(
+      { error: "Request body must be valid JSON." },
+      400,
+    );
   }
 
-  const sessionId = normalizeSessionId(body.sessionId);
+  if (typeof body.sessionId !== "string" || !body.sessionId.trim()) {
+    return createReportJsonResponse({ error: "sessionId is required." }, 400);
+  }
 
-  if (!sessionId) {
-    return Response.json({ error: "Missing required field: sessionId." }, { status: 400 });
+  let sessionId: string;
+
+  try {
+    sessionId = normalizeReportSessionId(body.sessionId);
+  } catch (error) {
+    const message =
+      error instanceof Error ? error.message : "Invalid session id.";
+
+    return createReportJsonResponse({ error: message }, 400);
+  }
+
+  if (!(await userOwnsSession(sessionId, user.id))) {
+    return notFoundResponse();
   }
 
   try {
+    await sessionProgressTracker.markReportGenerating(sessionId);
+
     const reportPayload = await assembleReportData(sessionId);
-    const pdfResult = await renderReportPdf(reportPayload);
-    const tokenRecord = pdfFileStore.registerPdf(sessionId, pdfResult.filePath);
-    const response: GenerateReportResponse = {
+    const pdfBuffer = await renderReportPdf(reportPayload);
+    const storedPdf = await pdfFileStore.uploadReportPdf(sessionId, pdfBuffer);
+
+    await sessionProgressTracker.markReportReady(sessionId);
+
+    const response: ReportGenerationResponse = {
       sessionId,
-      token: tokenRecord.token,
-      downloadUrl: `/api/reports/${tokenRecord.token}?sessionId=${encodeURIComponent(sessionId)}`,
-      expiresAt: tokenRecord.expiresAt,
-      byteLength: pdfResult.byteLength,
+      downloadUrl: storedPdf.downloadUrl,
+      expiresAt: storedPdf.expiresAt,
+      generatedAt: reportPayload.generatedAt,
+      byteLength: storedPdf.byteLength,
+      recommendationCount:
+        reportPayload.rankedRecommendations.recommendations.length,
+      academicEvidence: reportPayload.academicEvidence,
+      recommendations: reportPayload.rankedRecommendations.recommendations.map(
+        (recommendation) => ({
+          id: recommendation.id,
+          rank: recommendation.rank,
+          careerPath: recommendation.careerPath,
+          alignmentScore: recommendation.alignmentScore,
+          reasoningSummary: recommendation.reasoningSummary,
+          keySignals: recommendation.keySignals,
+          keySignalDetails: recommendation.keySignalDetails,
+        }),
+      ),
     };
 
-    return Response.json(response, { status: 201 });
+    return createReportJsonResponse(response);
   } catch (error) {
+    await sessionProgressTracker.markReportFailed(sessionId);
+
     if (error instanceof ReportAssemblyError) {
-      return Response.json(
-        {
-          error: error.message,
-          details: error.details,
-        },
-        { status: 422 },
+      logReportGenerationFailure(sessionId, error, {
+        status: 422,
+        detailCount: error.details.length,
+      });
+
+      return createReportJsonResponse(
+        { error: error.message, details: error.details },
+        422,
       );
     }
 
-    console.error("[reports] Failed to generate report PDF:", error);
-    return Response.json({ error: "Failed to generate report PDF." }, { status: 500 });
+    const message =
+      error instanceof Error ? error.message : "Report generation failed.";
+
+    logReportGenerationFailure(sessionId, error, { status: 500 });
+
+    return createReportJsonResponse({ error: message }, 500);
   }
 }
 
-function normalizeSessionId(value: unknown): string | null {
-  if (typeof value !== "string") {
-    return null;
-  }
+function createReportJsonResponse(body: unknown, status = 200): Response {
+  return Response.json(body, {
+    status,
+    headers: REPORT_RESPONSE_HEADERS,
+  });
+}
 
-  const sessionId = value.trim();
-  return sessionId.length > 0 ? sessionId : null;
+function logReportGenerationFailure(
+  sessionId: string,
+  error: unknown,
+  context: {
+    status: number;
+    detailCount?: number;
+  },
+): void {
+  const message =
+    error instanceof Error ? error.message : "Report generation failed.";
+
+  console.error("[report-generation] failed", {
+    sessionId,
+    status: context.status,
+    detailCount: context.detailCount,
+    message,
+  });
 }
