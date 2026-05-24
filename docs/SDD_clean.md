@@ -865,7 +865,7 @@ The frontend transitions from the Module 3 progress screen to a completion scree
 
 * User Interface Design
 
-The application shell renders a persistent step indicator showing the counselor's position in the session pipeline (Upload → Confirm → Analysis → Report). The landing screen presents a "Get Started" call-to-action to begin a new session. 
+The application shell renders a persistent step indicator showing the counselor's position in the session pipeline (Upload → Analysis → Report). The landing screen presents a "Get Started" call-to-action to begin a new session. 
 
 * Front-end component(s)
 
