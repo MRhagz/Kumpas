@@ -5,6 +5,7 @@ import { useSearchParams, useRouter } from "next/navigation";
 import { Loader2 } from "lucide-react";
 import LoadingScreen from "@/components/analysis/loading-screen";
 import ProtectedHeader from "@/components/auth/protected-header";
+import SessionProgressIndicator from "@/components/session/session-progress-indicator";
 
 import type { StageName } from "@/lib/analysis-types";
 import type { ReportGenerationResponse } from "@/lib/report/types";
@@ -183,6 +184,9 @@ function AnalysisContent() {
 
   return (
     <main className="min-h-screen bg-background">
+      <div className="pt-6">
+        <SessionProgressIndicator sessionId={sessionId} fallbackStep="analysis" />
+      </div>
       {state.phase === "processing" && (
         <LoadingScreen completedStages={state.completedStages} />
       )}

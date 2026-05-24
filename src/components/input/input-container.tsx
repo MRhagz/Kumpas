@@ -26,6 +26,7 @@ import ExtractionResultsPanel from "./extraction-results-panel";
 import EditableFieldForm from "./editable-field-form";
 import ConfirmationApprovalBar from "./confirmation-approval-bar";
 import IngestionFreshnessPanel from "./ingestion-freshness-panel";
+import SessionProgressIndicator from "@/components/session/session-progress-indicator";
 import { toast } from "sonner";
 import { EMPTY_NOTES } from "@/lib/analysis-types";
 import type { ExtractedNotes } from "@/lib/analysis-types";
@@ -524,6 +525,10 @@ export default function InputContainer() {
 
   return (
     <section className="mx-auto w-full max-w-4xl px-4 sm:px-6 relative animate-fade-in">
+      <div className="mb-6 -mx-4 sm:-mx-6">
+        <SessionProgressIndicator sessionId={sessionId} fallbackStep="upload" />
+      </div>
+
       <div className="overflow-hidden rounded-2xl border border-black/[0.06] bg-cream-light shadow-card">
         {/* Part 1: Counselor Notes */}
         <div className="p-6 sm:p-8">
