@@ -2,6 +2,12 @@ import { type NextRequest } from "next/server";
 
 import { normalizeReportSessionId } from "@/lib/report/file-store";
 import { sessionTerminationHandler } from "@/lib/report/session-termination";
+import {
+  notFoundResponse,
+  requireUser,
+  unauthorizedResponse,
+  userOwnsSession,
+} from "@/lib/auth/api-auth";
 
 export const runtime = "nodejs";
 
@@ -15,6 +21,9 @@ export async function DELETE(
 ) {
   const { sessionId } = await params;
 
+  const user = await requireUser();
+  if (!user) return unauthorizedResponse();
+
   let normalizedSessionId: string;
 
   try {
@@ -24,6 +33,10 @@ export async function DELETE(
       error instanceof Error ? error.message : "Invalid session id.";
 
     return createSessionJsonResponse({ error: message }, 400);
+  }
+
+  if (!(await userOwnsSession(normalizedSessionId, user.id))) {
+    return notFoundResponse();
   }
 
   const result =
