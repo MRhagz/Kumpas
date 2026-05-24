@@ -396,7 +396,7 @@ class StyledReportPdf {
     this.pages.forEach((page, index) => {
       page.commands.push(
         line(MARGIN_X, 28, PAGE_WIDTH - MARGIN_X, 28, LINE),
-        text("Kumpas · Module 4 report rendering demo", MARGIN_X, 16, {
+        text("Kumpas Career Recommendation Report", MARGIN_X, 16, {
           color: MUTED,
           size: 7,
         }),
