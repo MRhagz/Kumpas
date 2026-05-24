@@ -3,6 +3,11 @@
 export type AcademicDocumentType = "form137" | "ncae" | "nat";
 
 export type SourceAcquisitionMethod =
+  | "automated_csv"
+  | "automated_pdf"
+  | "operator_curated_csv"
+  | "operator_curated_pdf"
+  | "manual_curation"
   | "uploaded_document"
   | "counselor_notes"
   | "retrieved_context"
@@ -29,6 +34,15 @@ export interface RecommendationSource {
   relatedSignals: string[];
 }
 
+export type KeySignalPolarity = "positive" | "negative" | "neutral";
+
+export interface KeySignalDetail {
+  label: string;
+  value: string;
+  subNote?: string;
+  polarity: KeySignalPolarity;
+}
+
 export interface RankedRecommendation {
   id: string;
   rank: number;
@@ -39,6 +53,7 @@ export interface RankedRecommendation {
   financialFeasibility: number;
   reasoningSummary: string;
   keySignals: string[];
+  keySignalDetails: KeySignalDetail[];
   sources: RecommendationSource[];
   status: RecommendationStatus;
   degradedReason?: string;
@@ -97,12 +112,36 @@ export interface ReportRecommendationSummary {
   careerPath: string;
   alignmentScore: number;
   keySignals: string[];
+  keySignalDetails: KeySignalDetail[];
 }
 
 const ACADEMIC_DOCUMENT_TYPES: AcademicDocumentType[] = ["form137", "ncae", "nat"];
+const SOURCE_ACQUISITION_METHODS: SourceAcquisitionMethod[] = [
+  "automated_csv",
+  "automated_pdf",
+  "operator_curated_csv",
+  "operator_curated_pdf",
+  "manual_curation",
+  "uploaded_document",
+  "counselor_notes",
+  "retrieved_context",
+  "system_generated",
+  "unknown",
+];
+const KEY_SIGNAL_POLARITIES: KeySignalPolarity[] = [
+  "positive",
+  "negative",
+  "neutral",
+];
 
 export function isNormalizedScore(score: number): boolean {
   return Number.isFinite(score) && score >= 0 && score <= 1;
+}
+
+export function isSourceAcquisitionMethod(
+  method: string,
+): method is SourceAcquisitionMethod {
+  return SOURCE_ACQUISITION_METHODS.includes(method as SourceAcquisitionMethod);
 }
 
 export function validateAcademicEvidenceSummary(
@@ -203,6 +242,48 @@ export function validateRankedRecommendationList(
     if (recommendation.keySignals.length === 0) {
       errors.push(`${label} requires at least one key signal.`);
     }
+
+    recommendation.keySignalDetails.forEach((signal, signalIndex) => {
+      const signalLabel = `${label} key signal ${signalIndex + 1}`;
+
+      if (!signal.label.trim()) {
+        errors.push(`${signalLabel} requires a label.`);
+      }
+
+      if (!signal.value.trim()) {
+        errors.push(`${signalLabel} requires a value.`);
+      }
+
+      if (!KEY_SIGNAL_POLARITIES.includes(signal.polarity)) {
+        errors.push(`${signalLabel} has unsupported polarity: ${signal.polarity}.`);
+      }
+    });
+
+    recommendation.sources.forEach((source, sourceIndex) => {
+      const sourceLabel = `${label} source ${sourceIndex + 1}`;
+
+      if (!source.id.trim()) {
+        errors.push(`${sourceLabel} requires an id.`);
+      }
+
+      if (!source.title.trim()) {
+        errors.push(`${sourceLabel} requires a title.`);
+      }
+
+      if (!source.reference.trim()) {
+        errors.push(`${sourceLabel} requires a reference.`);
+      }
+
+      if (!isSourceAcquisitionMethod(source.acquisitionMethod)) {
+        errors.push(
+          `${sourceLabel} has unsupported acquisition method: ${source.acquisitionMethod}.`,
+        );
+      }
+
+      if (Number.isNaN(Date.parse(source.ingestionTimestamp))) {
+        errors.push(`${sourceLabel} ingestion timestamp must be a valid ISO date.`);
+      }
+    });
   });
 
   return errors;
