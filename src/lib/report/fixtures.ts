@@ -1,8 +1,12 @@
 ﻿import type {
+  AcademicEvidenceSummary,
   RankedRecommendationList,
   StudentProfile,
 } from "@/lib/report/types";
-import { validateRankedRecommendationList } from "@/lib/report/types";
+import {
+  validateAcademicEvidenceSummary,
+  validateRankedRecommendationList,
+} from "@/lib/report/types";
 
 export const demoStudentProfile: StudentProfile = {
   sessionId: "demo-session-module-4",
@@ -33,6 +37,29 @@ export const demoRankedRecommendationList: RankedRecommendationList = {
         "Strong logical reasoning and mathematics fit",
         "High demand for entry-level software roles",
         "Multiple lower-cost learning pathways are available",
+      ],
+      keySignalDetails: [
+        {
+          label: "Academic Fit",
+          value: "Logical reasoning and mathematics are strong matches.",
+          subNote:
+            "The approved profile highlights problem solving, mathematics, and self-directed learning.",
+          polarity: "positive",
+        },
+        {
+          label: "Labor Demand",
+          value: "Entry-level and remote software roles remain practical.",
+          subNote:
+            "The labor-market signal supports software development as a viable pathway.",
+          polarity: "positive",
+        },
+        {
+          label: "Financial Barrier",
+          value: "Cost-sensitive pathway required.",
+          subNote:
+            "Lower-cost learning routes and scholarships should be prioritized.",
+          polarity: "negative",
+        },
       ],
       sources: [
         {
@@ -69,6 +96,29 @@ export const demoRankedRecommendationList: RankedRecommendationList = {
         "Portfolio projects can demonstrate readiness",
         "Communication expectations may require support",
       ],
+      keySignalDetails: [
+        {
+          label: "Academic Fit",
+          value: "Quantitative strengths transfer well.",
+          subNote:
+            "The student's math and reasoning strengths support analytical work.",
+          polarity: "positive",
+        },
+        {
+          label: "Readiness Evidence",
+          value: "Portfolio work can demonstrate employability.",
+          subNote:
+            "Project-based evidence can partly offset limited formal experience.",
+          polarity: "positive",
+        },
+        {
+          label: "Development Need",
+          value: "Communication skills should be monitored.",
+          subNote:
+            "Data analysis roles often require explaining findings to non-technical audiences.",
+          polarity: "neutral",
+        },
+      ],
       sources: [
         {
           id: "src-labor-data",
@@ -97,6 +147,29 @@ export const demoRankedRecommendationList: RankedRecommendationList = {
         "Lower initial education cost",
         "Less direct match with stated long-term goal",
       ],
+      keySignalDetails: [
+        {
+          label: "Best Pathway",
+          value: "Accessible certification route.",
+          subNote:
+            "IT support has practical entry points through lower-cost certifications.",
+          polarity: "positive",
+        },
+        {
+          label: "Financial Feasibility",
+          value: "Lower initial education cost.",
+          subNote:
+            "The path may fit constrained financial circumstances better than longer programs.",
+          polarity: "positive",
+        },
+        {
+          label: "Long-Term Fit",
+          value: "Less direct match with software development goals.",
+          subNote:
+            "Counselor discussion should clarify whether this is a bridge path or final preference.",
+          polarity: "negative",
+        },
+      ],
       sources: [
         {
           id: "src-feasibility-certifications",
@@ -113,6 +186,16 @@ export const demoRankedRecommendationList: RankedRecommendationList = {
   ],
 };
 
+export const demoAcademicEvidenceSummary: AcademicEvidenceSummary = {
+  availableDocuments: ["form137", "ncae"],
+  missingDocuments: ["nat"],
+  completenessNote:
+    "NAT data was not available, so recommendations rely more heavily on Form 137 grades, NCAE aptitude signals, counselor notes, and labor-market context.",
+};
+
 export const demoRankedRecommendationValidationErrors =
   validateRankedRecommendationList(demoRankedRecommendationList);
+
+export const demoAcademicEvidenceValidationErrors =
+  validateAcademicEvidenceSummary(demoAcademicEvidenceSummary);
 

@@ -1,44 +1,12 @@
 "use client"
 
-import { useEffect, useState, useMemo } from "react";
+import { useEffect, useState } from "react";
 import { AgentSpinner } from "./agent-spinner";
 import {
     FileText, PenLine, BotMessageSquare, Shield, BarChart3,
     Brain, Sparkles, CheckCircle2, CircleDashed, Loader2,
+    type LucideIcon,
 } from "lucide-react";
-
-/* ─── stage config ─── */
-const STAGE_CONFIG = [
-    {
-        key: "documentParsing",
-        label: "Processing Documents",
-        sub: "Reading NCAE scores and academic records",
-        icon: FileText,
-        color: "#C4861C",
-    },
-    {
-        key: "notesParsing",
-        label: "Reading Counselor Notes",
-        sub: "Structuring interview sections for analysis",
-        icon: PenLine,
-        color: "#6B8C6B",
-    },
-    {
-        key: "transcriptionLayer",
-        label: "Session Intake Layer",
-        sub: "Detecting career path and redacting PII",
-        icon: BotMessageSquare,
-        color: "#5B7FA6",
-    },
-    // parallel group handled separately
-    {
-        key: "adjacentCareer",
-        label: "Adjacent Career Generation",
-        sub: "Finding related career opportunities",
-        icon: Sparkles,
-        color: "#8B5E3C",
-    },
-] as const;
 
 const PARALLEL_AGENTS = [
     { key: "feasibility", label: "Feasibility Assessor", icon: Shield, color: "#6B8C6B" },
@@ -52,90 +20,33 @@ const HEADERS: Record<string, { title: string; subtitle: string }> = {
     notesParsing: { title: "Reading Your Notes", subtitle: "Structuring counselor observations..." },
     transcriptionLayer: { title: "Understanding the Session", subtitle: "AI is analyzing career intentions and context..." },
     parallel: { title: "Running Multi-AI Specialist Analysis", subtitle: "Three specialist AIs are evaluating simultaneously..." },
-    adjacentCareer: { title: "Generating Career Insights", subtitle: "Discovering alternative career pathways..." },
+    synthesis: { title: "Generating Career Insights", subtitle: "Synthesizing all agents into final recommendations..." },
     done: { title: "Analysis Complete", subtitle: "Finalizing your career guidance report..." },
 };
 
 function getCurrentPhase(completed: string[]): string {
-    if (completed.includes("adjacentCareer")) return "done";
-    if (completed.includes("laborMarket")) return "adjacentCareer";
+    if (completed.includes("synthesis")) return "done";
+    if (completed.includes("laborMarket")) return "synthesis";
     if (completed.includes("transcriptionLayer")) return "parallel";
     if (completed.includes("notesParsing")) return "transcriptionLayer";
     if (completed.includes("documentParsing")) return "notesParsing";
     return "documentParsing";
 }
 
-export default function LoadingScreen({ completedStages = [] }: { completedStages?: string[] }) {
-    /* ─── placebo progress for each stage ─── */
-    const [progress, setProgress] = useState<Record<string, number>>({
-        documentParsing: 0,
-        notesParsing: 0,
-        transcriptionLayer: 0,
-        feasibility: 0,
-        laborMarket: 0,
-        jobDemand: 0,
-        adjacentCareer: 0,
-    });
+interface StageRowProps {
+    label: string;
+    sub: string;
+    icon: LucideIcon;
+    color: string;
+    pct: number;
+    isDone: boolean;
+    isActive: boolean;
+}
 
-    const phase = getCurrentPhase(completedStages);
-    const header = HEADERS[phase] || HEADERS.documentParsing;
-
-    /* Overall progress: how many of 7 total stages are done */
-    const totalStages = 7;
-    const overallPct = Math.round((completedStages.length / totalStages) * 100);
-
-    const hasDocs = completedStages.includes("documentParsing");
-    const hasNotes = completedStages.includes("notesParsing");
-    const hasTranscription = completedStages.includes("transcriptionLayer");
-    const hasParallel = completedStages.includes("laborMarket");
-    const hasAdjacent = completedStages.includes("adjacentCareer");
-
-    /* Placebo timers — each stage ticks up while active, snaps to 100 when completed */
-    useEffect(() => {
-        const t = setInterval(() => {
-            setProgress(prev => {
-                const next = { ...prev };
-
-                // Document Parsing
-                if (hasDocs) next.documentParsing = 100;
-                else next.documentParsing = Math.min(prev.documentParsing + Math.random() * 6, 92);
-
-                // Notes Parsing
-                if (hasNotes) next.notesParsing = 100;
-                else if (hasDocs) next.notesParsing = Math.min(prev.notesParsing + Math.random() * 10, 95);
-
-                // Transcription Layer
-                if (hasTranscription) next.transcriptionLayer = 100;
-                else if (hasNotes) next.transcriptionLayer = Math.min(prev.transcriptionLayer + Math.random() * 3, 90);
-
-                // Parallel agents
-                if (hasParallel) {
-                    next.feasibility = 100;
-                    next.laborMarket = 100;
-                    next.jobDemand = 100;
-                } else if (hasTranscription) {
-                    next.feasibility = Math.min(prev.feasibility + Math.random() * 2, 94);
-                    next.laborMarket = Math.min(prev.laborMarket + Math.random() * 3, 98);
-                    next.jobDemand = Math.min(prev.jobDemand + Math.random() * 4, 96);
-                }
-
-                // Adjacent Career
-                if (hasAdjacent) next.adjacentCareer = 100;
-                else if (hasParallel) next.adjacentCareer = Math.min(prev.adjacentCareer + Math.random() * 5, 97);
-
-                return next;
-            });
-        }, 250);
-        return () => clearInterval(t);
-    }, [hasDocs, hasNotes, hasTranscription, hasParallel, hasAdjacent]);
-
-    /* ─── UI helpers ─── */
-    const StageRow = ({
-        label, sub, icon: Icon, color, pct, isDone, isActive,
-    }: {
-        label: string; sub: string; icon: any; color: string;
-        pct: number; isDone: boolean; isActive: boolean;
-    }) => (
+function StageRow({
+    label, sub, icon: Icon, color, pct, isDone, isActive,
+}: StageRowProps) {
+    return (
         <div
             className={`flex items-center gap-4 w-full p-4 rounded-2xl border transition-all duration-500 ${isDone
                     ? "bg-white/80 border-[var(--sage)]/15"
@@ -187,6 +98,71 @@ export default function LoadingScreen({ completedStages = [] }: { completedStage
             </div>
         </div>
     );
+}
+
+export default function LoadingScreen({ completedStages = [] }: { completedStages?: string[] }) {
+    /* ─── placebo progress for each stage ─── */
+    const [progress, setProgress] = useState<Record<string, number>>({
+        documentParsing: 0,
+        notesParsing: 0,
+        transcriptionLayer: 0,
+        feasibility: 0,
+        laborMarket: 0,
+        jobDemand: 0,
+        synthesis: 0,
+    });
+
+    const phase = getCurrentPhase(completedStages);
+    const header = HEADERS[phase] || HEADERS.documentParsing;
+
+    /* Overall progress: how many of 7 total stages are done */
+    const totalStages = 7;
+    const overallPct = Math.round((completedStages.length / totalStages) * 100);
+
+    const hasDocs = completedStages.includes("documentParsing");
+    const hasNotes = completedStages.includes("notesParsing");
+    const hasTranscription = completedStages.includes("transcriptionLayer");
+    const hasParallel = completedStages.includes("laborMarket");
+    const hasSynthesis = completedStages.includes("synthesis");
+
+    /* Placebo timers — each stage ticks up while active, snaps to 100 when completed */
+    useEffect(() => {
+        const t = setInterval(() => {
+            setProgress(prev => {
+                const next = { ...prev };
+
+                // Document Parsing
+                if (hasDocs) next.documentParsing = 100;
+                else next.documentParsing = Math.min(prev.documentParsing + Math.random() * 6, 92);
+
+                // Notes Parsing
+                if (hasNotes) next.notesParsing = 100;
+                else if (hasDocs) next.notesParsing = Math.min(prev.notesParsing + Math.random() * 10, 95);
+
+                // Transcription Layer
+                if (hasTranscription) next.transcriptionLayer = 100;
+                else if (hasNotes) next.transcriptionLayer = Math.min(prev.transcriptionLayer + Math.random() * 3, 90);
+
+                // Parallel agents
+                if (hasParallel) {
+                    next.feasibility = 100;
+                    next.laborMarket = 100;
+                    next.jobDemand = 100;
+                } else if (hasTranscription) {
+                    next.feasibility = Math.min(prev.feasibility + Math.random() * 2, 94);
+                    next.laborMarket = Math.min(prev.laborMarket + Math.random() * 3, 98);
+                    next.jobDemand = Math.min(prev.jobDemand + Math.random() * 4, 96);
+                }
+
+                // Synthesis
+                if (hasSynthesis) next.synthesis = 100;
+                else if (hasParallel) next.synthesis = Math.min(prev.synthesis + Math.random() * 5, 97);
+
+                return next;
+            });
+        }, 250);
+        return () => clearInterval(t);
+    }, [hasDocs, hasNotes, hasTranscription, hasParallel, hasSynthesis]);
 
     return (
         <div className="flex-1 flex flex-col items-center justify-center font-sans text-center min-h-[80vh] py-12">
@@ -300,15 +276,15 @@ export default function LoadingScreen({ completedStages = [] }: { completedStage
                         </div>
                     </div>
 
-                    {/* 5. Adjacent Career */}
+                    {/* 5. Synthesis */}
                     <StageRow
-                        label="Adjacent Career Generation"
-                        sub="Finding related career opportunities"
+                        label="Synthesizing Career Recommendations"
+                        sub="Combining all specialist analyses into ranked career paths"
                         icon={Sparkles}
                         color="#8B5E3C"
-                        pct={progress.adjacentCareer}
-                        isDone={hasAdjacent}
-                        isActive={hasParallel && !hasAdjacent}
+                        pct={progress.synthesis}
+                        isDone={hasSynthesis}
+                        isActive={hasParallel && !hasSynthesis}
                     />
                 </div>
             </div>
@@ -319,7 +295,7 @@ export default function LoadingScreen({ completedStages = [] }: { completedStage
 function AgentSubProgress({
     label, icon: Icon, progress, color, active, done,
 }: {
-    label: string; icon: any; progress: number; color: string; active: boolean; done: boolean;
+    label: string; icon: LucideIcon; progress: number; color: string; active: boolean; done: boolean;
 }) {
     return (
         <div className="flex items-center gap-3">
