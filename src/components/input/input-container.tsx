@@ -25,6 +25,7 @@ import DocumentUploadPanel from "./document-upload-panel";
 import ExtractionResultsPanel from "./extraction-results-panel";
 import EditableFieldForm from "./editable-field-form";
 import ConfirmationApprovalBar from "./confirmation-approval-bar";
+import IngestionFreshnessPanel from "./ingestion-freshness-panel";
 import { toast } from "sonner";
 import { EMPTY_NOTES } from "@/lib/analysis-types";
 import type { ExtractedNotes } from "@/lib/analysis-types";
@@ -543,6 +544,8 @@ export default function InputContainer() {
               </p>
             </div>
           </div>
+
+          <IngestionFreshnessPanel />
 
           <div className="mb-5 rounded-xl border border-sage/20 overflow-hidden">
             <button
