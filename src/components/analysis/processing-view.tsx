@@ -17,16 +17,16 @@ const STAGE_META: Record<StageName, { label: string; description: string }> = {
         description: "Redacting session and detecting career path...",
     },
     feasibility: {
-        label: "Feasibility Analyst",
-        description: "Evaluating real-world barriers and constraints...",
+        label: "Academic Auditor",
+        description: "Analyzing academic performance and aptitude signals...",
     },
     laborMarket: {
-        label: "Labor Market Analyst",
+        label: "Industry Analyst",
         description: "Mapping career paths to PH market demand...",
     },
     jobDemand: {
-        label: "Job Demand Analyst",
-        description: "Extracting genuine interests and aptitudes...",
+        label: "Feasibility Strategist",
+        description: "Evaluating scholarship eligibility and program costs...",
     },
     synthesis: {
         label: "Synthesizing Career Recommendations",
