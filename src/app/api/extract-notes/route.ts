@@ -10,6 +10,7 @@
  */
 
 import { type NextRequest } from "next/server";
+import { requireUser, unauthorizedResponse } from "@/lib/auth/api-auth";
 
 const GEMINI_API_KEY = process.env.DOCUMENT_INTAKE_API_KEY;
 const GEMINI_MODEL = "gemini-2.5-flash";
@@ -40,6 +41,9 @@ Rules:
 - Return ONLY the JSON object, no markdown formatting or explanation.`;
 
 export async function POST(request: NextRequest) {
+  const user = await requireUser();
+  if (!user) return unauthorizedResponse();
+
   try {
     if (!GEMINI_API_KEY) {
       return Response.json(

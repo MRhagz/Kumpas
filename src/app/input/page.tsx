@@ -1,11 +1,14 @@
 import InputContainer from "@/components/input/input-container";
+import ProtectedHeader from "@/components/auth/protected-header";
 import Link from "next/link";
 
 export default function InputPage() {
   return (
-    <div className="min-h-screen bg-background font-sans py-10">
-      {/* Input Container */}
-      <InputContainer />
+    <div className="min-h-screen bg-background font-sans">
+      <ProtectedHeader />
+      <div className="py-10">
+        <InputContainer />
+      </div>
 
       {/* Bottom spacer */}
       {/* Footer */}

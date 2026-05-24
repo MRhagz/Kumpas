@@ -4,12 +4,22 @@ import { piiRedactionService } from "@/lib/module2/pii-redaction-service";
 import { documentStorageService } from "@/lib/module2/document-storage-service";
 import { geminiExtractionService } from "@/lib/module2/gemini-extraction-service";
 import { sessionInitializationService } from "@/lib/module2/session-initialization-service";
+import {
+  notFoundResponse,
+  requireUser,
+  unauthorizedResponse,
+  userOwnsSession,
+} from "@/lib/auth/api-auth";
 
 export async function POST(
   request: NextRequest,
   { params }: { params: Promise<{ sessionId: string }> },
 ) {
   const { sessionId } = await params;
+
+  const user = await requireUser();
+  if (!user) return unauthorizedResponse();
+  if (!(await userOwnsSession(sessionId, user.id))) return notFoundResponse();
 
   try {
     const formData = await request.formData();
@@ -42,6 +52,7 @@ export async function POST(
       redactedBuffer,
       docType,
       sessionId,
+      user.id,
       redactedPath,
     );
 
