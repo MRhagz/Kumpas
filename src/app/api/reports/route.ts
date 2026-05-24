@@ -74,6 +74,7 @@ export async function POST(request: Request): Promise<Response> {
           careerPath: recommendation.careerPath,
           alignmentScore: recommendation.alignmentScore,
           keySignals: recommendation.keySignals,
+          keySignalDetails: recommendation.keySignalDetails,
         }),
       ),
     };

@@ -3,6 +3,7 @@ import type { RecommendationProvider } from "@/lib/report/provider";
 import type {
   AcademicDocumentType,
   AcademicEvidenceSummary,
+  KeySignalDetail,
   RankedRecommendation,
   RankedRecommendationList,
   RecommendationSource,
@@ -135,11 +136,15 @@ async function getRankedRecommendations(
     financialFeasibility: r.financial_feasibility,
     reasoningSummary: r.reasoning_summary,
     keySignals: (r.key_signals as string[]) ?? [],
+    keySignalDetails: normalizeKeySignalDetails(
+      r.key_signal_details,
+      (r.key_signals as string[]) ?? [],
+    ),
     sources: sourcesByRec.get(r.id) ?? [],
     status: r.status,
     degradedReason: r.degraded_reason ?? undefined,
     incompleteReason: r.incomplete_reason ?? undefined,
-  }));
+}));
 
   return {
     sessionId,
@@ -197,3 +202,56 @@ export const module3RecommendationProvider: RecommendationProvider = {
   getRankedRecommendations,
   getAcademicEvidenceSummary,
 };
+
+function normalizeKeySignalDetails(
+  value: unknown,
+  fallbackSignals: string[],
+): KeySignalDetail[] {
+  if (Array.isArray(value)) {
+    const details = value.reduce<KeySignalDetail[]>((acc, item) => {
+        if (typeof item !== "object" || item === null) {
+          return acc;
+        }
+
+        const record = item as Record<string, unknown>;
+        const label = typeof record.label === "string" ? record.label.trim() : "";
+        const detailValue =
+          typeof record.value === "string" ? record.value.trim() : "";
+
+        if (!label || !detailValue) {
+          return acc;
+        }
+
+        const detail: KeySignalDetail = {
+          label,
+          value: detailValue,
+          polarity: normalizePolarity(record.polarity),
+        };
+
+        if (typeof record.subNote === "string" && record.subNote.trim()) {
+          detail.subNote = record.subNote.trim();
+        }
+
+        acc.push(detail);
+        return acc;
+      }, []);
+
+    if (details.length > 0) {
+      return details;
+    }
+  }
+
+  return fallbackSignals.slice(0, 5).map((signal, index) => ({
+    label: `Signal ${index + 1}`,
+    value: signal,
+    polarity: "neutral",
+  }));
+}
+
+function normalizePolarity(value: unknown): KeySignalDetail["polarity"] {
+  if (value === "positive" || value === "negative" || value === "neutral") {
+    return value;
+  }
+
+  return "neutral";
+}

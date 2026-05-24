@@ -45,7 +45,15 @@ export interface CandidateCareerPath {
   demandScore: number;
   feasibilityScore: number;
   signals: string[];
+  keySignalDetails: KeySignalDetail[];
   sourceReferences: SourceReference[];
+}
+
+export interface KeySignalDetail {
+  label: string;
+  value: string;
+  subNote?: string;
+  polarity: "positive" | "negative" | "neutral";
 }
 
 export interface SourceReference {

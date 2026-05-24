@@ -20,19 +20,23 @@ export default function PdfDownloadButton({
       return;
     }
 
+    const openedTab = window.open(downloadUrl, "_blank", "noopener,noreferrer");
+    if (!openedTab) {
+      const anchor = document.createElement("a");
+      anchor.href = downloadUrl;
+      anchor.download = fileName;
+      anchor.target = "_blank";
+      anchor.rel = "noopener noreferrer";
+      document.body.appendChild(anchor);
+      anchor.click();
+      anchor.remove();
+    }
+
     try {
       await onDownloadStart?.();
     } catch (error) {
       console.warn("[PdfDownloadButton] Download status update failed.", error);
     }
-
-    const anchor = document.createElement("a");
-    anchor.href = downloadUrl;
-    anchor.download = fileName;
-    anchor.rel = "noopener noreferrer";
-    document.body.appendChild(anchor);
-    anchor.click();
-    anchor.remove();
   };
 
   return (

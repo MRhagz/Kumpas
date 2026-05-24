@@ -34,6 +34,15 @@ export interface RecommendationSource {
   relatedSignals: string[];
 }
 
+export type KeySignalPolarity = "positive" | "negative" | "neutral";
+
+export interface KeySignalDetail {
+  label: string;
+  value: string;
+  subNote?: string;
+  polarity: KeySignalPolarity;
+}
+
 export interface RankedRecommendation {
   id: string;
   rank: number;
@@ -44,6 +53,7 @@ export interface RankedRecommendation {
   financialFeasibility: number;
   reasoningSummary: string;
   keySignals: string[];
+  keySignalDetails: KeySignalDetail[];
   sources: RecommendationSource[];
   status: RecommendationStatus;
   degradedReason?: string;
@@ -102,6 +112,7 @@ export interface ReportRecommendationSummary {
   careerPath: string;
   alignmentScore: number;
   keySignals: string[];
+  keySignalDetails: KeySignalDetail[];
 }
 
 const ACADEMIC_DOCUMENT_TYPES: AcademicDocumentType[] = ["form137", "ncae", "nat"];
@@ -116,6 +127,11 @@ const SOURCE_ACQUISITION_METHODS: SourceAcquisitionMethod[] = [
   "retrieved_context",
   "system_generated",
   "unknown",
+];
+const KEY_SIGNAL_POLARITIES: KeySignalPolarity[] = [
+  "positive",
+  "negative",
+  "neutral",
 ];
 
 export function isNormalizedScore(score: number): boolean {
@@ -226,6 +242,22 @@ export function validateRankedRecommendationList(
     if (recommendation.keySignals.length === 0) {
       errors.push(`${label} requires at least one key signal.`);
     }
+
+    recommendation.keySignalDetails.forEach((signal, signalIndex) => {
+      const signalLabel = `${label} key signal ${signalIndex + 1}`;
+
+      if (!signal.label.trim()) {
+        errors.push(`${signalLabel} requires a label.`);
+      }
+
+      if (!signal.value.trim()) {
+        errors.push(`${signalLabel} requires a value.`);
+      }
+
+      if (!KEY_SIGNAL_POLARITIES.includes(signal.polarity)) {
+        errors.push(`${signalLabel} has unsupported polarity: ${signal.polarity}.`);
+      }
+    });
 
     recommendation.sources.forEach((source, sourceIndex) => {
       const sourceLabel = `${label} source ${sourceIndex + 1}`;
