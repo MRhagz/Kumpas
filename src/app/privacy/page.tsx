@@ -72,7 +72,7 @@ WHAT WE DO NOT COLLECT
 The counselor's notes and uploaded academic documents are sent to the first Gemini agent (Session Intake Layer). As part of structuring the data, this agent removes PII — student names are replaced with "the student", specific school names and sub-province locations are redacted. The resulting structured output contains no direct identifiers and is what all downstream agents receive.
 
 2. THREE-AGENT ANALYSIS
-Three specialist Gemini agents analyze the de-identified structured intake output in parallel: the Feasibility Analyst (SCCT framework), the Labor Market Analyst (LMI/DOLE data framework), and the Job Demand Analyst (JD-R Model). Each produces a scored assessment.
+Three specialist Gemini agents analyze the de-identified structured intake output in parallel: the Academic Auditor (Market Analytics silo), the Industry Analyst (Live Labor Demand silo), and the Feasibility Strategist (Path Feasibility silo). Each produces a scored assessment.
 
 3. ADJACENT CAREER FINDER
 A fifth Gemini agent synthesizes all three assessments to identify 3–4 adjacent career paths the student may not have considered, scored against the same frameworks.
