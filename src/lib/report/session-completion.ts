@@ -1,6 +1,6 @@
 import "server-only";
 
-import { supabaseAdmin } from "@/lib/supabase";
+import { sessionProgressTracker } from "@/lib/module5/session-progress";
 
 export class SessionCompletionService {
   async markReportDownloaded(sessionId: string): Promise<void> {
@@ -10,17 +10,7 @@ export class SessionCompletionService {
       throw new Error("Session id is required to mark a report downloaded.");
     }
 
-    const { error } = await supabaseAdmin
-      .from("sessions")
-      .update({
-        status: "complete",
-        last_activity: new Date().toISOString(),
-      })
-      .eq("id", normalizedSessionId);
-
-    if (error) {
-      throw new Error(`Failed to mark session complete: ${error.message}`);
-    }
+    await sessionProgressTracker.markReportDownloaded(normalizedSessionId);
   }
 }
 

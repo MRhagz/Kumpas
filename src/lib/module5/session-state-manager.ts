@@ -1,5 +1,10 @@
 import "server-only";
 
+import {
+  normalizeModuleStatus,
+  type ModuleStatus,
+  type ReportStatus,
+} from "@/lib/module5/session-progress";
 import { supabaseAdmin } from "@/lib/supabase";
 import type { Session } from "@/types";
 
@@ -12,9 +17,12 @@ export type SessionNextStep =
 
 export interface SessionState {
   sessionId: string;
-  status: Session["status"] | "complete";
+  status: Session["status"];
   expiresAt: string;
   lastActivity: string;
+  completedAt: string | null;
+  moduleStatus: ModuleStatus;
+  reportStatus: ReportStatus;
   hasApprovedProfile: boolean;
   hasRecommendations: boolean;
   hasReport: boolean;
@@ -23,17 +31,22 @@ export interface SessionState {
 
 interface SessionStateRow {
   id: string;
-  status: SessionState["status"];
+  status: Session["status"];
   approved_profile: unknown | null;
+  module_status: unknown;
+  report_status: ReportStatus;
   expires_at: string;
   last_activity: string;
+  completed_at: string | null;
 }
 
 export class SessionStateManager {
   async getSessionState(sessionId: string): Promise<SessionState | null> {
     const { data: session, error } = await supabaseAdmin
       .from("sessions")
-      .select("id, status, approved_profile, expires_at, last_activity")
+      .select(
+        "id, status, approved_profile, module_status, report_status, expires_at, last_activity, completed_at",
+      )
       .eq("id", sessionId)
       .maybeSingle();
 
@@ -46,21 +59,27 @@ export class SessionStateManager {
     }
 
     const sessionRow = session as SessionStateRow;
+    const moduleStatus = normalizeModuleStatus(sessionRow.module_status);
     const hasApprovedProfile = sessionRow.approved_profile !== null;
     const hasRecommendations = await this.hasRankedRecommendations(sessionId);
     const hasReport =
-      sessionRow.status === "completed" || sessionRow.status === "complete";
+      sessionRow.report_status === "ready" ||
+      sessionRow.report_status === "downloaded";
 
     return {
       sessionId: sessionRow.id,
       status: sessionRow.status,
       expiresAt: sessionRow.expires_at,
       lastActivity: sessionRow.last_activity,
+      completedAt: sessionRow.completed_at,
+      moduleStatus,
+      reportStatus: sessionRow.report_status,
       hasApprovedProfile,
       hasRecommendations,
       hasReport,
       nextStep: getNextStep({
         status: sessionRow.status,
+        reportStatus: sessionRow.report_status,
         hasApprovedProfile,
         hasRecommendations,
         hasReport,
@@ -84,6 +103,7 @@ export class SessionStateManager {
 
 function getNextStep(input: {
   status: SessionState["status"];
+  reportStatus: ReportStatus;
   hasApprovedProfile: boolean;
   hasRecommendations: boolean;
   hasReport: boolean;
@@ -93,7 +113,7 @@ function getNextStep(input: {
   }
 
   if (input.hasReport) {
-    return "complete";
+    return input.reportStatus === "downloaded" ? "complete" : "report";
   }
 
   if (input.hasRecommendations) {
