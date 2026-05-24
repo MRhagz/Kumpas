@@ -40,6 +40,7 @@ export class GeminiExtractionService {
     imageBuffer: Buffer,
     docType: string,
     sessionId: string,
+    counselorId: string,
     redactedImagePath: string | null,
   ): Promise<ExtractionResult> {
     const prompt = PROMPTS[docType];
@@ -109,6 +110,7 @@ export class GeminiExtractionService {
       .from("extraction_results")
       .insert({
         session_id: sessionId,
+        counselor_id: counselorId,
         document_type: docType,
         raw_gemini_response: geminiData,
         structured_data: structuredData,

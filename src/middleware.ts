@@ -32,9 +32,14 @@ export async function middleware(request: NextRequest) {
   } = await supabase.auth.getUser();
 
   const path = request.nextUrl.pathname;
+  const isApi = path.startsWith("/api/");
   const isProtectedPage = PROTECTED_PAGES.some(
     (p) => path === p || path.startsWith(`${p}/`),
   );
+
+  if (!user && isApi) {
+    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  }
 
   if (!user && isProtectedPage) {
     const url = request.nextUrl.clone();

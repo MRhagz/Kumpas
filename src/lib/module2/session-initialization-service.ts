@@ -2,10 +2,10 @@ import { supabaseAdmin } from "@/lib/supabase";
 import type { Session } from "@/types";
 
 export class SessionInitializationService {
-  async createSession(counselorId?: string): Promise<Session> {
+  async createSession(counselorId: string): Promise<Session> {
     const { data, error } = await supabaseAdmin
       .from("sessions")
-      .insert({ counselor_id: counselorId ?? null, status: "active" })
+      .insert({ counselor_id: counselorId, status: "active" })
       .select()
       .single();
 
@@ -13,10 +13,10 @@ export class SessionInitializationService {
     return data as Session;
   }
 
-  async createSessionNotes(sessionId: string, counselorId?: string): Promise<void> {
+  async createSessionNotes(sessionId: string, counselorId: string): Promise<void> {
     const { error } = await supabaseAdmin.from("session_notes").insert({
       session_id: sessionId,
-      counselor_id: counselorId ?? null,
+      counselor_id: counselorId,
     });
 
     if (error) throw new Error(`Failed to create session notes: ${error.message}`);
