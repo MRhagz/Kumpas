@@ -184,10 +184,11 @@ function AnalysisContent() {
 
   return (
     <main className="min-h-screen bg-background">
-      <div className="pt-6">
+      <div className="pt-6 pb-2">
         <SessionProgressIndicator
           sessionId={sessionId}
           fallbackStep={state.phase === "reportReady" ? "report" : "analysis"}
+          className="max-w-6xl"
         />
       </div>
       {state.phase === "processing" && (
