@@ -33,11 +33,14 @@ export async function middleware(request: NextRequest) {
 
   const path = request.nextUrl.pathname;
   const isApi = path.startsWith("/api/");
+  const isAuthorizedRetentionRoute =
+    path === "/api/reports/retention" &&
+    isAuthorizedRetentionRequest(request);
   const isProtectedPage = PROTECTED_PAGES.some(
     (p) => path === p || path.startsWith(`${p}/`),
   );
 
-  if (!user && isApi) {
+  if (!user && isApi && !isAuthorizedRetentionRoute) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 
@@ -54,6 +57,31 @@ export async function middleware(request: NextRequest) {
   }
 
   return response;
+}
+
+function isAuthorizedRetentionRequest(request: NextRequest): boolean {
+  const retentionSecret = process.env.REPORT_RETENTION_SECRET;
+
+  if (!retentionSecret) {
+    return false;
+  }
+
+  const providedSecret =
+    request.headers.get("x-report-retention-secret") ??
+    getBearerToken(request);
+
+  return providedSecret === retentionSecret;
+}
+
+function getBearerToken(request: NextRequest): string | null {
+  const authorization = request.headers.get("authorization");
+
+  if (!authorization?.startsWith("Bearer ")) {
+    return null;
+  }
+
+  const token = authorization.slice("Bearer ".length).trim();
+  return token.length > 0 ? token : null;
 }
 
 export const config = {
