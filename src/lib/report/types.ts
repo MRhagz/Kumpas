@@ -111,6 +111,7 @@ export interface ReportRecommendationSummary {
   rank: number;
   careerPath: string;
   alignmentScore: number;
+  reasoningSummary: string;
   keySignals: string[];
   keySignalDetails: KeySignalDetail[];
 }

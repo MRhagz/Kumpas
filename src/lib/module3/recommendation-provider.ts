@@ -1,3 +1,4 @@
+import { stripMarkdownEmphasis } from "@/lib/module3/synthesis-interpreter";
 import { supabaseAdmin } from "@/lib/supabase";
 import type { RecommendationProvider } from "@/lib/report/provider";
 import type {
@@ -214,9 +215,14 @@ function normalizeKeySignalDetails(
         }
 
         const record = item as Record<string, unknown>;
-        const label = typeof record.label === "string" ? record.label.trim() : "";
+        const label =
+          typeof record.label === "string"
+            ? stripMarkdownEmphasis(record.label)
+            : "";
         const detailValue =
-          typeof record.value === "string" ? record.value.trim() : "";
+          typeof record.value === "string"
+            ? stripMarkdownEmphasis(record.value)
+            : "";
 
         if (!label || !detailValue) {
           return acc;
@@ -229,7 +235,7 @@ function normalizeKeySignalDetails(
         };
 
         if (typeof record.subNote === "string" && record.subNote.trim()) {
-          detail.subNote = record.subNote.trim();
+          detail.subNote = stripMarkdownEmphasis(record.subNote);
         }
 
         acc.push(detail);

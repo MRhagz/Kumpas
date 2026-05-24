@@ -13,7 +13,7 @@ export class SessionCompletionService {
     const { error } = await supabaseAdmin
       .from("sessions")
       .update({
-        status: "complete",
+        status: "completed",
         last_activity: new Date().toISOString(),
       })
       .eq("id", normalizedSessionId);
