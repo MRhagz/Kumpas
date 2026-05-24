@@ -1,4 +1,5 @@
 import { GoogleGenAI } from "@google/genai";
+import { isSourceAcquisitionMethod } from "@/lib/report/types";
 import type {
   AgentOutput,
   IntermediateSynthesis,
@@ -115,6 +116,39 @@ function normalizePolarity(value: unknown): KeySignalDetail["polarity"] {
   return "neutral";
 }
 
+function normalizeSourceReferences(
+  references: SourceReference[] | undefined,
+): SourceReference[] {
+  return (references ?? []).reduce<SourceReference[]>((acc, ref) => {
+    const title = String(ref?.title ?? "").trim();
+    const reference = String(ref?.reference ?? "").trim();
+    const acquisitionMethod = String(ref?.acquisitionMethod ?? "").trim();
+
+    if (!title || !reference || !isSourceAcquisitionMethod(acquisitionMethod)) {
+      console.warn("[SynthesisInterpreter] dropping invalid sourceReference", {
+        title,
+        reference,
+        acquisitionMethod,
+      });
+      return acc;
+    }
+
+    const ingestionTimestamp = String(ref?.ingestionTimestamp ?? "").trim();
+    acc.push({
+      title,
+      reference,
+      acquisitionMethod,
+      ingestionTimestamp: Number.isNaN(Date.parse(ingestionTimestamp))
+        ? new Date().toISOString()
+        : ingestionTimestamp,
+      relatedSignals: Array.isArray(ref?.relatedSignals)
+        ? ref.relatedSignals.filter((s): s is string => typeof s === "string")
+        : [],
+    });
+    return acc;
+  }, []);
+}
+
 export class SynthesisInterpreter {
   async synthesize(agentOutputs: AgentOutput[]): Promise<IntermediateSynthesis> {
     const apiKey = process.env.SYNTHESIS_API_KEY!;
@@ -149,7 +183,7 @@ export class SynthesisInterpreter {
           c.keySignalDetails,
           c.signals ?? [],
         ),
-        sourceReferences: c.sourceReferences ?? [],
+        sourceReferences: normalizeSourceReferences(c.sourceReferences),
       })),
     };
   }
