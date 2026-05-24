@@ -1,6 +1,7 @@
 import { formatReasoningSummary } from "@/lib/report/reasoning-formatter";
 import type {
   AcademicDocumentType,
+  KeySignalDetail,
   RankedRecommendation,
   RecommendationSource,
   ReportPayload,
@@ -23,6 +24,7 @@ const PAGE_HEIGHT = 842;
 const MARGIN_X = 38;
 const MARGIN_BOTTOM = 38;
 const CONTENT_WIDTH = PAGE_WIDTH - MARGIN_X * 2;
+const RECOMMENDATION_CARD_HEIGHT = 342;
 const SPACE_1 = 8;
 const SPACE_3 = 24;
 const INK: Rgb = [0.067, 0.094, 0.153];
@@ -92,11 +94,11 @@ class StyledReportPdf {
   private renderCoverHeader(): void {
     const profile = this.payload.studentProfile;
     const title =
-      profile.targetCareer ??
       this.payload.rankedRecommendations.recommendations[0]?.careerPath ??
+      profile.targetCareer ??
       "Career Recommendation";
 
-    this.drawText("Kumpas · Career Recommendation Report", MARGIN_X, this.y, {
+    this.drawText("Kumpas - Career Recommendation Report", MARGIN_X, this.y, {
       color: MUTED,
       font: "bold",
       size: 9,
@@ -108,7 +110,7 @@ class StyledReportPdf {
     });
     this.y -= 24;
 
-    this.drawText(title, MARGIN_X, this.y, {
+    this.drawText(`Assessment for ${truncateText(title, 46)}`, MARGIN_X, this.y, {
       color: INK,
       font: "bold",
       size: 25,
@@ -226,16 +228,18 @@ class StyledReportPdf {
   }
 
   private renderRecommendations(): void {
-    this.drawSectionLabel("Ranked Career Recommendations");
-    this.y -= 4;
-
-    this.payload.rankedRecommendations.recommendations.forEach((recommendation) => {
+    this.payload.rankedRecommendations.recommendations.forEach((recommendation, index) => {
+      this.addPage();
+      if (index === 0) {
+        this.drawSectionLabel("Ranked Career Recommendations");
+        this.y -= 4;
+      }
       this.renderRecommendation(recommendation);
     });
   }
 
   private renderRecommendation(recommendation: RankedRecommendation): void {
-    const minCardHeight = 342;
+    const minCardHeight = RECOMMENDATION_CARD_HEIGHT;
     this.ensureSpace(minCardHeight);
 
     const cardTop = this.y;
@@ -263,7 +267,8 @@ class StyledReportPdf {
     const rightWidth = 164;
 
     this.drawMiniHeading("Key Signals", leftX, bodyTop);
-    const signalsEndY = this.drawBullets(
+    const signalsEndY = this.drawKeySignalDetails(
+      recommendation.keySignalDetails,
       recommendation.keySignals,
       leftX,
       bodyTop - 16,
@@ -466,6 +471,68 @@ class StyledReportPdf {
     return currentY;
   }
 
+  private drawKeySignalDetails(
+    details: KeySignalDetail[],
+    fallbackSignals: string[],
+    x: number,
+    y: number,
+    width: number,
+    maxItems: number,
+  ): number {
+    const rows: KeySignalDetail[] =
+      details.length > 0
+        ? details.slice(0, maxItems)
+        : fallbackSignals.slice(0, maxItems).map((signal, index) => ({
+            label: `Signal ${index + 1}`,
+            value: signal,
+            polarity: "neutral" as const,
+          }));
+
+    if (rows.length === 0) {
+      return this.drawParagraph("None listed", x, y, width, 8, 10, MUTED);
+    }
+
+    let currentY = y;
+    rows.forEach((row) => {
+      const color = signalPolarityColor(row.polarity);
+      this.drawText(signalPolarityGlyph(row.polarity), x, currentY, {
+        color,
+        font: "bold",
+        size: 8,
+      });
+      this.drawText(truncateText(row.label, 22), x + 10, currentY, {
+        color: INK,
+        font: "bold",
+        size: 8,
+      });
+      currentY = this.drawParagraph(
+        row.value,
+        x + 92,
+        currentY,
+        width - 92,
+        8,
+        10,
+        INK,
+      );
+
+      if (row.subNote) {
+        currentY = this.drawParagraph(
+          row.subNote,
+          x + 92,
+          currentY - 1,
+          width - 92,
+          7,
+          9,
+          MUTED,
+        );
+      }
+
+      currentY -= 4;
+    });
+
+    return currentY;
+  }
+
   private drawParagraph(
     value: string,
     x: number,
@@ -596,6 +663,30 @@ function statusColor(status: RankedRecommendation["status"]): Rgb {
   return RED;
 }
 
+function signalPolarityColor(polarity: KeySignalDetail["polarity"]): Rgb {
+  if (polarity === "positive") {
+    return SAGE;
+  }
+
+  if (polarity === "negative") {
+    return RED;
+  }
+
+  return MUTED;
+}
+
+function signalPolarityGlyph(polarity: KeySignalDetail["polarity"]): string {
+  if (polarity === "positive") {
+    return "+";
+  }
+
+  if (polarity === "negative") {
+    return "-";
+  }
+
+  return "=";
+}
+
 function text(value: string, x: number, y: number, options: TextOptions = {}): string {
   const color = options.color ?? INK;
   const font = options.font === "bold" ? "F2" : "F1";
@@ -688,6 +779,8 @@ function escapePdfText(value: string): string {
 
 function sanitizePdfText(value: string): string {
   return value
+    .replace(/\*\*([^*]+)\*\*/g, "$1")
+    .replace(/__([^_]+)__/g, "$1")
     .replace(/[\u201C\u201D]/g, '"')
     .replace(/[\u2018\u2019]/g, "'")
     .replace(/[\u2013\u2014]/g, "-")
