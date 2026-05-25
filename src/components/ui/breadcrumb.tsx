@@ -1,7 +1,7 @@
 "use client";
 
 import * as React from "react";
-import { ChevronRight, MoreHorizontal } from "lucide-react";
+import { ChevronRight } from "lucide-react";
 
 import { cn } from "@/lib/utils";
 
@@ -27,19 +27,6 @@ function BreadcrumbItem({ className, ...props }: React.ComponentProps<"li">) {
     <li
       data-slot="breadcrumb-item"
       className={cn("inline-flex items-center gap-1.5", className)}
-      {...props}
-    />
-  );
-}
-
-function BreadcrumbLink({
-  className,
-  ...props
-}: React.ComponentProps<"a">) {
-  return (
-    <a
-      data-slot="breadcrumb-link"
-      className={cn("transition-colors hover:text-ink", className)}
       {...props}
     />
   );
@@ -79,29 +66,9 @@ function BreadcrumbSeparator({
   );
 }
 
-function BreadcrumbEllipsis({
-  className,
-  ...props
-}: React.ComponentProps<"span">) {
-  return (
-    <span
-      data-slot="breadcrumb-ellipsis"
-      role="presentation"
-      aria-hidden="true"
-      className={cn("flex size-9 items-center justify-center", className)}
-      {...props}
-    >
-      <MoreHorizontal className="size-4" />
-      <span className="sr-only">More</span>
-    </span>
-  );
-}
-
 export {
   Breadcrumb,
-  BreadcrumbEllipsis,
   BreadcrumbItem,
-  BreadcrumbLink,
   BreadcrumbList,
   BreadcrumbPage,
   BreadcrumbSeparator,
