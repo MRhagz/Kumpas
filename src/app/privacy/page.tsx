@@ -20,7 +20,7 @@ const SECTIONS = [
         id: "overview",
         icon: Shield,
         title: "Overview",
-        content: `Kumpas is a career guidance system built for Filipino guidance counselors. It helps counselors generate structured, data-backed career assessments for their students using a five-agent AI pipeline powered by the Gemini API and built on Next.js.
+        content: `Kumpas is a career guidance system built for Filipino guidance counselors. It helps counselors generate structured, data-backed career assessments for their students using a multi-agent AI pipeline powered by the Gemini API and built on Next.js.
 
 This Privacy Policy explains what data Kumpas processes, why it processes it, how it is protected, and the rights students and their guardians hold under Republic Act No. 10173, the Data Privacy Act of 2012 (DPA), and its Implementing Rules and Regulations.
 
@@ -58,7 +58,7 @@ OPTIONAL ACADEMIC DOCUMENTS
 WHAT WE DO NOT COLLECT
 - Audio or video recordings of any kind — Kumpas has no recording capability
 - Biometric data of any kind
-- Student names in downstream AI components — names are removed by the first Gemini agent before any analysis step receives the data
+- Student names, Learner Reference Numbers, birthdates, addresses, phone numbers, email addresses, parent/guardian names, and school names in document images — these are detected and blacked out by a PII redaction step before the structured extraction stage processes the image
 - Social media accounts, device data, or browsing activity
 - Medical records or clinical diagnoses`
     },
@@ -68,17 +68,20 @@ WHAT WE DO NOT COLLECT
         title: "How We Use Your Data",
         content: `Data entered into Kumpas is used solely to generate a career assessment report for the student. The pipeline operates as follows:
 
-1. SESSION INTAKE LAYER
-The counselor's notes and uploaded academic documents are sent to the first Gemini agent (Session Intake Layer). As part of structuring the data, this agent removes PII — student names are replaced with "the student", specific school names and sub-province locations are redacted. The resulting structured output contains no direct identifiers and is what all downstream agents receive.
+1. PII REDACTION
+Each uploaded document image (Form 137, NCAE, NAT) is passed to Gemini (whose paid tier complies with the Data Privacy Act) for the PII redaction step. This step uses Gemini Vision to detect the bounding boxes of personally identifiable information — student names, Learner Reference Numbers, birthdates, addresses, phone numbers, emails, parent/guardian names, and school names — and overlays opaque black rectangles on those regions. Only the redacted image is stored and forwarded to the next stage. Counselor notes submitted as images are instructed to omit PII when their structured text is produced.
 
-2. THREE-AGENT ANALYSIS
-Three specialist Gemini agents analyze the de-identified structured intake output in parallel: the Academic Auditor (Market Analytics silo), the Industry Analyst (Live Labor Demand silo), and the Feasibility Strategist (Path Feasibility silo). Each produces a scored assessment.
+2. STRUCTURED EXTRACTION
+The redacted document image is sent to Gemini Vision a second time to extract structured academic fields (NCAE strand scores, NAT subject scores, Form 137 subjects and grades). The counselor reviews the extracted values in an editable confirmation screen and must explicitly approve them before any analysis runs.
 
-3. ADJACENT CAREER FINDER
-A fifth Gemini agent synthesizes all three assessments to identify 3–4 adjacent career paths the student may not have considered, scored against the same frameworks.
+3. FEDERATED MULTI-AGENT ANALYSIS
+Three specialist Gemini agents analyze the counselor-approved profile in parallel, each restricted to its own knowledge silo via a Federated Retrieval-Augmented Generation (RAG) architecture: the Academic Auditor (Market Analytics silo), the Industry Analyst (Live Labor Demand silo), and the Feasibility Strategist (Path Feasibility silo). Each silo contains only publicly sourced government labor-market and scholarship data — no student data is stored in the silos.
 
-4. REPORT GENERATION
-A Career Assessment Report is generated and displayed to the guidance counselor. This report is for in-session use only and is not transmitted to any third party without consent.
+4. META-AGENT SYNTHESIS AND RANKING
+A meta-agent stage takes the three independent agent outputs and produces a unified, ranked list of career path recommendations. It runs two Gemini calls — a synthesis step that identifies candidate career paths and scores them across aptitude, market demand, and feasibility dimensions, and a ranking step that generates a plain-language Chain-of-Thought reasoning summary for each path. A deterministic weighted formula computes the final Aptitude-Demand Alignment Score.
+
+5. REPORT GENERATION
+A Career Assessment Report PDF is generated server-side and made available to the guidance counselor via a short-lived signed download URL. This report is for in-session use only and is not transmitted to any third party without consent.
 
 LEGAL BASIS FOR PROCESSING
 - Consent — the student or guardian has given express consent (Section 12(a), RA 10173)
@@ -92,15 +95,14 @@ LEGAL BASIS FOR PROCESSING
         content: `Kumpas does not sell personal data. Data sharing with third parties is strictly limited.
 
 WHO WE SHARE DATA WITH
-- Google (Gemini API) — student session data is processed by Gemini models across all five pipeline stages. The first Gemini agent (Session Intake Layer) performs PII redaction as part of its structuring task — removing student names, specific school names, and sub-province locations. All subsequent Gemini agents operate on this already de-identified output. Google acts as a sub-processor under data processing terms.
+- Google (Gemini API) — Kumpas calls Gemini at multiple pipeline stages: the PII redaction step (to detect PII bounding boxes in document images), the structured extraction step (on the already-redacted images), the three specialist agents, and the meta-agent synthesis and ranking step. Document images sent for redaction contain PII for the sole purpose of locating it; once detected, the regions are blacked out and the raw image is discarded — all downstream Gemini calls operate on the redacted image only. Google acts as a sub-processor under its paid-tier data processing terms, which state that prompts and responses are not used for model training.
 - Research institutions and academic organizations — only anonymized, aggregated data (no individual identifiers) may be used for peer-reviewed studies on career outcomes and educational planning, and only with explicit consent
 - Government agencies (e.g., CHED, DepEd, TESDA) — where required by law or in support of national education policy
 
 WHAT IS NEVER SHARED
-- Raw counselor session notes
-- Uploaded academic documents (NCAE, NAT, Report Card)
+- Raw, unredacted uploaded document images — once PII bounding boxes are detected, the raw image is discarded and only the blacked-out version moves forward
 - Individual career assessment reports
-- Any data that could identify a specific student
+- Any data that could identify a specific student outside the pipeline described above
 
 OPT-OUT
 Students and guardians may opt out of having their anonymized data included in any external research sharing by submitting a written request to the school's Data Protection Officer. Opting out does not affect access to the Kumpas career guidance service.`
@@ -110,19 +112,20 @@ Students and guardians may opt out of having their anonymized data included in a
         icon: Shield,
         title: "Data Storage & Retention",
         content: `DATA STORAGE
-Kumpas is designed to minimize data persistence:
-- Session notes and uploaded documents are processed in-session and are not permanently stored on Kumpas servers beyond what is necessary to generate the report
-- Student names and precise location identifiers are removed by the first Gemini agent during the Session Intake Layer step, before downstream agents receive any data
-- Generated reports are stored temporarily in the browser's session storage and are cleared when the browser session ends
-- All data in transit is encrypted using TLS 1.2+
+Kumpas is designed to minimize data persistence. All student-related data is stored on a Supabase backend with AES-256 encryption at rest and TLS 1.2+ encryption in transit:
+- Raw, unredacted document images are held only in memory long enough for the PII redaction step to run, and are then discarded — they are never written to a persistent database or storage bucket
+- Redacted document images are stored in a private Supabase Storage bucket ("kumpas-documents") for the duration of the active session and are deleted when the session is ended, expires, or is cancelled
+- Session drafts (counselor notes, extracted academic fields, the counselor-approved profile) are stored in a Supabase sessions table with a 24-hour expiry from the session's last activity; expired sessions are automatically purged
+- Generated PDF reports are stored in a private Supabase Storage bucket ("kumpas-reports") and are accessible only via a signed download URL that expires after 30 minutes; the PDF object itself is deleted within 24 hours by a server-side retention sweep
+- Field-level counselor correction logs (used to evaluate extraction accuracy) are kept for one academic year and contain no student-identifiable data — only the corrected field name, the AI-extracted value, the counselor-corrected value, and a session identifier
 
 DATA RETENTION
-- Kumpas does not maintain a persistent database of student records beyond the active session
-- The school's own document retention policies govern how long counselor notes and printed reports are kept
+- Kumpas does not maintain a persistent database of student records beyond the active session and its 24-hour cleanup window
+- The school's own document retention policies govern how long counselor notes and printed reports are kept on the school's side
 - Upon written request, any residual student data will be deleted within 30 calendar days
 
 DATA LOCALIZATION
-All five pipeline agents run via the Gemini API, which may route requests through Google's global infrastructure. Appropriate safeguards are in place under NPC Circular No. 16-01 for cross-border data transfers. Raw session notes (containing PII) are only sent to the first Gemini agent. All subsequent agents receive only the de-identified structured output produced by that first call.`
+All Gemini API calls (PII redaction, structured extraction, the three specialist agents, and the meta-agent synthesis and ranking) may route through Google's global infrastructure. Appropriate safeguards are in place under NPC Circular No. 16-01 for cross-border data transfers. Document images containing PII are sent only to the PII redaction step; every subsequent Gemini call operates on the redacted image.`
     },
     {
         id: "rights",
@@ -147,10 +150,12 @@ All five pipeline agents run via the Gemini API, which may route requests throug
         content: `Kumpas implements technical and organizational safeguards appropriate to the sensitivity of student data:
 
 TECHNICAL SAFEGUARDS
-- PII redaction by first Gemini agent — the Session Intake Layer agent is instructed to remove student names, specific school names, and sub-province location identifiers as part of its structuring task. Raw notes are sent only to this one agent; all downstream Gemini agents operate exclusively on the de-identified structured output
-- No audio or video capability — all input is text-based, eliminating the risk of inadvertent voice or image capture during sessions
+- Server-side PII redaction step — before any structured extraction runs, every uploaded document image passes through a redaction step that uses Gemini Vision to detect the bounding boxes of student names, Learner Reference Numbers, birthdates, addresses, phone numbers, emails, parent/guardian names, and school names, and then overlays opaque black rectangles on those regions. The raw image is discarded once redaction completes; only the redacted image moves forward through the pipeline
+- No audio or video capability — Kumpas does not record audio or video at any point in the session
 - Encryption of data in transit (TLS 1.2+) on all API calls
-- Session-scoped storage — report data is held in browser session storage and is not written to persistent server-side databases
+- Encryption at rest (AES-256, provided by Supabase) for all session data, redacted images, and generated PDFs
+- Counselor-only access — authenticated sessions are required for all in-app functionality, and database-level Row Level Security restricts each counselor to records they own
+- Short retention windows — session drafts expire after 24 hours, generated PDFs are deleted within 24 hours, and signed download URLs expire after 30 minutes
 
 ORGANIZATIONAL SAFEGUARDS
 - Kumpas is operated by guidance counselors, who are bound by their institution's data handling policies and RA 10173
