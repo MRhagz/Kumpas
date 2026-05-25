@@ -1,6 +1,4 @@
 // ─── Notes Extraction (Gemini Vision) ───────────────────────────────
-import type { ReportGenerationResponse } from "@/lib/report/types";
-
 export interface ExtractedNotes {
     careerGoal: string;
     interests: string;
@@ -121,17 +119,3 @@ export type StageName =
     | "jobDemand"
     | "synthesis";
 
-export type AnalysisState =
-    | { phase: "processing"; completedStages: StageName[] }
-    | { phase: "complete"; report: AdjacentCareerReport; sessionIntake: SessionIntakeOutput; agentData: Record<AgentKey, AgentPanelData> }
-    | { phase: "reportReady"; report: ReportGenerationResponse }
-    | { phase: "error"; title?: string; message: string };
-
-export interface StoredSession {
-    counselorNotes: string;
-    createdAt: string;
-    careerOverride?: string;
-    parentSessionId?: string;
-    originalCareer?: string;
-    extractedDocuments?: unknown[];
-}
