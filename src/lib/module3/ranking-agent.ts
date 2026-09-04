@@ -1,4 +1,8 @@
 import { GoogleGenAI } from "@google/genai";
+import {
+  getGeminiGenerationModel,
+  requireApiKey,
+} from "./gemini-config";
 import type { ScoredCareerPath, RankedCareerPath } from "./types";
 
 function buildPrompt(scoredPaths: ScoredCareerPath[]): string {
@@ -40,11 +44,14 @@ export class RankingAgent {
   async generateReasoning(
     scoredPaths: ScoredCareerPath[],
   ): Promise<RankedCareerPath[]> {
-    const apiKey = process.env.SYNTHESIS_API_KEY!;
+    const apiKey = requireApiKey(
+      "RankingAgent",
+      process.env.SYNTHESIS_API_KEY,
+    );
     const ai = new GoogleGenAI({ apiKey });
 
     const result = await ai.models.generateContent({
-      model: "gemini-2.5-flash",
+      model: getGeminiGenerationModel(),
       contents: buildPrompt(scoredPaths),
       config: { responseMimeType: "application/json" },
     });
