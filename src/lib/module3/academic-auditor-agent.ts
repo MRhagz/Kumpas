@@ -1,4 +1,9 @@
 import { GoogleGenAI } from "@google/genai";
+import { AgentOperationError, runAgentStage } from "./agent-errors";
+import {
+  getGeminiGenerationModel,
+  requireApiKey,
+} from "./gemini-config";
 import { queryEmbeddingService } from "./query-embedding-service";
 import { vectorStoreQueryService } from "./vector-store-query-service";
 import type { AgentOutput, RetrievedChunk } from "./types";
@@ -91,18 +96,39 @@ export class AcademicAuditorAgent {
     profile: ApprovedProfile,
     apiKey: string,
   ): Promise<AgentOutput> {
+    const normalizedApiKey = requireApiKey(AGENT_NAME, apiKey);
     const query = buildQuery(profile);
-    const embedding = await queryEmbeddingService.embed(query, apiKey);
-    const chunks = await vectorStoreQueryService.query(AGENT_NAME, embedding);
+    const embedding = await runAgentStage(AGENT_NAME, "embedding", () =>
+      queryEmbeddingService.embed(query, normalizedApiKey),
+    );
+    const chunks = await runAgentStage(AGENT_NAME, "knowledge retrieval", () =>
+      vectorStoreQueryService.query(AGENT_NAME, embedding),
+    );
 
-    const ai = new GoogleGenAI({ apiKey });
+    const ai = new GoogleGenAI({ apiKey: normalizedApiKey });
 
-    const result = await ai.models.generateContent({
-      model: "gemini-2.5-flash",
-      contents: buildPrompt(profile, chunks),
-      config: { responseMimeType: "application/json" },
-    });
-    const text = result.text ?? "";
+    const result = await runAgentStage(AGENT_NAME, "analysis generation", () =>
+      ai.models.generateContent({
+        model: getGeminiGenerationModel(),
+        contents: buildPrompt(profile, chunks),
+        config: { responseMimeType: "application/json" },
+      }),
+    );
+    const text = result.text?.trim();
+
+    if (!text) {
+      throw new AgentOperationError(
+        AGENT_NAME,
+        "analysis generation",
+        new Error("Gemini returned an empty response"),
+      );
+    }
+
+    try {
+      JSON.parse(text);
+    } catch (error) {
+      throw new AgentOperationError(AGENT_NAME, "analysis generation", error);
+    }
 
     return {
       agentName: AGENT_NAME,
