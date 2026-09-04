@@ -1,5 +1,9 @@
 import { GoogleGenAI } from "@google/genai";
 import { isSourceAcquisitionMethod } from "@/lib/report/types";
+import {
+  getGeminiGenerationModel,
+  requireApiKey,
+} from "./gemini-config";
 import type {
   AgentOutput,
   IntermediateSynthesis,
@@ -161,11 +165,14 @@ function normalizeSourceReferences(
 
 export class SynthesisInterpreter {
   async synthesize(agentOutputs: AgentOutput[]): Promise<IntermediateSynthesis> {
-    const apiKey = process.env.SYNTHESIS_API_KEY!;
+    const apiKey = requireApiKey(
+      "SynthesisInterpreter",
+      process.env.SYNTHESIS_API_KEY,
+    );
     const ai = new GoogleGenAI({ apiKey });
 
     const result = await ai.models.generateContent({
-      model: "gemini-2.5-flash",
+      model: getGeminiGenerationModel(),
       contents: buildPrompt(agentOutputs),
       config: { responseMimeType: "application/json" },
     });
