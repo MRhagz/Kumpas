@@ -71,6 +71,9 @@ export default function WysiwygField({
       {/* Editor */}
       <div
         ref={editorRef}
+        role="textbox"
+        aria-label={label}
+        aria-multiline="true"
         contentEditable
         suppressContentEditableWarning
         data-placeholder={placeholder}
