@@ -16,7 +16,7 @@ export default function EditableFieldForm({ value, onChange }: EditableFieldForm
         <PenLine size={16} className="text-sage" />
         Session Notes — Edit Below
         <span className="ml-auto text-[11px] font-medium text-muted-text">
-          All five fields required
+          First two fields required; remaining three optional
         </span>
       </div>
       <SessionNotesForm value={value} onChange={onChange} />
