@@ -12,7 +12,7 @@ const FIELDS = [
     iconBg: "#dcfce7",
     iconFg: "#166534",
     labelColor: "#166534",
-    ph: "Start typing the student's career goal here…",
+    ph: "Enter a career goal, or Undecided…",
   },
   {
     key: "interests" as const,
@@ -63,7 +63,7 @@ export default function SessionNotesForm({ value, onChange }: SessionNotesFormPr
       {FIELDS.map((f) => (
         <WysiwygField
           key={f.key}
-          label={f.label}
+          label={`${f.label} (${f.key === "careerGoal" || f.key === "interests" ? "required" : "optional"})`}
           icon={<f.icon size={12} />}
           iconBg={f.iconBg}
           iconFg={f.iconFg}
