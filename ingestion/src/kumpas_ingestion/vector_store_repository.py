@@ -1,147 +1,145 @@
 from dataclasses import dataclass
-from datetime import datetime, timezone
+from typing import TYPE_CHECKING
 
-from supabase import Client
+if TYPE_CHECKING:
+    from supabase import Client
+    from .embedding_service import EmbeddingService
 
-from .models import ChunkInput, KnowledgeChunk
-from .silos import SiloId
+from .config import EMBEDDING_DIMENSIONS, EMBEDDING_MODEL
+from .models import ChunkInput, KnowledgeChunk, SourceType
 
 
 @dataclass(frozen=True)
 class ChunkDiff:
-    """Partitioning of incoming chunks against the current database state.
-
-    Embeddings should only be computed for chunks in `to_insert` and `to_update`;
-    `to_skip` already has an identical content_hash on the row, so the existing
-    embedding can be reused.
-    """
-
     to_insert: list[ChunkInput]
     to_update: list[ChunkInput]
     to_skip: list[ChunkInput]
+    existing: list[dict]
 
 
 class VectorStoreRepository:
-    """Reads and writes to the knowledge_chunks table and ingestion_metadata.
+    """Diff before embedding; replace a validated batch in one database transaction."""
 
-    Upsert policy per SDD 1.1:
-      - if (silo_id, source_url, chunk_index) exists and content_hash matches → skip
-      - if exists and content_hash differs → update content, hash, embedding, timestamp
-      - if absent → insert
-    """
-
-    def __init__(self, supabase: Client) -> None:
+    def __init__(self, supabase: "Client") -> None:
         self._supabase = supabase
 
-    def diff(self, chunks: list[ChunkInput]) -> ChunkDiff:
+    def diff(
+        self, chunks: list[ChunkInput], source_type: SourceType, *, replace_all: bool = False
+    ) -> ChunkDiff:
         if not chunks:
-            return ChunkDiff(to_insert=[], to_update=[], to_skip=[])
-
-        existing = self._fetch_existing_hashes(chunks)
-        to_insert: list[ChunkInput] = []
-        to_update: list[ChunkInput] = []
-        to_skip: list[ChunkInput] = []
-
+            return ChunkDiff([], [], [], [])
+        if any(c.source_type != source_type for c in chunks):
+            raise ValueError("A refresh batch must contain exactly one source type")
+        if len({c.key for c in chunks}) != len(chunks):
+            raise ValueError("Duplicate stable chunk key in refresh batch")
+        rows = self._fetch_existing(chunks, source_type, replace_all)
+        existing = {(r["silo_id"], r["source_url"], r["chunk_index"]): r for r in rows}
+        inserted, updated, skipped = [], [], []
         for chunk in chunks:
-            key = (chunk.silo_id.value, chunk.source_url, chunk.chunk_index)
-            existing_hash = existing.get(key)
-            if existing_hash is None:
-                to_insert.append(chunk)
-            elif existing_hash == chunk.content_hash:
-                to_skip.append(chunk)
+            row = existing.get(chunk.key)
+            if row is None:
+                inserted.append(chunk)
+            elif (row["content_hash"], row["embedding_model"], row["embedding_dimensions"]) == (
+                chunk.content_hash, EMBEDDING_MODEL, EMBEDDING_DIMENSIONS
+            ):
+                skipped.append(chunk)
             else:
-                to_update.append(chunk)
+                updated.append(chunk)
+        return ChunkDiff(inserted, updated, skipped, rows)
 
-        return ChunkDiff(to_insert=to_insert, to_update=to_update, to_skip=to_skip)
-
-    def write(self, chunks: list[KnowledgeChunk]) -> int:
-        if not chunks:
-            return 0
-        payload = [_serialize(chunk) for chunk in chunks]
-        result = (
-            self._supabase.table("knowledge_chunks")
-            .upsert(payload, on_conflict="silo_id,source_url,chunk_index")
-            .execute()
-        )
-        return len(result.data or payload)
-
-    def update_ingestion_metadata(
+    def refresh(
         self,
-        source_type: str,
-        log_id: str,
-        ingestion_timestamp: datetime | None = None,
-    ) -> None:
-        ts = ingestion_timestamp or datetime.now(timezone.utc)
-        payload = {
-            "source_type": source_type,
-            "last_ingestion_timestamp": ts.isoformat(),
-            "last_success_log_id": log_id,
-            "updated_at": ts.isoformat(),
+        chunks: list[ChunkInput],
+        source_type: SourceType,
+        embedder: "EmbeddingService",
+        log_entry: dict,
+        *,
+        replace_all: bool = False,
+    ) -> tuple[int, dict[str, int]]:
+        diff = self.diff(chunks, source_type, replace_all=replace_all)
+        changed = diff.to_insert + diff.to_update
+        vectors = embedder.embed_documents([c.content for c in changed]) if changed else []
+        # Validate every vector before the single write; a partial provider result cannot commit.
+        embedded = {
+            chunk.key: KnowledgeChunk(
+                **chunk.model_dump(exclude={"content_hash"}), embedding=vector
+            )
+            for chunk, vector in zip(changed, vectors, strict=True)
         }
-        (
-            self._supabase.table("ingestion_metadata")
-            .upsert(payload, on_conflict="source_type")
-            .execute()
-        )
+        counts = {"inserted": len(diff.to_insert), "updated": len(diff.to_update),
+                  "skipped_unchanged": len(diff.to_skip)}
+        if not chunks:
+            return 0, counts
+        payload = []
+        for chunk in chunks:
+            record = embedded.get(chunk.key)
+            payload.append(record.model_dump(mode="json") if record else {
+                **chunk.model_dump(mode="json"), "embedding": None,
+                "embedding_model": EMBEDDING_MODEL, "embedding_dimensions": EMBEDDING_DIMENSIONS,
+            })
+        log_entry = {**log_entry, "run_metadata": {**log_entry.get("run_metadata", {}), **counts}}
+        result = self._supabase.rpc("refresh_knowledge_chunks", {
+            "p_source_type": source_type,
+            "p_log": log_entry,
+            "p_source_urls": None if replace_all else sorted({c.source_url for c in chunks}),
+            "p_chunks": payload,
+            "p_expected": [{k: row[k] for k in (
+                "silo_id", "source_url", "chunk_index", "content_hash",
+                "embedding_model", "embedding_dimensions"
+            )} for row in diff.existing],
+        }).execute()
+        return int(result.data), counts
 
     def known_publication_urls(self, source_type: str) -> set[str]:
         """Returns publication URLs already recorded for this source_type.
 
         Backs the PublicationIndexChecker change-detection step for Module 1.2.
         """
-        result = (
-            self._supabase.table("publication_index_cache")
-            .select("publication_url")
-            .eq("source_type", source_type)
-            .execute()
-        )
-        return {row["publication_url"] for row in result.data or []}
+        cached: set[str] = set()
+        offset = 0
+        while True:
+            result = self._supabase.table("publication_index_cache").select(
+                "publication_url"
+            ).eq("source_type", source_type).order("publication_url").range(offset, offset + 499).execute()
+            page = result.data or []
+            cached.update(row["publication_url"] for row in page)
+            if len(page) < 500:
+                break
+            offset += len(page)
+        # A historical cache entry cannot certify the embedding space of its records.
+        compatible, incompatible = set(), set()
+        offset = 0
+        while True:
+            result = self._supabase.table("knowledge_chunks").select(
+                "source_url,embedding_model,embedding_dimensions"
+            ).eq("source_type", source_type).order("source_url").order("chunk_index").range(
+                offset, offset + 499
+            ).execute()
+            page = result.data or []
+            for row in page:
+                target = compatible if (row["embedding_model"], row["embedding_dimensions"]) == (
+                    EMBEDDING_MODEL, EMBEDDING_DIMENSIONS
+                ) else incompatible
+                target.add(row["source_url"])
+            if len(page) < 500:
+                break
+            offset += len(page)
+        return cached & compatible - incompatible
 
-    def record_publication_ingested(
-        self,
-        publication_url: str,
-        source_type: str,
-        log_id: str,
-        ingested_at: datetime | None = None,
-    ) -> None:
-        ts = ingested_at or datetime.now(timezone.utc)
-        payload = {
-            "publication_url": publication_url,
-            "source_type": source_type,
-            "ingested_at": ts.isoformat(),
-            "ingestion_log_id": log_id,
-        }
-        (
-            self._supabase.table("publication_index_cache")
-            .upsert(payload, on_conflict="publication_url")
-            .execute()
-        )
-
-    def _fetch_existing_hashes(
-        self, chunks: list[ChunkInput]
-    ) -> dict[tuple[str, str, int], str]:
-        by_silo: dict[SiloId, set[str]] = {}
-        for chunk in chunks:
-            by_silo.setdefault(chunk.silo_id, set()).add(chunk.source_url)
-
-        existing: dict[tuple[str, str, int], str] = {}
-        for silo_id, source_urls in by_silo.items():
-            result = (
-                self._supabase.table("knowledge_chunks")
-                .select("silo_id, source_url, chunk_index, content_hash")
-                .eq("silo_id", silo_id.value)
-                .in_("source_url", list(source_urls))
-                .execute()
-            )
-            for row in result.data or []:
-                key = (row["silo_id"], row["source_url"], row["chunk_index"])
-                existing[key] = row["content_hash"]
-        return existing
-
-
-def _serialize(chunk: KnowledgeChunk) -> dict:
-    payload = chunk.model_dump(exclude={"ingestion_timestamp"})
-    payload["silo_id"] = chunk.silo_id.value
-    if chunk.ingestion_timestamp is not None:
-        payload["ingestion_timestamp"] = chunk.ingestion_timestamp.isoformat()
-    return payload
+    def _fetch_existing(
+        self, chunks: list[ChunkInput], source_type: SourceType, replace_all: bool
+    ) -> list[dict]:
+        rows: list[dict] = []
+        while True:
+            query = self._supabase.table("knowledge_chunks").select(
+                "silo_id,source_url,chunk_index,content_hash,embedding_model,embedding_dimensions"
+            ).eq("source_type", source_type)
+            if not replace_all:
+                query = query.in_("source_url", sorted({c.source_url for c in chunks}))
+            result = query.order("silo_id").order("source_url").order("chunk_index").range(
+                len(rows), len(rows) + 499
+            ).execute()
+            page = result.data or []
+            rows.extend(page)
+            if len(page) < 500:
+                return rows
