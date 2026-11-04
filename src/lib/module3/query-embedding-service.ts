@@ -1,24 +1,25 @@
 import { GoogleGenAI } from "@google/genai";
 
-const EMBEDDING_MODEL = "gemini-embedding-001";
-const EMBEDDING_DIMENSION = 768;
+import {
+  EMBEDDING_MODEL,
+  EMBEDDING_DIMENSIONS,
+  assertEmbeddingConfiguration,
+  assertEmbeddingVector,
+} from "./embedding-contract";
 
 export class QueryEmbeddingService {
   async embed(query: string, apiKey: string): Promise<number[]> {
+    assertEmbeddingConfiguration();
     const ai = new GoogleGenAI({ apiKey });
 
     const result = await ai.models.embedContent({
       model: EMBEDDING_MODEL,
       contents: query,
-      config: { outputDimensionality: EMBEDDING_DIMENSION },
+      config: { outputDimensionality: EMBEDDING_DIMENSIONS, taskType: "RETRIEVAL_QUERY" },
     });
 
     const embedding = result.embeddings?.[0]?.values;
-    if (!embedding || embedding.length !== EMBEDDING_DIMENSION) {
-      throw new Error(
-        `Expected ${EMBEDDING_DIMENSION}-dim embedding, got ${embedding?.length ?? 0}`,
-      );
-    }
+    assertEmbeddingVector(embedding);
 
     return embedding;
   }

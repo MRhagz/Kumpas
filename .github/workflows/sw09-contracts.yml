@@ -1,0 +1,58 @@
+name: SW-09 embedding contracts
+
+on:
+  pull_request:
+    paths:
+      - "ingestion/**"
+      - "src/lib/module3/**"
+      - "scripts/sw09-contract.test.mjs"
+      - "supabase/**"
+      - "package*.json"
+      - ".github/workflows/sw09-contracts.yml"
+  workflow_dispatch: {}
+
+permissions:
+  contents: read
+
+jobs:
+  mocked-contracts:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - run: pip install -e './ingestion[psa]'
+      - run: python -m unittest discover -s ingestion/tests -v
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "24"
+          cache: npm
+      - run: npm ci
+      - run: node scripts/sw09-contract.test.mjs
+      - run: npx tsc --noEmit
+      - run: npm run lint -- src/lib/module3/embedding-contract.ts src/lib/module3/query-embedding-service.ts src/lib/module3/vector-store-query-service.ts src/lib/module3/types.ts scripts/sw09-contract.test.mjs
+
+  database-contracts:
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: pgvector/pgvector:pg17
+        env:
+          POSTGRES_PASSWORD: contract-test-only
+          POSTGRES_DB: sw09
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U postgres -d sw09"
+          --health-interval 5s --health-timeout 5s --health-retries 10
+    env:
+      PGHOST: localhost
+      PGPORT: "5432"
+      PGUSER: postgres
+      PGPASSWORD: contract-test-only
+      PGDATABASE: sw09
+    steps:
+      - uses: actions/checkout@v4
+      - run: psql -v ON_ERROR_STOP=1 -f supabase/tests/sw09_bootstrap.sql
+      - run: psql -v ON_ERROR_STOP=1 -f supabase/tests/sw09_embedding_contract.sql

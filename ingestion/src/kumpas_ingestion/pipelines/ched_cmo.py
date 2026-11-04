@@ -30,12 +30,13 @@ import sys
 from datetime import datetime, timezone
 from typing import Iterable
 
+from pydantic import ValidationError
 from supabase import create_client
 
 from ..config import IngestionConfig
 from ..embedding_service import EmbeddingService
 from ..ingestion_logger import IngestionLogger
-from ..models import ChunkInput, KnowledgeChunk
+from ..models import ChunkInput
 from ..pdf_downloader import PDFDownloader, PDFDownloadError
 from ..pdf_text_extractor import PDFTextExtractionError, PDFTextExtractor
 from ..publication_index_checker import (
@@ -75,11 +76,13 @@ def _build_chunks(
 ) -> list[ChunkInput]:
     return [
         ChunkInput(
+            source_type=SOURCE_TYPE,
             silo_id=SiloId.PATH_FEASIBILITY,
             source_url=entry.publication_url,
             chunk_index=index,
             content=text,
             acquisition_method="automated_pdf",
+            official_source_url=entry.publication_url,
             source_metadata={
                 "source_type": SOURCE_TYPE,
                 "cmo_number": entry.cmo_number,
@@ -113,38 +116,13 @@ def _embed_and_write(
     cfg: IngestionConfig,
     repository: VectorStoreRepository,
     chunk_inputs: list[ChunkInput],
+    log_entry: dict,
 ) -> tuple[int, dict[str, int]]:
-    diff = repository.diff(chunk_inputs)
-    needs_embedding = diff.to_insert + diff.to_update
-    counts = {
-        "inserted": len(diff.to_insert),
-        "updated": len(diff.to_update),
-        "skipped_unchanged": len(diff.to_skip),
-    }
-    if not needs_embedding:
-        return 0, counts
     embedding_service = EmbeddingService(cfg)
     try:
-        vectors = embedding_service.embed_documents(
-            [c.content for c in needs_embedding]
-        )
+        return repository.refresh(chunk_inputs, SOURCE_TYPE, embedding_service, log_entry)
     finally:
         embedding_service.close()
-    knowledge_chunks: list[KnowledgeChunk] = [
-        KnowledgeChunk(
-            silo_id=chunk.silo_id,
-            source_url=chunk.source_url,
-            chunk_index=chunk.chunk_index,
-            content=chunk.content,
-            content_hash=chunk.content_hash,
-            embedding=vector,
-            acquisition_method=chunk.acquisition_method,
-            source_metadata=chunk.source_metadata,
-        )
-        for chunk, vector in zip(needs_embedding, vectors, strict=True)
-    ]
-    written = repository.write(knowledge_chunks)
-    return written, counts
 
 
 def _print_failure_report(failures: Iterable[tuple[str, str]]) -> None:
@@ -185,7 +163,7 @@ def run() -> int:
     )
 
     if not capped:
-        log_id = logger.record(
+        logger.record(
             run_status="no_op",
             run_metadata={
                 "target_year": target_year,
@@ -193,7 +171,6 @@ def run() -> int:
                 "already_ingested": len(known),
             },
         )
-        repository.update_ingestion_metadata(SOURCE_TYPE, log_id)
         checker.close()
         return 0
 
@@ -207,7 +184,7 @@ def run() -> int:
     for entry in capped:
         try:
             chunks = _process_publication(entry, downloader, extractor, cleaner)
-        except (PDFDownloadError, PDFTextExtractionError) as exc:
+        except (PDFDownloadError, PDFTextExtractionError, ValidationError) as exc:
             failures.append((entry.publication_url, str(exc)))
             continue
         aggregated.extend(chunks)
@@ -231,7 +208,10 @@ def run() -> int:
         return 1
 
     try:
-        written, counts = _embed_and_write(cfg, repository, aggregated)
+        _embed_and_write(cfg, repository, aggregated, logger.prepare(run_metadata={
+            "target_year": target_year, "publications_processed": len(processed),
+            "publications_failed": len(failures),
+        }))
     except Exception as exc:
         logger.record(
             run_status="failure",
@@ -244,23 +224,6 @@ def run() -> int:
         print(f"Embedding/write failed: {exc}")
         return 1
 
-    log_id = logger.record(
-        run_status="success",
-        records_upserted=written,
-        run_metadata={
-            "target_year": target_year,
-            "publications_processed": len(processed),
-            "publications_failed": len(failures),
-            **counts,
-        },
-    )
-    for entry in processed:
-        repository.record_publication_ingested(
-            publication_url=entry.publication_url,
-            source_type=SOURCE_TYPE,
-            log_id=log_id,
-        )
-    repository.update_ingestion_metadata(SOURCE_TYPE, log_id)
     return 0
 
 
