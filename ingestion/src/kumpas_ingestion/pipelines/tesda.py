@@ -5,8 +5,7 @@ entire CSV, embeds every row via the shared EmbeddingService, and upserts
 into the path_feasibility silo. Fail-fast: if any row is invalid, no rows
 are written.
 
-Stale rows: this pipeline never deletes. Removing a program from the CSV
-does not remove it from knowledge_chunks. Cleanup is manual for MVP.
+A fully validated nonempty CSV replaces the TESDA source group atomically.
 """
 
 from __future__ import annotations
@@ -14,6 +13,7 @@ from __future__ import annotations
 import csv
 import os
 import sys
+from datetime import date
 from decimal import Decimal, InvalidOperation
 from pathlib import Path
 from typing import Iterable
@@ -24,7 +24,7 @@ from supabase import create_client
 from ..config import IngestionConfig
 from ..embedding_service import EmbeddingService
 from ..ingestion_logger import IngestionLogger
-from ..models import ChunkInput, KnowledgeChunk
+from ..models import ChunkInput
 from ..silos import SiloId
 from ..vector_store_repository import VectorStoreRepository
 
@@ -39,6 +39,8 @@ class TESDARecord(BaseModel):
     program_cost_php: Decimal = Field(gt=0)
     tuition_benchmark_php: Decimal = Field(ge=0)
     source_reference: str = Field(min_length=1)
+    publication_date: date | None = None
+    official_source_url: str | None = None
 
     @field_validator("program_name", "tesda_qualification_code", "source_reference")
     @classmethod
@@ -47,6 +49,16 @@ class TESDARecord(BaseModel):
         if not cleaned:
             raise ValueError("must not be blank")
         return cleaned
+
+    @field_validator("publication_date", "official_source_url", mode="before")
+    @classmethod
+    def _optional_provenance(cls, value: str | None) -> str | None:
+        return value or None
+
+    @field_validator("official_source_url")
+    @classmethod
+    def _official_url(cls, value: str | None) -> str | None:
+        return ChunkInput._official_url(value)
 
     @property
     def source_url(self) -> str:
@@ -65,11 +77,16 @@ class TESDARecord(BaseModel):
 
     def to_chunk_input(self) -> ChunkInput:
         return ChunkInput(
+            source_type=SOURCE_TYPE,
             silo_id=SiloId.PATH_FEASIBILITY,
             source_url=self.source_url,
             chunk_index=0,
             content=self.to_embedding_text(),
             acquisition_method="manual_curation",
+            official_source_url=self.official_source_url or (
+                self.source_reference if self.source_reference.startswith("https://") else None
+            ),
+            publication_date=self.publication_date or None,
             source_metadata={
                 "program_name": self.program_name,
                 "tesda_qualification_code": self.tesda_qualification_code,
@@ -170,58 +187,24 @@ def run() -> int:
         print(str(exc))
         return 1
 
-    repository = VectorStoreRepository(supabase)
-    chunk_inputs = [r.to_chunk_input() for r in records]
-    diff = repository.diff(chunk_inputs)
-
-    print(
-        f"TESDA diff: {len(diff.to_insert)} new, {len(diff.to_update)} changed, "
-        f"{len(diff.to_skip)} unchanged"
-    )
-
-    needs_embedding = diff.to_insert + diff.to_update
-    if not needs_embedding:
-        log_id = logger.record(
-            run_status="no_op",
-            run_metadata={"total_records": len(records), "skipped": len(diff.to_skip)},
-        )
-        repository.update_ingestion_metadata(SOURCE_TYPE, log_id)
+    if not records:
+        logger.record(run_status="no_op", run_metadata={"total_records": 0})
         return 0
 
+    repository = VectorStoreRepository(supabase)
     embedding_service = EmbeddingService(cfg)
     try:
-        vectors = embedding_service.embed_documents(
-            [c.content for c in needs_embedding]
+        chunk_inputs = [r.to_chunk_input() for r in records]
+        repository.refresh(
+            chunk_inputs, SOURCE_TYPE, embedding_service,
+            logger.prepare(run_metadata={"total_records": len(records)}), replace_all=True
         )
+    except Exception as exc:
+        logger.record(run_status="failure", error_message=f"TESDA refresh failed: {exc}")
+        return 1
     finally:
         embedding_service.close()
 
-    knowledge_chunks: list[KnowledgeChunk] = [
-        KnowledgeChunk(
-            silo_id=chunk.silo_id,
-            source_url=chunk.source_url,
-            chunk_index=chunk.chunk_index,
-            content=chunk.content,
-            content_hash=chunk.content_hash,
-            embedding=vector,
-            acquisition_method=chunk.acquisition_method,
-            source_metadata=chunk.source_metadata,
-        )
-        for chunk, vector in zip(needs_embedding, vectors, strict=True)
-    ]
-
-    written = repository.write(knowledge_chunks)
-    log_id = logger.record(
-        run_status="success",
-        records_upserted=written,
-        run_metadata={
-            "total_records": len(records),
-            "inserted": len(diff.to_insert),
-            "updated": len(diff.to_update),
-            "skipped": len(diff.to_skip),
-        },
-    )
-    repository.update_ingestion_metadata(SOURCE_TYPE, log_id)
     return 0
 
 
