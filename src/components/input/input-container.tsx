@@ -348,8 +348,6 @@ export default function InputContainer() {
 
   const handleSlotFilesAdd = useCallback(
     (slot: SlotKey, files: File[]) => {
-      const docType = slotTypes[slot];
-      const isMulti = docType === "form_137";
       const newEntries: SlotFileEntry[] = files.map((file) => ({
         file,
         processingState: { step: "ai_structuring", progress: 30 },
@@ -357,10 +355,10 @@ export default function InputContainer() {
       }));
       setSlotEntries((prev) => ({
         ...prev,
-        [slot]: isMulti ? [...prev[slot], ...newEntries] : newEntries,
+        [slot]: newEntries.slice(0, 1).map((entry) => ({ ...entry, uploaded: prev[slot][0]?.uploaded ?? null })),
       }));
     },
-    [slotTypes],
+    [],
   );
 
   const handleSlotFileRemove = useCallback((slot: SlotKey, fileIdx: number) => {
@@ -801,16 +799,19 @@ export default function InputContainer() {
                 files: slotEntries[1].map((e) => e.file),
                 docType: slotTypes[1],
                 perFileProcessing: slotEntries[1].map((e) => e.processingState),
+                uploaded: slotEntries[1][0]?.uploaded ?? null,
               },
               2: {
                 files: slotEntries[2].map((e) => e.file),
                 docType: slotTypes[2],
                 perFileProcessing: slotEntries[2].map((e) => e.processingState),
+                uploaded: slotEntries[2][0]?.uploaded ?? null,
               },
               3: {
                 files: slotEntries[3].map((e) => e.file),
                 docType: slotTypes[3],
                 perFileProcessing: slotEntries[3].map((e) => e.processingState),
+                uploaded: slotEntries[3][0]?.uploaded ?? null,
               },
             }}
             onSlotFilesAdd={handleSlotFilesAdd}
@@ -835,6 +836,7 @@ export default function InputContainer() {
         {/* Part 3: ConfirmationApprovalBar */}
         {sessionId && (
           <ConfirmationApprovalBar
+            documentsReady={SLOT_KEYS.every((slot) => slotEntries[slot].every((entry) => entry.processingState.step === "complete"))}
             notes={sectionHtml}
             sessionId={sessionId}
             isSubmitting={isSubmitting}

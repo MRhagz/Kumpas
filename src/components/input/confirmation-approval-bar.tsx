@@ -21,6 +21,7 @@ interface ConfirmationApprovalBarProps {
   notes: ExtractedNotes;
   sessionId: string;
   isSubmitting: boolean;
+  documentsReady: boolean;
   onApprove: () => void;
 }
 
@@ -28,10 +29,11 @@ export default function ConfirmationApprovalBar({
   notes,
   sessionId: _sessionId,
   isSubmitting,
+  documentsReady,
   onApprove,
 }: ConfirmationApprovalBarProps) {
   const filled = allFieldsFilled(notes);
-  const canApprove = filled && !isSubmitting;
+  const canApprove = filled && documentsReady && !isSubmitting;
   return (
     <div className="px-6 pb-6 sm:px-8 sm:pb-8">
       <button
@@ -51,7 +53,9 @@ export default function ConfirmationApprovalBar({
         {isSubmitting ? "Preparing analysis…" : "Begin Multi Agent Analysis"}
       </button>
       <p className="mt-3 text-center text-xs font-medium text-muted-text">
-        {!filled ? (
+        {!documentsReady ? (
+          "Wait for selected documents to finish, or replace or remove failed uploads."
+        ) : !filled ? (
           "Fill in all five session note fields to enable analysis"
         ) : (
           <span className="text-sage">All inputs ready. Click above to begin the analysis.</span>

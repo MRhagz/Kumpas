@@ -86,6 +86,8 @@ function getBearerToken(request: NextRequest): string | null {
 
 export const config = {
   matcher: [
-    "/((?!_next/static|_next/image|favicon.ico|.*\\.(?:svg|png|jpg|jpeg|gif|webp)$).*)",
+    // These routes authorize independently and bound their own input streams.
+    // Next's body clone drops whole chunks at its cap before the route can return 413.
+    "/((?!api/extract-document(?:/|$)|api/sessions/[^/]+/upload(?:/|$)|_next/static|_next/image|favicon.ico|.*\\.(?:svg|png|jpg|jpeg|gif|webp)$).*)",
   ],
 };
