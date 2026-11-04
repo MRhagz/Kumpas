@@ -45,6 +45,11 @@ export async function POST(request: NextRequest) {
   if (!user) return unauthorizedResponse();
 
   try {
+    const formData = await request.formData();
+    if (formData.get("notesReviewed") !== "true") {
+      return Response.json({ error: "Confirm that prepared notes exclude personal identifiers and confidential details" }, { status: 400 });
+    }
+
     if (!GEMINI_API_KEY) {
       return Response.json(
         { error: "DOCUMENT_INTAKE_API_KEY not configured" },
@@ -52,7 +57,6 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    const formData = await request.formData();
     const file = formData.get("file") as File | null;
 
     if (!file) {
