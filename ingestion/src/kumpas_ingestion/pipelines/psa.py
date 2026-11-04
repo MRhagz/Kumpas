@@ -10,8 +10,9 @@ ingest-psa workflow, which reads the file from the runner's checkout,
 embeds each record via EmbeddingService, and upserts into the
 market_analytics silo with acquisition_method=operator_curated_csv.
 
-Source URL is required via PSA_OPENSTAT_URL — the workflow sets this
-to a `file://` path inside the runner. The HTTP scheme is still
+Acquisition location is required via PSA_OPENSTAT_URL — the workflow sets this
+to a `file://` path inside the runner. PSA_SOURCE_URL supplies the official
+source reference independently of that runner path. The HTTP scheme is still
 supported for future use (e.g. an ILOSTAT proxy or a sanctioned PSA
 data-sharing endpoint), but is not used in the default Option A flow.
 
@@ -21,8 +22,7 @@ Expected CSV schema (exact column names, no extras required):
 If the PSA download has different column names, normalize them upstream
 (rename in the published CSV before pointing this pipeline at it).
 
-Stale rows: this pipeline never deletes. If an occupation/sector/region
-combination disappears from the source, its knowledge_chunks row lingers.
+A fully validated CSV replaces this source group atomically, including removed records.
 """
 
 from __future__ import annotations
@@ -41,7 +41,7 @@ from supabase import create_client
 from ..config import IngestionConfig
 from ..embedding_service import EmbeddingService
 from ..ingestion_logger import IngestionLogger
-from ..models import ChunkInput, KnowledgeChunk
+from ..models import ChunkInput
 from ..silos import SiloId
 from ..vector_store_repository import VectorStoreRepository
 
@@ -82,13 +82,16 @@ class OccupationRecord(BaseModel):
             f"{self.region}: {self.employed_thousands} thousand persons."
         )
 
-    def to_chunk_input(self, base_url: str) -> ChunkInput:
+    def to_chunk_input(self, base_url: str, publication_date: str | None = None) -> ChunkInput:
         return ChunkInput(
+            source_type=SOURCE_TYPE,
             silo_id=SiloId.MARKET_ANALYTICS,
             source_url=self.source_url(base_url),
             chunk_index=0,
             content=self.to_embedding_text(),
             acquisition_method="operator_curated_csv",
+            official_source_url=base_url,
+            publication_date=publication_date,
             source_metadata={
                 "period": self.period,
                 "occupation_major_group": self.occupation_major_group,
@@ -154,7 +157,10 @@ def extract_records(df: pd.DataFrame) -> tuple[list[OccupationRecord], list[str]
                 "employed_thousands": Decimal(str(raw_row["employed_thousands"])),
             }
             record = OccupationRecord.model_validate(row)
-        except (ValidationError, InvalidOperation, ValueError, TypeError) as exc:
+        except InvalidOperation as exc:
+            skipped.append(f"row {line_number}: employed_thousands: {exc}")
+            continue
+        except (ValidationError, ValueError, TypeError) as exc:
             skipped.append(f"row {line_number}: {exc}")
             continue
 
@@ -169,7 +175,7 @@ def extract_records(df: pd.DataFrame) -> tuple[list[OccupationRecord], list[str]
 
 
 def _print_skip_report(skipped: Iterable[str]) -> None:
-    print("PSA CSV rows skipped (will not block the run):")
+    print("PSA CSV validation errors (batch rejected):")
     for line in skipped:
         print(f"  - {line}")
 
@@ -177,6 +183,10 @@ def _print_skip_report(skipped: Iterable[str]) -> None:
 def run() -> int:
     cfg = IngestionConfig.from_env()
     dataset_url = _require_env("PSA_OPENSTAT_URL")
+    # Acquisition location is not provenance: runner paths change between executions.
+    official_url = os.environ.get("PSA_SOURCE_URL") or (
+        dataset_url if dataset_url.startswith("https://") else _require_env("PSA_SOURCE_URL")
+    )
 
     supabase = create_client(cfg.supabase_url, cfg.supabase_service_role_key)
     logger = IngestionLogger(supabase, workflow_name=WORKFLOW_NAME)
@@ -193,73 +203,31 @@ def run() -> int:
 
     if skipped:
         _print_skip_report(skipped)
-    if not records:
+    if skipped or not records:
         logger.record(
             run_status="failure",
-            error_message="No valid records extracted from PSA CSV",
+            error_message="PSA CSV validation failed; no partial batch accepted",
             run_metadata={"skipped": skipped[:50], "dataset_url": dataset_url},
         )
-        print("No valid records extracted — check PSA URL and CSV schema.")
+        print("PSA batch rejected — check the CSV validation report.")
         return 1
 
     repository = VectorStoreRepository(supabase)
-    chunk_inputs = [r.to_chunk_input(dataset_url) for r in records]
-    diff = repository.diff(chunk_inputs)
-
-    print(
-        f"PSA diff: {len(diff.to_insert)} new, {len(diff.to_update)} changed, "
-        f"{len(diff.to_skip)} unchanged"
-    )
-
-    needs_embedding = diff.to_insert + diff.to_update
-    if not needs_embedding:
-        log_id = logger.record(
-            run_status="no_op",
-            run_metadata={
-                "total_records": len(records),
-                "skipped_rows": len(skipped),
-                "dataset_url": dataset_url,
-            },
-        )
-        repository.update_ingestion_metadata(SOURCE_TYPE, log_id)
-        return 0
-
     embedding_service = EmbeddingService(cfg)
     try:
-        vectors = embedding_service.embed_documents(
-            [c.content for c in needs_embedding]
+        chunk_inputs = [r.to_chunk_input(official_url, os.environ.get("PSA_PUBLICATION_DATE") or None)
+                        for r in records]
+        repository.refresh(
+            chunk_inputs, SOURCE_TYPE, embedding_service,
+            logger.prepare(run_metadata={"total_records": len(records), "dataset_url": dataset_url}),
+            replace_all=True
         )
+    except Exception as exc:
+        logger.record(run_status="failure", error_message=f"PSA refresh failed: {exc}")
+        return 1
     finally:
         embedding_service.close()
 
-    knowledge_chunks: list[KnowledgeChunk] = [
-        KnowledgeChunk(
-            silo_id=chunk.silo_id,
-            source_url=chunk.source_url,
-            chunk_index=chunk.chunk_index,
-            content=chunk.content,
-            content_hash=chunk.content_hash,
-            embedding=vector,
-            acquisition_method=chunk.acquisition_method,
-            source_metadata=chunk.source_metadata,
-        )
-        for chunk, vector in zip(needs_embedding, vectors, strict=True)
-    ]
-
-    written = repository.write(knowledge_chunks)
-    log_id = logger.record(
-        run_status="success",
-        records_upserted=written,
-        run_metadata={
-            "total_records": len(records),
-            "inserted": len(diff.to_insert),
-            "updated": len(diff.to_update),
-            "skipped_unchanged": len(diff.to_skip),
-            "skipped_rows": len(skipped),
-            "dataset_url": dataset_url,
-        },
-    )
-    repository.update_ingestion_metadata(SOURCE_TYPE, log_id)
     return 0
 
 

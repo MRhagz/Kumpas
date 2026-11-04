@@ -46,21 +46,10 @@ class IngestionLogger:
         error_message: str | None = None,
         run_metadata: dict[str, Any] | None = None,
     ) -> str:
-        if self._started_at is None:
-            raise RuntimeError("IngestionLogger.start() must be called before record()")
-        entry = IngestionLogEntry(
-            workflow_name=self._workflow_name,
-            silo_id=self._current_silo,
-            run_status=run_status,
-            started_at=self._started_at,
-            finished_at=_utcnow(),
-            records_upserted=records_upserted,
-            error_message=error_message,
-            run_metadata=run_metadata or {},
-        )
+        payload = self.prepare(run_status, records_upserted, error_message, run_metadata)
         result = (
             self._supabase.table("ingestion_logs")
-            .insert(_serialize(entry))
+            .insert(payload)
             .execute()
         )
         log_id = result.data[0]["log_id"]
@@ -74,6 +63,28 @@ class IngestionLogger:
         if error_message:
             _stdout_logger.error("error: %s", error_message)
         return log_id
+
+    def prepare(
+        self,
+        run_status: RunStatus = "success",
+        records_upserted: int = 0,
+        error_message: str | None = None,
+        run_metadata: dict[str, Any] | None = None,
+    ) -> dict[str, Any]:
+        """Prepare a success log for the refresh transaction without writing it early."""
+        if self._started_at is None:
+            raise RuntimeError("IngestionLogger.start() must be called before record()")
+        entry = IngestionLogEntry(
+            workflow_name=self._workflow_name,
+            silo_id=self._current_silo,
+            run_status=run_status,
+            started_at=self._started_at,
+            finished_at=_utcnow(),
+            records_upserted=records_upserted,
+            error_message=error_message,
+            run_metadata=run_metadata or {},
+        )
+        return _serialize(entry)
 
 
 def _serialize(entry: IngestionLogEntry) -> dict[str, Any]:
