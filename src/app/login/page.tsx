@@ -2,8 +2,12 @@ import Link from "next/link";
 import Logo from "@/components/ui/logo";
 import styles from "@/styles/landing.module.css";
 import LoginForm from "@/components/auth/login-form";
+import { safeReturnPath } from "@/lib/auth/counselor";
 
-export default function LoginPage() {
+export default async function LoginPage({
+  searchParams,
+}: { searchParams: Promise<{ next?: string }> }) {
+  const { next } = await searchParams;
   return (
     <div className="relative min-h-screen overflow-hidden bg-background font-sans">
       <div className={styles.blobGreen} />
@@ -24,7 +28,7 @@ export default function LoginPage() {
             </p>
 
             <div className="mt-7">
-              <LoginForm />
+              <LoginForm next={safeReturnPath(next)} />
             </div>
           </div>
         </main>

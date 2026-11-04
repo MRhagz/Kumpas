@@ -167,8 +167,8 @@ export default function ReportDownloadView({
             </h2>
             <p className="mt-2 text-sm leading-relaxed text-white/70">
               {isDownloadExpired
-                ? "This signed report link has expired. Generate the report again to download a fresh copy."
-                : "The signed report link opens in a new tab so this analysis page stays available."}
+                ? "This report has expired. Start a new session to generate a report."
+                : "The report opens in a new tab. You must remain signed in to the counselor account that owns this session."}
             </p>
             <div className="mt-4 space-y-3 rounded-lg border border-white/10 bg-white/5 p-3">
               <MetadataRow label="Generated" value={generatedAt} />
