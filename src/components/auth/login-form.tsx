@@ -6,11 +6,12 @@ import { signIn, type LoginState } from "@/lib/auth/actions";
 
 const initialState: LoginState = {};
 
-export default function LoginForm() {
+export default function LoginForm({ next = "/input" }: { next?: string }) {
   const [state, formAction, pending] = useActionState(signIn, initialState);
 
   return (
     <form action={formAction} className="space-y-5">
+      <input type="hidden" name="next" value={next} />
       <div>
         <label
           htmlFor="email"

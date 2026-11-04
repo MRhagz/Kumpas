@@ -59,7 +59,7 @@ export async function POST(
       redactedPath,
     );
 
-    const redactedImageUrl = await documentStorageService.retrieveRedacted(redactedPath);
+    const redactedImageUrl = `/api/sessions/${encodeURIComponent(sessionId)}/documents/${docId}`;
     await sessionInitializationService.updateLastActivity(sessionId);
 
     return Response.json({
