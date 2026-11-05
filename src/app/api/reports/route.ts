@@ -1,137 +1,89 @@
 import { ReportAssemblyError, assembleReportData } from "@/lib/report/assembler";
-import { sessionProgressTracker } from "@/lib/module5/session-progress";
 import { normalizeReportSessionId, pdfFileStore } from "@/lib/report/file-store";
 import { renderReportPdf } from "@/lib/report/pdf-renderer";
 import type { ReportGenerationResponse } from "@/lib/report/types";
-import {
-  notFoundResponse,
-  requireUser,
-  unauthorizedResponse,
-  userOwnsSession,
-} from "@/lib/auth/api-auth";
+import { runRecommendationProvider } from "@/lib/module3/recommendation-provider";
+import { approvedRunProfile, failRun, loadProcessingRun, runBudget, transitionRun, type ProcessingRun } from "@/lib/module5/processing-run";
+import { ProcessingError } from "@/lib/processing-budget";
+import { supabaseAdmin } from "@/lib/supabase";
+import { notFoundResponse, requireUser, unauthorizedResponse, userOwnsSession } from "@/lib/auth/api-auth";
 
 export const runtime = "nodejs";
-
-interface ReportRequestBody {
-  sessionId?: unknown;
-}
-
-const REPORT_RESPONSE_HEADERS = {
-  "Cache-Control": "no-store",
-};
+export const maxDuration = 300;
+const json = (body: unknown, status = 200) => Response.json(body, { status, headers: { "Cache-Control": "no-store" } });
 
 export async function POST(request: Request): Promise<Response> {
   const user = await requireUser();
   if (!user) return unauthorizedResponse();
-
-  let body: ReportRequestBody;
-
-  try {
-    body = (await request.json()) as ReportRequestBody;
-  } catch {
-    return createReportJsonResponse(
-      { error: "Request body must be valid JSON." },
-      400,
-    );
-  }
-
-  if (typeof body.sessionId !== "string" || !body.sessionId.trim()) {
-    return createReportJsonResponse({ error: "sessionId is required." }, 400);
-  }
-
+  let body: { sessionId?: unknown; runId?: unknown };
+  try { body = await request.json(); } catch { return json({ error: "Request body must be valid JSON." }, 400); }
+  if (!body || typeof body.sessionId !== "string" || !body.sessionId.trim()) return json({ error: "sessionId is required." }, 400);
   let sessionId: string;
+  try { sessionId = normalizeReportSessionId(body.sessionId); } catch { return json({ error: "Invalid session id." }, 400); }
+  if (!(await userOwnsSession(sessionId, user.id))) return notFoundResponse();
 
+  let run: ProcessingRun | undefined;
+  let claimed = false;
+  let reportVersion: number | undefined;
+  let stage = "draft PDF";
   try {
-    sessionId = normalizeReportSessionId(body.sessionId);
-  } catch (error) {
-    const message =
-      error instanceof Error ? error.message : "Invalid session id.";
-
-    return createReportJsonResponse({ error: message }, 400);
-  }
-
-  if (!(await userOwnsSession(sessionId, user.id))) {
-    return notFoundResponse();
-  }
-
-  try {
-    await sessionProgressTracker.markReportGenerating(sessionId);
-
-    const reportPayload = await assembleReportData(sessionId);
-    const pdfBuffer = await renderReportPdf(reportPayload);
-    const storedPdf = await pdfFileStore.uploadReportPdf(sessionId, pdfBuffer);
-
-    await sessionProgressTracker.markReportReady(sessionId);
-
-    const response: ReportGenerationResponse = {
-      sessionId,
-      downloadUrl: storedPdf.downloadUrl,
-      expiresAt: storedPdf.expiresAt,
-      generatedAt: reportPayload.generatedAt,
-      byteLength: storedPdf.byteLength,
-      recommendationCount:
-        reportPayload.rankedRecommendations.recommendations.length,
-      academicEvidence: reportPayload.academicEvidence,
-      recommendations: reportPayload.rankedRecommendations.recommendations.map(
-        (recommendation) => ({
-          id: recommendation.id,
-          rank: recommendation.rank,
-          careerPath: recommendation.careerPath,
-          alignmentScore: recommendation.alignmentScore,
-          reasoningSummary: recommendation.reasoningSummary,
-          keySignals: recommendation.keySignals,
-          keySignalDetails: recommendation.keySignalDetails,
-        }),
-      ),
-    };
-
-    return createReportJsonResponse(response);
-  } catch (error) {
-    await sessionProgressTracker.markReportFailed(sessionId);
-
-    if (error instanceof ReportAssemblyError) {
-      logReportGenerationFailure(sessionId, error, {
-        status: 422,
-        detailCount: error.details.length,
-      });
-
-      return createReportJsonResponse(
-        { error: error.message, details: error.details },
-        422,
-      );
+    const current = await loadProcessingRun(sessionId, user.id);
+    run = current.run;
+    if (body.runId !== run.run_id || !run.recommendations) throw new ProcessingError(stage, "stale");
+    const budget = runBudget(run);
+    if (run.phase !== "ready") {
+      budget.assert(stage);
+      run = await transitionRun(run, "claim_report");
+      claimed = true;
+      if (!run.candidate_report_version) throw new ProcessingError("PDF reservation", "stale");
+      reportVersion = run.candidate_report_version;
     }
-
-    const message =
-      error instanceof Error ? error.message : "Report generation failed.";
-
-    logReportGenerationFailure(sessionId, error, { status: 500 });
-
-    return createReportJsonResponse({ error: message }, 500);
+    const assemble = async (signal?: AbortSignal) => {
+      const profile = await approvedRunProfile(run!, signal);
+      return assembleReportData(sessionId, { provider: runRecommendationProvider(profile, run!.recommendations!) });
+    };
+    const reportPayload = claimed ? await budget.run("report assembly", assemble, false) : await assemble();
+    let byteLength: number;
+    if (claimed) {
+      stage = "PDF generation and storage";
+      const stored = await budget.run(stage, async (signal) => {
+        const buffer = await renderReportPdf(reportPayload);
+        budget.assert(stage);
+        return pdfFileStore.uploadReportPdf(sessionId, buffer, reportVersion, signal);
+      });
+      byteLength = stored.byteLength;
+      budget.assert(stage);
+      await transitionRun(run, "report_ready");
+    } else {
+      // An already-ready draft is read back, never regenerated with a new clock.
+      byteLength = (await pdfFileStore.downloadReportPdf(sessionId, current.reportVersion)).size;
+    }
+    const { data: report, error } = await supabaseAdmin.from("report_versions").select("generated_at, expires_at")
+      .eq("session_id", sessionId).eq("run_id", run.run_id).single();
+    if (error || !report) throw new ProcessingError("draft publication", "stale");
+    const response: ReportGenerationResponse = {
+      sessionId, downloadUrl: `/api/reports/${encodeURIComponent(sessionId)}?download=1`,
+      expiresAt: report.expires_at, generatedAt: report.generated_at, byteLength,
+      recommendationCount: reportPayload.rankedRecommendations.recommendations.length,
+      academicEvidence: reportPayload.academicEvidence,
+      recommendations: reportPayload.rankedRecommendations.recommendations.map(({ id, rank, careerPath, alignmentScore, reasoningSummary, keySignals, keySignalDetails }) =>
+        ({ id, rank, careerPath, alignmentScore, reasoningSummary, keySignals, keySignalDetails })),
+    };
+    return json(response);
+  } catch (error) {
+    if (run && claimed) {
+      await failRun(run, error instanceof ProcessingError ? error.stage : stage);
+      if (reportVersion !== undefined) {
+        // A publication response can be lost. Never delete an object registered by
+        // that RPC or by a newer run; uncertain cleanup remains for retention.
+        const { data, error: readError } = await supabaseAdmin.from("report_versions").select("report_version")
+          .eq("session_id", sessionId).eq("report_version", reportVersion).maybeSingle();
+        if (!readError && !data) await pdfFileStore.deleteReportPdf(sessionId, reportVersion).catch(() => undefined);
+      }
+    }
+    return json({ error: error instanceof ProcessingError ? error.message : `${stage} failed. Your approved inputs are saved. Retry analysis or return to Confirm Information.`,
+      failedStage: error instanceof ProcessingError ? error.stage : stage, retryRunId: run?.run_id,
+      ...(error instanceof ReportAssemblyError ? { details: error.details } : {}),
+    }, error instanceof ReportAssemblyError ? 422 : error instanceof ProcessingError ? 409 : 502);
   }
-}
-
-function createReportJsonResponse(body: unknown, status = 200): Response {
-  return Response.json(body, {
-    status,
-    headers: REPORT_RESPONSE_HEADERS,
-  });
-}
-
-function logReportGenerationFailure(
-  sessionId: string,
-  error: unknown,
-  context: {
-    status: number;
-    detailCount?: number;
-  },
-): void {
-  const message =
-    error instanceof Error ? error.message : "Report generation failed.";
-
-  console.error("[report-generation] failed", {
-    sessionId,
-    status: context.status,
-    detailCount: context.detailCount,
-    message,
-  });
 }

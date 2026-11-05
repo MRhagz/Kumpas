@@ -1,3 +1,4 @@
+import { ProcessingBudget } from "@/lib/processing-budget";
 import { evidenceContext, unavailableEvidence } from "./specialist-evidence";
 import { GoogleGenAI } from "@google/genai";
 import { AgentOperationError, runAgentStage } from "./agent-errors";
@@ -96,14 +97,17 @@ export class AcademicAuditorAgent {
   async analyze(
     profile: ApprovedProfile,
     apiKey: string,
+    budget = new ProcessingBudget(),
   ): Promise<AgentOutput> {
     const normalizedApiKey = requireApiKey(AGENT_NAME, apiKey);
     const query = buildQuery(profile);
     const embedding = await runAgentStage(AGENT_NAME, "embedding", () =>
-      queryEmbeddingService.embed(query, normalizedApiKey),
+      queryEmbeddingService.embed(query, normalizedApiKey, budget),
+      budget,
     );
-    const chunks = await runAgentStage(AGENT_NAME, "knowledge retrieval", () =>
-      vectorStoreQueryService.query(AGENT_NAME, embedding),
+    const chunks = await runAgentStage(AGENT_NAME, "knowledge retrieval", (signal) =>
+      vectorStoreQueryService.query(AGENT_NAME, embedding, undefined, undefined, signal),
+      budget,
     );
 
     const missing = unavailableEvidence(AGENT_NAME, chunks);
@@ -118,14 +122,15 @@ export class AcademicAuditorAgent {
       };
     }
 
-    const ai = new GoogleGenAI({ apiKey: normalizedApiKey });
+    const ai = new GoogleGenAI({ apiKey: normalizedApiKey, httpOptions: { retryOptions: { attempts: 1 } } });
 
-    const result = await runAgentStage(AGENT_NAME, "analysis generation", () =>
+    const result = await runAgentStage(AGENT_NAME, "analysis generation", (signal) =>
       ai.models.generateContent({
         model: getGeminiGenerationModel(),
         contents: buildPrompt(profile, chunks),
-        config: { responseMimeType: "application/json" },
+        config: { responseMimeType: "application/json", abortSignal: signal },
       }),
+      budget,
     );
     const text = result.text?.trim();
 

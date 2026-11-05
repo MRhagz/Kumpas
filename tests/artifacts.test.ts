@@ -11,7 +11,7 @@ describe("I03 report object delivery", () => {
       remove: vi.fn().mockResolvedValue({ error: null }),
     };
     const store = new PdfFileStore({ now: () => new Date("2026-11-04T01:00:00Z"), client: { storage: { from: () => bucket } } });
-    return { store, download, upload };
+    return { store, download, upload, bucket };
   }
   it("returns an authenticated application reference without minting a bearer storage URL", async () => {
     const { store, upload } = fixture();
@@ -29,4 +29,13 @@ describe("I03 report object delivery", () => {
     await expect(store.downloadReportPdf(id)).rejects.toThrow(/expired/);
     expect(download).not.toHaveBeenCalled();
   });
+  it("stores a versioned PDF without overwriting and deletes all versions on termination", async () => {
+    const { store, upload, bucket } = fixture();
+    await store.uploadReportPdf(id, Buffer.from("%PDF-synthetic"), 2);
+    expect(upload).toHaveBeenCalledWith(`${id}/2.pdf`, expect.any(Buffer), { contentType: "application/pdf", upsert: false });
+    bucket.list.mockResolvedValue({ data: [{ name: `${id}.pdf`, updated_at: "2026-11-04T00:00:00Z" }, { name: "2.pdf", updated_at: "2026-11-04T00:00:00Z" }], error: null });
+    await store.deleteReportPdf(id);
+    expect(bucket.remove).toHaveBeenCalledWith([`${id}/${id}.pdf`, `${id}/2.pdf`]);
+  });
+
 });

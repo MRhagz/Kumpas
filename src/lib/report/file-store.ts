@@ -1,4 +1,5 @@
 import "server-only";
+import { ProviderError } from "@/lib/processing-budget";
 
 import { createClient } from "@supabase/supabase-js";
 
@@ -14,6 +15,8 @@ const MINIMAL_HEALTHCHECK_PDF = Buffer.from(
 
 interface StorageError {
   message: string;
+  statusCode?: string | number;
+  originalError?: unknown;
 }
 
 interface StorageObject {
@@ -77,7 +80,7 @@ export class PdfFileStore {
   private readonly bucketName: string;
   private readonly accessTtlSeconds: number;
   private readonly now: () => Date;
-  private client?: ReportStorageClient;
+  private readonly client?: ReportStorageClient;
   private readonly supabaseUrl?: string;
   private readonly serviceRoleKey?: string;
 
@@ -93,22 +96,23 @@ export class PdfFileStore {
   async uploadReportPdf(
     sessionId: string,
     pdfBuffer: Buffer,
+    reportVersion?: number,
+    signal?: AbortSignal,
   ): Promise<StoredReportPdf> {
     if (!Buffer.isBuffer(pdfBuffer) || pdfBuffer.byteLength === 0) {
       throw new Error("PDF buffer is required to store a report.");
     }
 
-    const objectKey = getReportPdfObjectKey(sessionId);
-    const bucket = this.getClient().storage.from(this.bucketName);
+    const objectKey = getReportPdfObjectKey(sessionId, reportVersion);
+    const bucket = this.getClient(signal).storage.from(this.bucketName);
     const { error: uploadError } = await bucket.upload(objectKey, pdfBuffer, {
       contentType: REPORT_PDF_CONTENT_TYPE,
-      upsert: true,
+      upsert: reportVersion === undefined,
     });
 
     if (uploadError) {
-      throw new Error(
-        `Failed to upload report PDF: ${formatStorageError(uploadError, this.bucketName)}`,
-      );
+      if (uploadError.originalError) throw uploadError.originalError;
+      throw new ProviderError(Number(uploadError.statusCode), null, { message: "Private PDF storage unavailable." });
     }
 
     const createdAt = this.now();
@@ -160,28 +164,29 @@ export class PdfFileStore {
     };
   }
 
-  async deleteReportPdf(sessionId: string): Promise<void> {
-    const objectKey = getReportPdfObjectKey(sessionId);
+  async deleteReportPdf(sessionId: string, reportVersion?: number): Promise<void> {
     const bucket = this.getClient().storage.from(this.bucketName);
-    const { error } = await bucket.remove([objectKey]);
-
-    if (error) {
-      throw new Error(
-        `Failed to delete report PDF: ${formatStorageError(error, this.bucketName)}`,
-      );
-    }
+    const prefix = normalizeSessionId(sessionId);
+    const paths = reportVersion === undefined
+      ? (await listAllStorageObjects(bucket, this.bucketName, prefix))
+        .filter((object) => object.name.endsWith(".pdf") && !object.name.includes("/"))
+        .map((object) => `${prefix}/${object.name}`)
+      : [getReportPdfObjectKey(sessionId, reportVersion)];
+    if (paths.length === 0) return;
+    const { error } = await bucket.remove(paths);
+    if (error) throw new Error(`Failed to delete report PDF: ${formatStorageError(error, this.bucketName)}`);
   }
 
-  async downloadReportPdf(sessionId: string): Promise<Blob> {
+  async downloadReportPdf(sessionId: string, reportVersion?: number): Promise<Blob> {
     const normalizedSessionId = normalizeSessionId(sessionId);
     const bucket = this.getClient().storage.from(this.bucketName);
     const objects = await listAllStorageObjects(bucket, this.bucketName, normalizedSessionId);
-    const object = objects.find((entry) => entry.name === `${normalizedSessionId}.pdf`);
+    const object = objects.find((entry) => entry.name === `${reportVersion ?? normalizedSessionId}.pdf`);
     const generatedAt = object && getStorageObjectTimestamp(object);
     if (!generatedAt || generatedAt.getTime() + this.accessTtlSeconds * 1000 <= this.now().getTime()) {
       throw new Error("Report not found or expired.");
     }
-    const { data, error } = await bucket.download(getReportPdfObjectKey(normalizedSessionId));
+    const { data, error } = await bucket.download(getReportPdfObjectKey(normalizedSessionId, reportVersion));
     if (error || !data) throw new Error("Report not found or expired.");
     return data;
   }
@@ -255,21 +260,24 @@ export class PdfFileStore {
     };
   }
 
-  private getClient(): ReportStorageClient {
+  private getClient(signal?: AbortSignal): ReportStorageClient {
     const client =
       this.client ??
       createClient(
         this.supabaseUrl ?? getRequiredEnv("NEXT_PUBLIC_SUPABASE_URL"),
         this.serviceRoleKey ?? getRequiredEnv("SUPABASE_SERVICE_ROLE_KEY"),
         {
+          ...(signal ? { global: { fetch: async (url: RequestInfo | URL, init?: RequestInit) => {
+            const response = await fetch(url, { ...init, signal });
+            if (!response.ok) throw new ProviderError(response.status, response.headers.get("retry-after"), await response.clone().json().catch(() => null));
+            return response;
+          } } } : {}),
           auth: {
             persistSession: false,
             autoRefreshToken: false,
           },
         },
       );
-
-    this.client = client;
 
     return client;
   }
@@ -337,10 +345,11 @@ function formatStorageError(error: StorageError, bucketName: string): string {
   return error.message;
 }
 
-export function getReportPdfObjectKey(sessionId: string): string {
+export function getReportPdfObjectKey(sessionId: string, reportVersion?: number): string {
   const normalizedSessionId = normalizeSessionId(sessionId);
 
-  return `${normalizedSessionId}/${normalizedSessionId}.pdf`;
+  if (reportVersion !== undefined && (!Number.isSafeInteger(reportVersion) || reportVersion < 1)) throw new Error("Invalid report version.");
+  return `${normalizedSessionId}/${reportVersion ?? normalizedSessionId}.pdf`;
 }
 
 export function normalizeReportSessionId(sessionId: string): string {

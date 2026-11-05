@@ -18,6 +18,7 @@ export class VectorStoreQueryService {
     queryEmbedding: number[],
     matchCount: number = DEFAULT_MATCH_COUNT,
     matchThreshold: number = DEFAULT_MATCH_THRESHOLD,
+    signal?: AbortSignal,
   ): Promise<RetrievedChunk[]> {
     assertEmbeddingConfiguration();
     assertEmbeddingVector(queryEmbedding);
@@ -31,7 +32,7 @@ export class VectorStoreQueryService {
       throw new Error("Invalid vector search limits");
     }
 
-    const { data, error } = await supabaseAdmin.rpc("match_knowledge_chunks", {
+    const request = supabaseAdmin.rpc("match_knowledge_chunks", {
       query_embedding: JSON.stringify(queryEmbedding),
       target_silo_id: allowedSilo,
       request_agent: agentName,
@@ -41,8 +42,10 @@ export class VectorStoreQueryService {
       match_threshold: matchThreshold,
     });
 
+    const { data, error } = await (signal ? request.abortSignal(signal) : request);
+
     if (error) {
-      throw new Error(`Vector search failed for ${agentName}: ${error.message}`);
+      throw Object.assign(new Error("Supabase knowledge retrieval unavailable. Retry analysis."), { retryable: false });
     }
 
     const chunks = (data ?? []) as RetrievedChunk[];
