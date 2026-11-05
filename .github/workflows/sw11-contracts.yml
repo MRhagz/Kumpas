@@ -1,0 +1,60 @@
+name: SW-11 CHED contracts
+
+on:
+  pull_request:
+    paths:
+      - "ingestion/**"
+      - "supabase/tests/sw11_ched_cache.sql"
+      - ".github/workflows/ingest-ched.yml"
+      - ".github/workflows/sw11-contracts.yml"
+  workflow_dispatch: {}
+  workflow_call: {}
+
+permissions:
+  contents: read
+
+jobs:
+  fixtures:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    env:
+      SW11_REQUIRE_OCR: "1"
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+          cache-dependency-path: ingestion/pyproject.toml
+      - name: Install PDF and OCR fixture dependencies
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y --no-install-recommends tesseract-ocr tesseract-ocr-eng poppler-utils ghostscript
+          pip install -e './ingestion[pdf,fixtures,dev]'
+      - run: python -m unittest discover -s ingestion/tests/ched -v
+      - run: ruff check --config ingestion/pyproject.toml ingestion/src/kumpas_ingestion/pipelines/ched_cmo.py ingestion/src/kumpas_ingestion/publication_index_checker.py ingestion/src/kumpas_ingestion/pdf_downloader.py ingestion/src/kumpas_ingestion/pdf_text_extractor.py ingestion/tests/ched
+
+  cache-contract:
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: pgvector/pgvector:pg17
+        env:
+          POSTGRES_PASSWORD: fixture-only
+          POSTGRES_DB: sw11
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U postgres -d sw11"
+          --health-interval 5s --health-timeout 5s --health-retries 10
+    env:
+      PGHOST: localhost
+      PGPORT: "5432"
+      PGUSER: postgres
+      PGPASSWORD: fixture-only
+      PGDATABASE: sw11
+    steps:
+      - uses: actions/checkout@v4
+      - run: psql -v ON_ERROR_STOP=1 -f supabase/tests/sw09_bootstrap.sql
+      - run: psql -v ON_ERROR_STOP=1 -f supabase/tests/sw11_ched_cache.sql
+
