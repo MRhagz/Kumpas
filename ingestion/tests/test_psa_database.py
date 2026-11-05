@@ -82,7 +82,8 @@ class PSADatabaseTests(unittest.TestCase):
             self.assertEqual(row["publication_date"], "2026-04-15")
             self.assertTrue(row["ingestion_timestamp"])
         self.cursor.execute("""select * from public.match_knowledge_chunks(
-            array_fill(0.25::real, array[768])::vector, 'market_analytics', 10)""")
+            array_fill(0.25::real, array[768])::vector, 'market_analytics', 10,
+            request_agent => 'AcademicAuditor')""")
         self.assertEqual(len(self.cursor.fetchall()), 10)
         self.assertEqual(self.rows("ingestion_logs")[-1]["run_status"], "success")
         self.assertTrue(self.rows("ingestion_metadata")[0]["last_ingestion_timestamp"])
