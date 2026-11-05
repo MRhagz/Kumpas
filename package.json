@@ -9,7 +9,10 @@
     "smoke:module4": "node scripts/module4-smoke.mjs",
     "smoke:module5": "node scripts/module5-smoke.mjs",
     "lint": "eslint",
-    "test": "vitest run"
+    "lint:access": "eslint src/proxy.ts src/lib/auth src/lib/supabase.ts src/lib/supabase/server.ts src/lib/module2/document-storage-service.ts src/lib/report/file-store.ts src/app/auth src/app/login/page.tsx src/app/input/page.tsx src/app/analysis/page.tsx src/app/api/reports/\"[sessionId]\"/route.ts src/app/api/sessions/\"[sessionId]\"/documents/\"[documentId]\"/route.ts src/app/api/sessions/\"[sessionId]\"/upload/route.ts src/components/auth src/components/analysis/analysis-page.tsx src/components/analysis/report-download-view.tsx scripts/invite-counselor.mjs scripts/access-http-smoke.mjs tests vitest.config.ts",
+    "test:access": "vitest run --config vitest.config.ts",
+    "smoke:access": "node scripts/access-http-smoke.mjs",
+    "test": "vitest run --config vitest.config.mts"
   },
   "dependencies": {
     "@google/genai": "^2.6.0",
@@ -29,6 +32,7 @@
     "tesseract.js": "^7.0.0"
   },
   "devDependencies": {
+    "@electric-sql/pglite": "^0.5.15",
     "@tailwindcss/postcss": "^4",
     "@testing-library/react": "^16.3.3",
     "@testing-library/user-event": "^14.6.8",
