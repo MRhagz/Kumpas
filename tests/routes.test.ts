@@ -57,6 +57,7 @@ const ownedRoutes = [
   ["GET", "/api/sessions/id", session.GET], ["DELETE", "/api/sessions/id", session.DELETE],
   ["POST", "/api/sessions/id/analyze", analyze.POST], ["POST", "/api/sessions/id/approve", approve.POST],
   ["POST", "/api/sessions/id/complete", complete.POST], ["POST", "/api/sessions/id/upload", upload.POST],
+  ["DELETE", "/api/sessions/id/upload", upload.DELETE],
   ["POST", "/api/reports", reports.POST],
   ["GET", "/api/reports/id", pdf.GET], ["GET", "/api/reports/id?download=1", pdf.GET],
   ["GET", "/api/sessions/id/documents/id", image.GET],
