@@ -32,6 +32,8 @@ jobs:
       SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
       SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
       GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
+      PSA_SOURCE_URL: ${{ vars.PSA_SOURCE_URL }}
+      PSA_PUBLICATION_DATE: ${{ vars.PSA_PUBLICATION_DATE }}
       PSA_OPENSTAT_URL: ${{ inputs.override_url || format('file://{0}/ingestion/data/psa/sample_lfs.csv', github.workspace) }}
     steps:
       - uses: actions/checkout@v4

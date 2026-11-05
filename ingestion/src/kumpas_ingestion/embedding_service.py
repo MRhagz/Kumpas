@@ -1,3 +1,4 @@
+import math
 from typing import Literal
 
 import httpx
@@ -44,19 +45,20 @@ class EmbeddingService:
             "taskType": task_type,
             "outputDimensionality": self._config.embedding_dimensions,
         }
-        response = self._client.post(url, json=body)
-        if response.status_code != 200:
+        try:
+            response = self._client.post(url, json=body)
+            response.raise_for_status()
+            values = response.json()["embedding"]["values"]
+        except (httpx.HTTPError, ValueError, KeyError, TypeError) as exc:
+            # Provider error bodies and request URLs may contain credentials or source content.
+            raise EmbeddingError("Gemini document embedding failed; check provider/configuration") from exc
+        if not isinstance(values, list) or len(values) != self._config.embedding_dimensions:
             raise EmbeddingError(
-                f"Gemini embedding API returned {response.status_code}: {response.text}"
+                f"Expected {self._config.embedding_dimensions}-dimensional document embedding"
             )
-        values = response.json().get("embedding", {}).get("values")
-        if not values:
-            raise EmbeddingError(f"Gemini response missing embedding.values: {response.text}")
-        if len(values) != self._config.embedding_dimensions:
-            raise EmbeddingError(
-                f"Unexpected embedding dimension {len(values)}; "
-                f"expected {self._config.embedding_dimensions}"
-            )
+        if any(isinstance(v, bool) or not isinstance(v, (int, float)) or not math.isfinite(v)
+               for v in values):
+            raise EmbeddingError("Document embedding must contain finite numbers")
         return values
 
     def close(self) -> None:
