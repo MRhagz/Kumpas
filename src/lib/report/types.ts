@@ -289,3 +289,6 @@ export function validateRankedRecommendationList(
 
   return errors;
 }
+
+// Versioned workflow contract for downstream integration; legacy DTOs remain unchanged.
+export type { ReportVersionContract, ReportApprovalState } from "@/lib/module5/versioned-contracts";

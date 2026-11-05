@@ -91,3 +91,6 @@ export interface AnalysisInput {
   sessionId: string;
   approvedProfile: ApprovedProfile;
 }
+
+// Versioned workflow contract for downstream integration; legacy DTOs remain unchanged.
+export type { AnalysisRunContract } from "@/lib/module5/versioned-contracts";

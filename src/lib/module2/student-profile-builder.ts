@@ -101,3 +101,6 @@ export class StudentProfileBuilder {
 }
 
 export const studentProfileBuilder = new StudentProfileBuilder();
+
+// Versioned workflow contract for downstream integration; legacy DTOs remain unchanged.
+export type { ProfileVersionContract } from "@/lib/module5/versioned-contracts";

@@ -128,3 +128,6 @@ function getNextStep(input: {
 }
 
 export const sessionStateManager = new SessionStateManager();
+
+// Versioned workflow contract for downstream integration; legacy DTOs remain unchanged.
+export type { SessionVersionContract } from "@/lib/module5/versioned-contracts";
