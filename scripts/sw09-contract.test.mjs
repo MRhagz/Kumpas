@@ -23,6 +23,8 @@ function services({ response = { embeddings: [{ values: Array(768).fill(0.5) }] 
     '@/lib/supabase': { supabaseAdmin: { rpc: async (name, request) => {
       calls.searches.push({ name, request });
       return { data: [{ silo_id: request.target_silo_id, official_source_url: 'https://example.org',
+        source_type: { market_analytics: 'psa_openstat_lfs', live_labor_demand: 'dole_ble_lmi', path_feasibility: 'ched_cmo' }[request.target_silo_id],
+        embedding_model: 'gemini-embedding-001', embedding_dimensions: 768,
         publication_date: null, source_metadata: { title: 'Official report' } }], error: null };
     } } },
   };
@@ -107,6 +109,7 @@ test('retrieval sends the embedding fingerprint and preserves unavailable proven
     assert.equal(call.request.query_model, 'gemini-embedding-001');
     assert.equal(call.request.query_dimensions, 768);
     assert.equal(call.request.target_silo_id, silo);
+    assert.equal(call.request.request_agent, agent);
     assert.equal(JSON.parse(call.request.query_embedding).length, 768);
     assert.equal(result[0].official_source_url, 'https://example.org');
     assert.equal(result[0].publication_date, null);
