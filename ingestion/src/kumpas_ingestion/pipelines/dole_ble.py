@@ -1,19 +1,13 @@
 """Module 1.2 (DOLE BLE side) — operator-curated LMI PDF ingestion.
 
-The Bureau of Local Employment publishes its Labor Market Information
-PDFs through ble.dole.gov.ph, which is fronted by a CDN that returns
-HTTP 403 to non-browser clients (same root cause as the PSA OpenSTAT
-block that forced operator_curated_csv in Module 1.1). The automated
-weekly fetch the SDD originally specified is therefore not feasible
-without a browser session or a sanctioned DOLE data-sharing arrangement.
-
-To keep ingestion moving without bypassing the block, this pipeline runs
-as the DOLE-side equivalent of Module 1.1's operator-curated CSV flow:
+The approved workflow uses quarterly operator review of official public
+DOLE publications. This importer reads committed files without fetching
+the source URLs supplied as provenance:
 
   1. A team member downloads the latest BLE LMI PDF through a real
      browser.
   2. They commit the file under `ingestion/data/dole_ble/`, optionally
-     adding a sidecar JSON `<filename>.meta.json` with the source URL
+     adding a sidecar JSON `<stem>.meta.json` with the source URL
      and publication date for provenance.
   3. Pushing triggers ingest-dole-ble.yml, which calls this pipeline.
 
