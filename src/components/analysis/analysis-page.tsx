@@ -3,6 +3,7 @@
 import { useEffect, useState, useCallback, Suspense, useRef } from "react";
 import { useSearchParams, useRouter } from "next/navigation";
 import { Loader2 } from "lucide-react";
+import Link from "next/link";
 import LoadingScreen from "@/components/analysis/loading-screen";
 import ProtectedHeader from "@/components/auth/protected-header";
 import SessionProgressIndicator from "@/components/session/session-progress-indicator";
@@ -16,15 +17,16 @@ import ReportDownloadView from "@/components/analysis/report-download-view";
 type AnalysisPageState =
   | { phase: "processing"; completedStages: StageName[] }
   | { phase: "reportReady"; report: ReportGenerationResponse }
+  | { phase: "unavailable" }
   | { phase: "error"; message: string };
 
 interface SessionStateResponse {
   currentRunId?: string | null;
   analysisRetryRequired?: boolean;
+  processingInProgress?: boolean;
   sessionId: string;
   nextStep: "input" | "analysis" | "report" | "complete" | "start-new-session";
   hasApprovedProfile: boolean;
-  hasRecommendations: boolean;
   reportStatus: "not_started" | "generating" | "ready" | "downloaded" | "failed";
 }
 
@@ -34,6 +36,7 @@ function AnalysisContent() {
     completedStages: [],
   });
   const hasRun = useRef(false);
+  const recoveryRequest = useRef<AbortController | null>(null);
 
   const searchParams = useSearchParams();
   const router = useRouter();
@@ -57,7 +60,7 @@ function AnalysisContent() {
         console.warn("[analysis] Session cleanup failed.", error);
       }
     }
-    router.push("/input");
+    router.push("/input?new=1");
   }, [router, sessionId]);
 
   const onReportDownloadStart = useCallback(async () => {
@@ -74,7 +77,7 @@ function AnalysisContent() {
     }
   }, [sessionId]);
 
-  const generateReport = useCallback(async (runId: string) => {
+  const generateReport = useCallback(async (runId: string, signal: AbortSignal) => {
     if (!sessionId) {
       throw new Error("No session ID found. Please start a new session.");
     }
@@ -84,6 +87,7 @@ function AnalysisContent() {
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ sessionId, runId }),
     });
+    if (reportRes.status === 401) redirectToLogin(sessionId);
     const reportBody = await reportRes.json();
 
     if (!reportRes.ok) {
@@ -92,7 +96,7 @@ function AnalysisContent() {
       );
     }
 
-    setState({ phase: "reportReady", report: reportBody });
+    if (!signal.aborted) setState({ phase: "reportReady", report: reportBody });
   }, [sessionId]);
 
   const runPipeline = useCallback(async (retry = false) => {
@@ -101,10 +105,14 @@ function AnalysisContent() {
       return;
     }
 
+    recoveryRequest.current?.abort();
+    const controller = new AbortController();
+    recoveryRequest.current = controller;
+    const { signal } = controller;
     setState({ phase: "processing", completedStages: [] });
 
     const markStages = (stages: StageName[]) => {
-      setState({ phase: "processing", completedStages: stages });
+      if (!signal.aborted) setState({ phase: "processing", completedStages: stages });
     };
 
     markStages(["documentParsing"]);
@@ -114,13 +122,15 @@ function AnalysisContent() {
     markStages(["documentParsing", "notesParsing", "transcriptionLayer"]);
 
     try {
-      const sessionState = await fetchSessionState(sessionId);
+      let sessionState = await fetchSessionState(sessionId, signal);
+      while (sessionState?.processingInProgress) {
+        await new Promise((resolve) => setTimeout(resolve, 1500));
+        if (signal.aborted) return;
+        sessionState = await fetchSessionState(sessionId, signal);
+      }
 
-      if (sessionState.nextStep === "start-new-session") {
-        setState({
-          phase: "error",
-          message: "This session has expired. Please start a new session.",
-        });
+      if (!sessionState || sessionState.nextStep === "start-new-session") {
+        setState({ phase: "unavailable" });
         return;
       }
 
@@ -141,19 +151,21 @@ function AnalysisContent() {
         throw new Error("The previous analysis stopped. Your approved inputs are saved. Retry analysis or return to Confirm Information.");
       }
 
-      if (sessionState.reportStatus === "ready" || (!retry && (sessionState.hasRecommendations || sessionState.nextStep === "report"))) {
+      if (sessionState.nextStep === "report") {
         if (!sessionState.currentRunId) throw new Error("Return to Confirm Information and approve inputs to start a timed analysis.");
-        await generateReport(sessionState.currentRunId);
+        await generateReport(sessionState.currentRunId, signal);
         return;
       }
 
       const res = await fetch(`/api/sessions/${sessionId}/analyze`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(retry ? { retryRunId: sessionState.currentRunId } : {}),
+        body: JSON.stringify(retry && sessionState.analysisRetryRequired
+          ? { retryRunId: sessionState.currentRunId ?? null } : {}),
       });
 
       if (!res.ok) {
+        if (res.status === 401) redirectToLogin(sessionId);
         const body = await res.json().catch(() => ({}));
         throw new Error(body.error || `Analysis failed (${res.status})`);
       }
@@ -171,8 +183,9 @@ function AnalysisContent() {
       ]);
       await new Promise((r) => setTimeout(r, 600));
 
-      await generateReport(analysis.runId);
+      if (!signal.aborted) await generateReport(analysis.runId, signal);
     } catch (err) {
+      if (signal.aborted) return;
       setState({
         phase: "error",
         message: err instanceof Error ? err.message : "Analysis failed",
@@ -190,6 +203,10 @@ function AnalysisContent() {
     hasRun.current = true;
 
     runPipeline();
+    return () => {
+      recoveryRequest.current?.abort();
+      hasRun.current = false;
+    };
   }, [runPipeline, sessionId, router]);
 
   return (
@@ -213,6 +230,12 @@ function AnalysisContent() {
           }}
           onBack={() => router.push(`/input?session=${encodeURIComponent(sessionId ?? "")}`)}
         />
+      )}
+      {state.phase === "unavailable" && (
+        <section className="mx-auto max-w-4xl space-y-4 px-4 py-8">
+          <h1 className="text-xl font-semibold">This draft is unavailable</h1>
+          <Link className="underline" href="/input">Return to saved drafts</Link>
+        </section>
       )}
       {state.phase === "reportReady" && (
         <ReportDownloadView
@@ -254,20 +277,28 @@ function getReportGenerationErrorMessage(
 
 async function fetchSessionState(
   sessionId: string,
-): Promise<SessionStateResponse> {
+  signal: AbortSignal,
+): Promise<SessionStateResponse | null> {
   const response = await fetch(
     `/api/sessions/${encodeURIComponent(sessionId)}`,
+    { signal, cache: "no-store" },
   );
+  if (response.status === 404) return null;
 
   if (!response.ok) {
     if (response.status === 401) {
-      window.location.replace(`/login?next=${encodeURIComponent(`/analysis?session=${encodeURIComponent(sessionId)}`)}`);
+      redirectToLogin(sessionId);
     }
     const errorBody = await response.json().catch(() => null);
     throw new Error(errorBody?.error ?? "Failed to resume session state.");
   }
 
   return (await response.json()) as SessionStateResponse;
+}
+
+function redirectToLogin(sessionId: string) {
+  const next = `/analysis?session=${encodeURIComponent(sessionId)}`;
+  window.location.replace(`/login?next=${encodeURIComponent(next)}`);
 }
 
 function isReportErrorBody(

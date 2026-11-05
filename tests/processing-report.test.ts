@@ -9,7 +9,7 @@ vi.mock("@/lib/report/assembler", () => ({ assembleReportData: mocks.assemble, R
 vi.mock("@/lib/report/pdf-renderer", () => ({ renderReportPdf: mocks.render }));
 vi.mock("@/lib/module3/recommendation-provider", () => ({ runRecommendationProvider: vi.fn() }));
 vi.mock("@/lib/report/file-store", () => ({ normalizeReportSessionId: (id: string) => id, pdfFileStore: { uploadReportPdf: mocks.upload, downloadReportPdf: mocks.download, deleteReportPdf: mocks.remove } }));
-vi.mock("@/lib/supabase", () => ({ supabaseAdmin: { from: () => { const query = { select: () => query, eq: () => query, single: mocks.single, maybeSingle: mocks.maybeSingle }; return query; } } }));
+vi.mock("@/lib/supabase", () => ({ supabaseAdmin: { from: () => { const query = { select: () => query, eq: () => query, in: () => query, gt: () => query, single: mocks.single, maybeSingle: mocks.maybeSingle }; return query; } } }));
 import { POST } from "@/app/api/reports/route";
 const request = (runId = "run") => POST(new Request("http://localhost/api/reports", { method: "POST", body: JSON.stringify({ sessionId: "session", runId }) }));
 const run = () => ({ run_id: "run", session_id: "session", counselor_id: "owner", approved_profile_version: 1,
@@ -57,5 +57,12 @@ describe("SW-15 PDF-ready budget boundary", () => {
     const response = await request(); expect(response.status).toBe(200);
     expect((await response.json()).generatedAt).toBe("2026-11-05T00:01:00Z");
     expect(mocks.render).not.toHaveBeenCalled(); expect(mocks.upload).not.toHaveBeenCalled(); expect(mocks.transition).not.toHaveBeenCalled();
+  });
+  it("does not open a ready run's missing or stale report version", async () => {
+    mocks.load.mockResolvedValue({ run: { ...run(), phase: "ready", status: "completed" }, reportVersion: 1 });
+    mocks.single.mockResolvedValue({ data: null, error: null });
+    expect((await request()).status).toBe(409);
+    expect(mocks.assemble).not.toHaveBeenCalled();
+    expect(mocks.download).not.toHaveBeenCalled();
   });
 });

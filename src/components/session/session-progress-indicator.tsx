@@ -31,6 +31,7 @@ interface SessionProgressIndicatorProps {
 }
 
 interface SessionStateResponse {
+  expiresAt: string;
   nextStep: "input" | "analysis" | "report" | "complete" | "start-new-session";
   moduleStatus: {
     intake: ModuleProgressStatus;
@@ -132,6 +133,11 @@ export default function SessionProgressIndicator({
           );
         })}
       </BreadcrumbList>
+      {sessionState && (
+        <p className="text-xs text-muted-text">
+          Draft expires <time dateTime={sessionState.expiresAt}>{new Date(sessionState.expiresAt).toLocaleString()}</time>
+        </p>
+      )}
     </Breadcrumb>
   );
 }
