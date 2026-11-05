@@ -30,6 +30,16 @@ export async function POST(request: Request): Promise<Response> {
     const current = await loadProcessingRun(sessionId, user.id);
     run = current.run;
     if (body.runId !== run.run_id || !run.recommendations) throw new ProcessingError(stage, "stale");
+    const loadReport = async (version: number) => {
+      const { data, error } = await supabaseAdmin.from("report_versions").select("generated_at, expires_at, status")
+        .eq("session_id", sessionId).eq("counselor_id", user.id)
+        .eq("run_id", current.run.run_id).eq("approved_profile_version", current.run.approved_profile_version)
+        .eq("report_version", version).in("status", ["draft", "approved"])
+        .gt("expires_at", new Date().toISOString()).single();
+      if (error || !data) throw new ProcessingError("draft publication", "stale");
+      return data;
+    };
+    if (run.phase === "ready") await loadReport(current.reportVersion);
     const budget = runBudget(run);
     if (run.phase !== "ready") {
       budget.assert(stage);
@@ -43,13 +53,14 @@ export async function POST(request: Request): Promise<Response> {
       return assembleReportData(sessionId, { provider: runRecommendationProvider(profile, run!.recommendations!) });
     };
     const reportPayload = claimed ? await budget.run("report assembly", assemble, false) : await assemble();
+    const version = reportVersion ?? current.reportVersion;
     let byteLength: number;
     if (claimed) {
       stage = "PDF generation and storage";
       const stored = await budget.run(stage, async (signal) => {
         const buffer = await renderReportPdf(reportPayload);
         budget.assert(stage);
-        return pdfFileStore.uploadReportPdf(sessionId, buffer, reportVersion, signal);
+        return pdfFileStore.uploadReportPdf(sessionId, buffer, version, signal);
       });
       byteLength = stored.byteLength;
       budget.assert(stage);
@@ -58,11 +69,11 @@ export async function POST(request: Request): Promise<Response> {
       // An already-ready draft is read back, never regenerated with a new clock.
       byteLength = (await pdfFileStore.downloadReportPdf(sessionId, current.reportVersion)).size;
     }
-    const { data: report, error } = await supabaseAdmin.from("report_versions").select("generated_at, expires_at")
-      .eq("session_id", sessionId).eq("run_id", run.run_id).single();
-    if (error || !report) throw new ProcessingError("draft publication", "stale");
+    const report = await loadReport(version);
     const response: ReportGenerationResponse = {
-      sessionId, downloadUrl: `/api/reports/${encodeURIComponent(sessionId)}?download=1`,
+      sessionId, reportVersion: version,
+      downloadUrl: report.status === "approved"
+        ? `/api/reports/${encodeURIComponent(sessionId)}?version=${version}&download=1` : null,
       expiresAt: report.expires_at, generatedAt: report.generated_at, byteLength,
       recommendationCount: reportPayload.rankedRecommendations.recommendations.length,
       academicEvidence: reportPayload.academicEvidence,
