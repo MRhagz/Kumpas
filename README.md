@@ -132,6 +132,7 @@ Useful checks:
 
 ```bash
 npm run lint
+npm run test:access
 npm exec -- tsc --noEmit --pretty false
 npm run smoke:module4
 ```
@@ -152,7 +153,8 @@ Kumpas is designed around counselor control and data minimization:
 - Student records are treated as personal information under R.A. 10173.
 - PII redaction happens before external AI processing.
 - Supabase service-role access is restricted to server-side routes and ingestion workflows.
-- Generated report PDFs are stored in a private bucket and delivered through short-lived signed URLs.
+- Private report PDFs and redacted images are delivered through authenticated owner-checked routes.
+- Counselor invitation setup, deployment effects and access verification are documented in [SW-01 access](docs/sw-01-access.md).
 
 ---
 
