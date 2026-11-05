@@ -13,14 +13,13 @@ ingestion/
     config.py                   # env-driven config (Supabase + Gemini)
     models.py                   # ChunkInput, KnowledgeChunk, IngestionLogEntry
     text_chunker.py             # shared chunking for PSA, DOLE/CHED, TESDA
-    embedding_service.py        # Gemini text-embedding-004 client (768-dim)
+    embedding_service.py        # Gemini gemini-embedding-001 client (768-dim)
     ingestion_logger.py         # writes to ingestion_logs + stdout
     vector_store_repository.py  # diff/write against knowledge_chunks
 ```
 
-Pipeline modules (1.1, 1.2, 1.3) will live under `src/kumpas_ingestion/pipelines/`
-and consume the shared modules above. They are intentionally absent from this
-shared-infra scaffold.
+Pipeline modules live under `src/kumpas_ingestion/pipelines/` and consume these
+shared services.
 
 ## Required environment
 
@@ -38,14 +37,15 @@ shell or `.env` file (never commit).
 1. Create a module under `src/kumpas_ingestion/pipelines/<name>.py` exposing a
    `def run() -> int` entry point that returns an exit code.
 2. Build `ChunkInput` records from the source data. Set `acquisition_method`
-   to one of `automated_csv`, `automated_pdf`, or `manual_curation`.
-3. Use the shared modules:
-   - `VectorStoreRepository.diff(chunks)` → partition into insert/update/skip.
-   - `EmbeddingService.embed_documents(...)` on insert + update content.
-   - Build `KnowledgeChunk` objects pairing each chunk with its embedding.
-   - `VectorStoreRepository.write(chunks)` upserts the rows.
-   - `VectorStoreRepository.update_ingestion_metadata(source_type, log_id)`.
-   - `IngestionLogger.start()` / `record(...)` wraps the whole run.
+   to the approved source-specific value (`operator_curated_csv`,
+   `operator_curated_pdf`, `automated_pdf`, or `manual_curation`).
+3. Use `VectorStoreRepository.refresh(chunks, source_type, embedder, logger.prepare(...))`.
+   It diffs stable keys before embedding, validates all returned vectors, and submits
+   one transactional refresh. Include `source_type`, `official_source_url` when known,
+   and `publication_date` when available. `source_url` remains the stable record key;
+   a missing official link or publication date stays null.
+   The transaction writes success/no-op logs, freshness and CHED cache entries.
+   Failures use `IngestionLogger.record(run_status="failure", ...)`.
 4. Add a workflow under `.github/workflows/ingest-<name>.yml`. Use the
    `setup-ingestion` composite action (see below) and supply the relevant extra.
 
@@ -84,13 +84,82 @@ pip install -e ".[psa,pdf,tesda,dev]"
 
 ## Notes
 
-- Embedding model is `gemini-embedding-001` with `outputDimensionality=768`
-  on both ingestion and query-time paths. (SDD §3.1 names the older
-  `text-embedding-004`, which Google has retired — `gemini-embedding-001`
-  is the supported replacement; update the SDD when convenient.) Do not
-  change one side without the other.
+- The approved embedding contract is `gemini-embedding-001`, 768 dimensions.
+  Ingestion uses `RETRIEVAL_DOCUMENT`; queries use `RETRIEVAL_QUERY`.
+  `EMBEDDING_MODEL` and `EMBEDDING_DIMENSIONS`, if set, must match these exact
+  values in both runtimes. Changing a model requires a coordinated release,
+  re-embedding and the STD R03 retrieval evaluation.
 - Knowledge-base writes use the service-role key and bypass RLS by design;
   this code never runs inside a counselor session.
 - TESDA records have no real source URL — pipelines synthesize one as
   `manual_curation://tesda/{qualification_code}/{program_name}` to satisfy
   the universal `(silo_id, source_url, chunk_index)` primary key.
+
+## SW-09 rollout and refresh behavior
+
+Apply `supabase/migrations/20261104000000_sw09_embedding_contract.sql` before
+running the updated pipelines. Deploy the query service and ingestion code together.
+The migration adds provenance and embedding fingerprint columns, preserves the
+composite primary key, and replaces the retrieval RPC. Both RPCs are restricted
+to `service_role` and use invoker permissions. RLS is enabled on `knowledge_chunks`;
+no counselor/public policy is added because these records use the backend service role.
+
+Existing vectors keep an unknown model/dimension fingerprint. They are retained
+but retrieval rejects a silo containing unverified vectors with an actionable error.
+Rerun each source pipeline to re-embed them before reopening analysis. Historical
+CHED cache entries no longer skip publications whose vectors are unverified; older
+years must be replayed with `CHED_TARGET_YEAR`. Do not label old vectors as compatible
+without verifying their model. Confirm no unverified rows remain in each silo:
+
+```sql
+select silo_id, source_url, count(*)
+from public.knowledge_chunks
+where embedding_model is distinct from 'gemini-embedding-001'
+   or embedding_dimensions is distinct from 768
+group by silo_id, source_url;
+```
+
+Replay the corresponding original sources; investigate unavailable legacy sources
+with the team before reopening their silo.
+
+For local PSA acquisition, set repository variable `PSA_SOURCE_URL` to the official
+HTTPS source reference; `PSA_OPENSTAT_URL` still identifies the downloaded CSV.
+`PSA_PUBLICATION_DATE` is optional (`YYYY-MM-DD`); do not derive a day from a quarter.
+DOLE sidecars retain `source_url` and `publication_date`. TESDA CSVs may include
+optional `official_source_url` and `publication_date` columns; existing textual
+`source_reference` values remain available when no official URL is known.
+
+The nonempty PSA/TESDA CSV is the authoritative snapshot for its source group:
+removed records are deleted only when the validated replacement commits. Empty
+input never clears a group. PDF refreshes replace only successfully processed
+publications; absent or failed publications keep their last valid records. Within
+a source, superseded chunk indices are deleted in the same transaction as the new
+chunks. Unchanged vectors and timestamps are reused, including during a shrink-only
+refresh. A true no-op logs the check without advancing ingestion freshness.
+
+All provider calls occur before the database transaction. A concurrent source
+content change invalidates the snapshot and requires a rerun. A fatal write,
+success-log, freshness or cache error rolls back the entire replacement batch.
+Failed runs remain visible in failure logs/Actions output. Retry with corrected
+input/configuration; no manual deletion is needed for reruns.
+
+Mocked contracts (no credentials):
+
+```bash
+pip install -e './ingestion[psa]'
+python -m unittest discover -s ingestion/tests -v
+npm ci
+node scripts/sw09-contract.test.mjs
+```
+
+The PR workflow also runs `tsc`, scoped ESLint, and the real pgvector SQL contracts
+in a disposable database. For an isolated database with the application migrations
+already applied:
+
+```bash
+psql "$TEST_DATABASE_URL" -v ON_ERROR_STOP=1 -f supabase/tests/sw09_embedding_contract.sql
+```
+
+`supabase/tests/sw09_bootstrap.sql` is only for a new disposable database; it creates
+roles and the audited ingestion schema. Never run that bootstrap against a deployed
+project. See [SW-09 review evidence](../docs/sw09-review.md) for actual local outcomes.

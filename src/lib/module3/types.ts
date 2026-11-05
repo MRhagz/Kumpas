@@ -23,6 +23,11 @@ export interface RetrievedChunk {
   source_metadata: Record<string, unknown>;
   ingestion_timestamp: string;
   similarity: number;
+  source_type: string;
+  official_source_url: string | null;
+  publication_date: string | null;
+  embedding_model: string;
+  embedding_dimensions: number;
 }
 
 // ─── Agent Output (produced by each specialist agent) ──────────────

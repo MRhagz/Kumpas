@@ -5,7 +5,7 @@ import { createClient } from "@supabase/supabase-js";
 import type { StoredReportPdf } from "@/lib/report/types";
 
 export const REPORT_PDF_BUCKET = "kumpas-reports";
-export const REPORT_PDF_SIGNED_URL_TTL_SECONDS = 30 * 60;
+export const REPORT_PDF_ACCESS_TTL_SECONDS = 24 * 60 * 60;
 
 const REPORT_PDF_CONTENT_TYPE = "application/pdf";
 const MINIMAL_HEALTHCHECK_PDF = Buffer.from(
@@ -32,10 +32,7 @@ interface StorageBucketClient {
       upsert: boolean;
     },
   ): Promise<{ error: StorageError | null }>;
-  createSignedUrl(
-    path: string,
-    expiresIn: number,
-  ): Promise<{ data: { signedUrl: string } | null; error: StorageError | null }>;
+  download(path: string): Promise<{ data: Blob | null; error: StorageError | null }>;
   list(
     path?: string,
     options?: {
@@ -54,7 +51,7 @@ interface ReportStorageClient {
 
 export interface PdfFileStoreOptions {
   bucketName?: string;
-  signedUrlTtlSeconds?: number;
+  accessTtlSeconds?: number;
   now?: () => Date;
   client?: ReportStorageClient;
   supabaseUrl?: string;
@@ -71,14 +68,14 @@ export interface ReportPdfRetentionResult {
 export interface ReportPdfStorageCheckResult {
   bucketName: string;
   objectKey: string;
-  signedUrlCreated: boolean;
+  downloadVerified: boolean;
   cleanupCompleted: boolean;
   warnings: string[];
 }
 
 export class PdfFileStore {
   private readonly bucketName: string;
-  private readonly signedUrlTtlSeconds: number;
+  private readonly accessTtlSeconds: number;
   private readonly now: () => Date;
   private client?: ReportStorageClient;
   private readonly supabaseUrl?: string;
@@ -86,8 +83,7 @@ export class PdfFileStore {
 
   constructor(options: PdfFileStoreOptions = {}) {
     this.bucketName = options.bucketName ?? REPORT_PDF_BUCKET;
-    this.signedUrlTtlSeconds =
-      options.signedUrlTtlSeconds ?? REPORT_PDF_SIGNED_URL_TTL_SECONDS;
+    this.accessTtlSeconds = options.accessTtlSeconds ?? REPORT_PDF_ACCESS_TTL_SECONDS;
     this.now = options.now ?? (() => new Date());
     this.client = options.client;
     this.supabaseUrl = options.supabaseUrl;
@@ -115,32 +111,14 @@ export class PdfFileStore {
       );
     }
 
-    const { data, error: signedUrlError } = await bucket.createSignedUrl(
-      objectKey,
-      this.signedUrlTtlSeconds,
-    );
-
-    if (signedUrlError) {
-      throw new Error(
-        `Failed to create signed report URL: ${formatStorageError(
-          signedUrlError,
-          this.bucketName,
-        )}`,
-      );
-    }
-
-    if (!data?.signedUrl) {
-      throw new Error("Supabase did not return a signed report URL.");
-    }
-
     const createdAt = this.now();
 
     return {
       sessionId: normalizeSessionId(sessionId),
-      downloadUrl: data.signedUrl,
+      downloadUrl: `/api/reports/${encodeURIComponent(normalizeSessionId(sessionId))}?download=1`,
       createdAt: createdAt.toISOString(),
       expiresAt: new Date(
-        createdAt.getTime() + this.signedUrlTtlSeconds * 1000,
+        createdAt.getTime() + this.accessTtlSeconds * 1000,
       ).toISOString(),
       byteLength: pdfBuffer.byteLength,
     };
@@ -156,8 +134,9 @@ export class PdfFileStore {
       const storedPdf = await this.uploadReportPdf(sessionId, MINIMAL_HEALTHCHECK_PDF);
 
       if (!storedPdf.downloadUrl || Number.isNaN(Date.parse(storedPdf.expiresAt))) {
-        throw new Error("Report storage check did not return a valid signed URL.");
+        throw new Error("Report storage check did not return a valid download reference.");
       }
+      await this.downloadReportPdf(sessionId);
     } finally {
       try {
         await this.deleteReportPdf(sessionId);
@@ -175,7 +154,7 @@ export class PdfFileStore {
     return {
       bucketName: this.bucketName,
       objectKey,
-      signedUrlCreated: true,
+      downloadVerified: true,
       cleanupCompleted,
       warnings,
     };
@@ -191,6 +170,20 @@ export class PdfFileStore {
         `Failed to delete report PDF: ${formatStorageError(error, this.bucketName)}`,
       );
     }
+  }
+
+  async downloadReportPdf(sessionId: string): Promise<Blob> {
+    const normalizedSessionId = normalizeSessionId(sessionId);
+    const bucket = this.getClient().storage.from(this.bucketName);
+    const objects = await listAllStorageObjects(bucket, this.bucketName, normalizedSessionId);
+    const object = objects.find((entry) => entry.name === `${normalizedSessionId}.pdf`);
+    const generatedAt = object && getStorageObjectTimestamp(object);
+    if (!generatedAt || generatedAt.getTime() + this.accessTtlSeconds * 1000 <= this.now().getTime()) {
+      throw new Error("Report not found or expired.");
+    }
+    const { data, error } = await bucket.download(getReportPdfObjectKey(normalizedSessionId));
+    if (error || !data) throw new Error("Report not found or expired.");
+    return data;
   }
 
   async purgeExpiredReportPdfs(

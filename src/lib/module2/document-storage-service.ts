@@ -1,7 +1,6 @@
 import { supabaseAdmin } from "@/lib/supabase";
 
 const BUCKET = "kumpas-documents";
-const SIGNED_URL_TTL = 30 * 60; // 30 minutes
 
 export class DocumentStorageService {
   async storeRedacted(buffer: Buffer, sessionId: string, docId: string): Promise<string> {
@@ -14,13 +13,13 @@ export class DocumentStorageService {
     return storagePath;
   }
 
-  async retrieveRedacted(storagePath: string): Promise<string> {
+  async retrieveRedacted(storagePath: string): Promise<Blob> {
     const { data, error } = await supabaseAdmin.storage
       .from(BUCKET)
-      .createSignedUrl(storagePath, SIGNED_URL_TTL);
+      .download(storagePath);
 
-    if (error) throw new Error(`Failed to create signed URL: ${error.message}`);
-    return data.signedUrl;
+    if (error || !data) throw new Error("Redacted image not found.");
+    return data;
   }
 
   async deleteRedacted(storagePath: string): Promise<void> {

@@ -54,8 +54,8 @@ it("sends explicit replacement and removal IDs, preserving local selection until
 });
 it("keeps zero academic files optional and blocks approval of pending or failed selected documents", () => {
   const notes = { careerGoal: "Undecided", interests: "Math", financial: "Reviewed", concerns: "Reviewed", impression: "Reviewed" };
-  const { rerender } = render(<ConfirmationApprovalBar sessionId="session" notes={notes} documentsReady={true} isSubmitting={false} onApprove={vi.fn()} />);
+  const { rerender } = render(<ConfirmationApprovalBar notesReviewed onNotesReviewedChange={vi.fn()} notes={notes} documentsReady={true} isSubmitting={false} onApprove={vi.fn()} />);
   expect((screen.getByRole("button") as HTMLButtonElement).disabled).toBe(false);
-  rerender(<ConfirmationApprovalBar sessionId="session" notes={notes} documentsReady={false} isSubmitting={false} onApprove={vi.fn()} />);
+  rerender(<ConfirmationApprovalBar notesReviewed onNotesReviewedChange={vi.fn()} notes={notes} documentsReady={false} isSubmitting={false} onApprove={vi.fn()} />);
   expect((screen.getByRole("button") as HTMLButtonElement).disabled).toBe(true);
 });

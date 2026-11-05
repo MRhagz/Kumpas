@@ -2,9 +2,16 @@ import InputContainer from "@/components/input/input-container";
 import ProtectedHeader from "@/components/auth/protected-header";
 import Link from "next/link";
 import { Suspense } from "react";
+import { requireWorkflowAccess } from "@/lib/auth/workflow-access";
+import WorkflowBoundary from "@/components/auth/workflow-boundary";
 
-export default function InputPage() {
+export default async function InputPage({
+  searchParams,
+}: { searchParams: Promise<{ session?: string }> }) {
+  const { session } = await searchParams;
+  const user = await requireWorkflowAccess("/input", session);
   return (
+    <WorkflowBoundary userId={user.id}>
     <div className="min-h-screen bg-background font-sans">
       <ProtectedHeader />
       <div className="py-10">
@@ -35,5 +42,6 @@ export default function InputPage() {
         </p>
       </footer>
     </div>
+    </WorkflowBoundary>
   );
 }

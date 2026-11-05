@@ -5,7 +5,7 @@ import { MAX_ACADEMIC_FILE_BYTES, MAX_ACADEMIC_REQUEST_BYTES } from "@/lib/acade
 import { UploadValidationError } from "@/lib/module2/academic-upload-validation";
 
 const mocks = vi.hoisted(() => ({
-  user: vi.fn(), owns: vi.fn(), redact: vi.fn(), store: vi.fn(), retrieve: vi.fn(), delete: vi.fn(), extract: vi.fn(),
+  user: vi.fn(), owns: vi.fn(), redact: vi.fn(), store: vi.fn(), delete: vi.fn(), extract: vi.fn(),
   claim: vi.fn(), release: vi.fn(), remove: vi.fn(), activity: vi.fn(), progress: vi.fn(),
 }));
 vi.mock("@/lib/auth/api-auth", () => ({
@@ -14,7 +14,7 @@ vi.mock("@/lib/auth/api-auth", () => ({
   notFoundResponse: () => Response.json({ error: "Not found" }, { status: 404 }),
 }));
 vi.mock("@/lib/module2/pii-redaction-service", () => ({ piiRedactionService: { redact: mocks.redact } }));
-vi.mock("@/lib/module2/document-storage-service", () => ({ documentStorageService: { storeRedacted: mocks.store, retrieveRedacted: mocks.retrieve, deleteRedacted: mocks.delete } }));
+vi.mock("@/lib/module2/document-storage-service", () => ({ documentStorageService: { storeRedacted: mocks.store, deleteRedacted: mocks.delete } }));
 vi.mock("@/lib/module2/gemini-extraction-service", () => ({ geminiExtractionService: { extract: mocks.extract } }));
 vi.mock("@/lib/module2/academic-document-store", () => ({ academicDocumentStore: { claim: mocks.claim, release: mocks.release, remove: mocks.remove } }));
 vi.mock("@/lib/module2/session-initialization-service", () => ({ sessionInitializationService: { updateLastActivity: mocks.activity } }));
@@ -35,7 +35,6 @@ beforeEach(async () => {
   mocks.remove.mockResolvedValue(undefined); mocks.delete.mockResolvedValue(undefined);
   mocks.redact.mockResolvedValue({ redactedBuffer: Buffer.from("redacted"), piiCount: 0 });
   mocks.store.mockResolvedValue("session-a/new.jpg"); mocks.extract.mockResolvedValue({ id: "row-a", structured_data: { type: "nat", data: {} } });
-  mocks.retrieve.mockResolvedValue("https://storage.example/redacted");
   ({ POST: sessionPost, DELETE: sessionDelete } = await import("@/app/api/sessions/[sessionId]/upload/route"));
   ({ POST: legacyPost } = await import("@/app/api/extract-document/route"));
 });

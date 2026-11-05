@@ -1,10 +1,11 @@
 import sharp, { type OverlayOptions } from "sharp";
-import { createRequire } from "node:module";
-import { dirname, join } from "node:path";
+import { join } from "node:path";
 
 export async function createAcademicPdfTask(buffer: Buffer) {
   const { getDocument } = await import("academic-pdfjs/legacy/build/pdf.mjs");
-  const packagePath = dirname(createRequire(import.meta.url).resolve("academic-pdfjs/package.json"));
+  // These resources are explicitly included in the route's file trace.
+  // Turbopack transforms require.resolve into a module ID rather than a path.
+  const packagePath = join(process.cwd(), "node_modules", "academic-pdfjs");
   return getDocument({
     data: new Uint8Array(buffer), stopAtErrors: true,
     standardFontDataUrl: join(packagePath, "standard_fonts").replaceAll("\\", "/") + "/",
