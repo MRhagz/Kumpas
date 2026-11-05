@@ -22,6 +22,9 @@ function buildPrompt(agentOutputs: AgentOutput[]): string {
 Analysis:
 ${o.analysis}
 
+Unavailable Evidence:
+${o.unavailableEvidence?.join("\n") || "None reported"}
+
 Retrieved Sources:
 ${chunkSources.length > 0 ? chunkSources.join("\n") : "None"}`;
   });
