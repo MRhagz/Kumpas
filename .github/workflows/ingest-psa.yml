@@ -7,6 +7,12 @@ name: Ingest PSA OpenSTAT LFS
 # the cleaned CSV. Pushing that file triggers this workflow.
 
 on:
+  pull_request:
+    paths:
+      - "ingestion/**"
+      - "supabase/**"
+      - ".github/actions/setup-ingestion/**"
+      - ".github/workflows/ingest-psa.yml"
   push:
     branches:
       - main
@@ -14,6 +20,7 @@ on:
       - "ingestion/data/psa/sample_lfs.csv"
       - "ingestion/src/kumpas_ingestion/pipelines/psa.py"
       - ".github/workflows/ingest-psa.yml"
+      - "ingestion/src/kumpas_ingestion/*.py"
   workflow_dispatch:
     inputs:
       override_url:
@@ -22,11 +29,62 @@ on:
         type: string
 
 concurrency:
-  group: ingest-psa
+  group: ingest-psa-${{ github.event_name == 'pull_request' && github.ref || 'production' }}
   cancel-in-progress: false
 
+permissions:
+  contents: read
+
 jobs:
+  validate:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - run: pip install -e './ingestion[psa]'
+      - name: Run ingestion contracts without production secrets
+        run: python -m unittest discover -s ingestion/tests -v
+      - name: Validate the committed quarterly CSV
+        env:
+          PSA_OPENSTAT_URL: file://${{ github.workspace }}/ingestion/data/psa/sample_lfs.csv
+          PSA_SOURCE_URL: ${{ vars.PSA_SOURCE_URL || 'https://openstat.psa.gov.ph/' }}
+          PSA_PUBLICATION_DATE: ${{ vars.PSA_PUBLICATION_DATE }}
+        run: python -m kumpas_ingestion.pipelines.psa --validate-only
+
+  database-contracts:
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: pgvector/pgvector:pg17
+        env:
+          POSTGRES_PASSWORD: contract-test-only
+          POSTGRES_DB: sw10
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U postgres -d sw10"
+          --health-interval 5s --health-timeout 5s --health-retries 10
+    env:
+      PGHOST: localhost
+      PGPORT: "5432"
+      PGUSER: postgres
+      PGPASSWORD: contract-test-only
+      PGDATABASE: sw10
+      PSA_TEST_DATABASE_URL: postgresql://postgres:contract-test-only@localhost:5432/sw10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - run: pip install -e './ingestion[psa]' psycopg2-binary
+      - run: psql -v ON_ERROR_STOP=1 -f supabase/tests/sw09_bootstrap.sql
+      - run: python -m unittest discover -s ingestion/tests -p test_psa_database.py -v
+
   ingest:
+    needs: [validate, database-contracts]
+    if: github.event_name != 'pull_request' && github.ref == 'refs/heads/main'
     runs-on: ubuntu-latest
     env:
       SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
