@@ -1,56 +1,57 @@
-# TESDA program cost catalog
+# TESDA semester cost catalog
 
-This CSV is the source of truth for the TESDA portion of the Path Feasibility
-silo. Each row is one TESDA-registered program with its current cost and
-tuition benchmark. A push to `programs.csv` triggers the
-`.github/workflows/ingest-tesda.yml` workflow, which validates the file and
-upserts every row into `knowledge_chunks`.
+Each semester, the development team reviews official public TESDA cost and tuition
+information and commits the complete catalog to `ingestion/data/tesda/programs.csv`.
+Verify the source, provider and location for every entry. Include at least 30 valid
+records and no confidential data. A main-branch push that changes `programs.csv`,
+or a manual run on main, triggers the import outside active counseling sessions.
 
-## Schema
+The existing 30-row CSV predates the provider/location contract. It is unchanged
+and fails validation until the curator supplies verified values. Do not infer a
+provider or location from a national funding cap. The workflow does not import the
+legacy file on a code-only merge; existing knowledge records remain available.
 
-| column | type | rule |
-| --- | --- | --- |
-| `program_name` | string | non-empty after trim |
-| `tesda_qualification_code` | string | non-empty after trim; the official TESDA code |
-| `program_cost_php` | number | `> 0`; estimated total PHP cost across the program |
-| `tuition_benchmark_php` | number | `>= 0`; tuition benchmark in PHP (0 if program is fully subsidized) |
-| `source_reference` | string | non-empty; citation pointing to the verifiable source (TESDA Training Regulations, official memo, etc.) |
+| Column | Rule |
+| --- | --- |
+| `program_name` | Required, nonblank. |
+| `tesda_qualification_code` | Required, official qualification code. |
+| `provider_name` | Required, verified provider name. |
+| `location` | Required, verified provider location. |
+| `program_cost_php` | Required, finite decimal greater than zero. |
+| `tuition_benchmark_php` | Required, finite nonnegative decimal. Use zero only for a documented zero tuition benchmark. |
+| `source_reference` | Required, exact official publication citation or HTTPS URL. |
+| `official_source_url` | Optional HTTPS URL without credentials. If omitted and the citation is an HTTPS URL, use that URL. |
+| `publication_date` | Optional verified calendar date (`YYYY-MM-DD`). |
+| `qualification_level` | Optional published level, such as NC II. |
+| `scholarship_availability` | Optional published scholarship details or conditions. |
 
-The uniqueness constraint is `(tesda_qualification_code, program_name)`. Two
-rows with the same pair in the same CSV will cause validation to fail.
+Use UTF-8 CSV with the specified headers. Leave unknown optional values blank.
+The validator checks syntax; the curator verifies that references are official and
+the records accurately reflect them. The exact reference is stored as `source_url`.
+The qualification code and program name determine a stable index within the source.
+Duplicate identities and index collisions are rejected before embedding.
 
-## How updates flow into the database
+From the repository root, validate without deployment credentials:
 
-The pipeline computes a SHA-256 content hash per row and partitions them:
-
-- new `(qualification_code, program_name)` → insert
-- existing pair, content changed → update (re-embed)
-- existing pair, content unchanged → skip (no embedding call, no write)
-
-So you can re-run the workflow safely; only changed rows incur Gemini calls.
-
-## Known limitations
-
-- **Removed rows are not deleted from the database.** Deleting a row from the
-  CSV and pushing does not remove the corresponding `knowledge_chunks` record.
-  Manual cleanup is required if a program is retired. (Tracked for post-MVP.)
-- The current rows are **placeholders** — the `source_reference` column says
-  so. The MVP target is at least 30 verified records sourced from official
-  TESDA publications. Replace the placeholders before counseling sessions go
-  live.
-
-## Local testing
-
-```bash
-cd ingestion
-source .venv/bin/activate
-set -a && source ../.env.local && set +a
-python -m kumpas_ingestion.pipelines.tesda
+```sh
+pip install -e ./ingestion
+python -m kumpas_ingestion.pipelines.tesda --validate-only path/to/semester.csv
+python -m unittest discover -s ingestion/tests -p test_tesda.py -v
 ```
 
-Point at a different CSV via `TESDA_CSV_PATH` or a CLI argument:
+The importer reports batch, row and field errors. An invalid or undersized batch
+never replaces prior data. A successful run stores curated TESDA records in Path
+Feasibility with `tesda_manual`, `manual_curation`, provenance and ingestion time.
+It replaces only the TESDA source group atomically, including removal of superseded
+rows. It reuses embeddings for unchanged content and keeps freshness stable on
+unchanged reruns. The first valid import supersedes legacy synthetic keys.
 
-```bash
-python -m kumpas_ingestion.pipelines.tesda path/to/other.csv
-TESDA_CSV_PATH=path/to/other.csv python -m kumpas_ingestion.pipelines.tesda
-```
+No new migration or production secrets. Apply the existing SW-09 migration first.
+The main-branch workflow uses the existing `SUPABASE_URL`,
+`SUPABASE_SERVICE_ROLE_KEY`, and `GEMINI_API_KEY`. The CLI still accepts an optional
+CSV path or `TESDA_CSV_PATH` override. Drop `--validate-only` only for an intended
+import with those credentials configured.
+
+CI runs secret-free fixtures and a disposable PostgreSQL/pgvector integration test
+before allowing the import job. `TESDA_TEST_DATABASE_URL` is test-only; the tests
+reset fixture tables, so never point it at a deployed database.
