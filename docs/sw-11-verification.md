@@ -104,6 +104,13 @@ superseded-chunk removal and unchanged replay without duplicate rows or false fr
 All SQL fixtures roll back. The orchestration fixtures mock embedding/database calls;
 the database job independently checks transaction behavior with real pgvector.
 
+[CHED CI run 41966238352](https://github.com/MRhagz/Kumpas/actions/runs/41966238352)
+passed both jobs: all 20 fixture tests (including real two-page OCR, zero skips),
+scoped Ruff, and the real PostgreSQL 17/pgvector cache/rollback/retry/replay contract.
+The broader SW-09, PSA, counselor-access and notes workflows also passed on that
+revision; Vercel reported success. In particular, the broader ingestion suite
+passes in Linux CI while its five Windows-only baseline failures remain documented above.
+
 ## Limits and review gate
 
 No hosted ingestion, live Gemini embedding, school-session scheduling check, full
