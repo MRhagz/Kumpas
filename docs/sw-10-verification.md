@@ -67,7 +67,12 @@ inputs remain under `ingestion/data/psa/`; no student/session data is added.
   ingestion/tests/test_psa_database.py`: passed.
 - `git diff --check`: passed.
 
-CI results will be recorded after publication. The workflow runs
+CI passed for [PR #50](https://github.com/MRhagz/Kumpas/pull/50), code commit
+`372c795`, including [PSA validation and all three real database tests](https://github.com/MRhagz/Kumpas/actions/runs/41963508945).
+The committed CSV validated as 13 records without writes. Production ingestion
+was correctly skipped for the PR. Existing access checks (including build,
+typecheck, scoped lint and HTTP smoke), notes tests, SW-09 mocked/SQL contracts,
+and the Vercel preview also passed. The workflow runs
 `psql -v ON_ERROR_STOP=1 -f supabase/tests/sw09_bootstrap.sql` followed by
 `python -m unittest discover -s ingestion/tests -p test_psa_database.py -v`
 with a new disposable database. Never use this bootstrap/test reset against a
@@ -89,7 +94,7 @@ its existing README warns about illustrative values. An operator must verify
 the quarterly source, official URL and available release date before a live
 import. No hosted Supabase/Gemini import, UI freshness/browser check, administrator
 alert delivery, or full live STD run was performed. Local database execution is
-unavailable; CI supplies real pgvector execution. Supabase API docs and the
+unavailable; the linked CI run passed real pgvector execution. Supabase API docs and the
 current changelog were checked; the CLI v3 change is unrelated to this Python
 client path. No database API/schema changes are introduced here.
 
