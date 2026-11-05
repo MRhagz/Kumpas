@@ -8,15 +8,12 @@ import {
   userOwnsSession,
 } from "@/lib/auth/api-auth";
 
+import { hasNoteText, REQUIRED_NOTE_FIELDS, OPTIONAL_NOTE_FIELDS } from "@/lib/notes-validation";
+
 interface ApproveBody {
+  notesReviewed?: boolean;
   counselorNotes: ApprovedProfile["counselorNotes"];
   corrections?: CorrectionLog[];
-}
-
-const REQUIRED_FIELDS = ["careerGoal", "interests", "financial", "concerns", "impression"] as const;
-
-function stripHtml(value: string): string {
-  return value.replace(/<[^>]*>/g, "").trim();
 }
 
 export async function POST(
@@ -33,17 +30,28 @@ export async function POST(
     const body = (await request.json()) as ApproveBody;
     const { counselorNotes, corrections = [] } = body;
 
-    if (!counselorNotes) {
+    if (body.notesReviewed !== true) {
+      return Response.json({ error: "Confirm that notes exclude personal identifiers and confidential details" }, { status: 400 });
+    }
+
+    if (!counselorNotes || typeof counselorNotes !== "object" || Array.isArray(counselorNotes)) {
       return Response.json({ error: "counselorNotes is required" }, { status: 400 });
     }
 
-    for (const field of REQUIRED_FIELDS) {
+    for (const field of REQUIRED_NOTE_FIELDS) {
       const raw = counselorNotes[field];
-      if (typeof raw !== "string" || stripHtml(raw).length === 0) {
+      if (!hasNoteText(raw)) {
         return Response.json(
           { error: `counselorNotes.${field} is required and cannot be empty` },
           { status: 400 },
         );
+      }
+    }
+
+    for (const field of OPTIONAL_NOTE_FIELDS) {
+      if (counselorNotes[field] === undefined) counselorNotes[field] = "";
+      if (typeof counselorNotes[field] !== "string") {
+        return Response.json({ error: `counselorNotes.${field} must be text` }, { status: 400 });
       }
     }
 

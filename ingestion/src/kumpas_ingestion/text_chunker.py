@@ -17,8 +17,8 @@ def chunk_text(text: str, config: ChunkConfig | None = None) -> list[str]:
     have consistent granularity across all silos.
     """
     cfg = config or ChunkConfig()
-    if cfg.overlap >= cfg.chunk_size:
-        raise ValueError("overlap must be smaller than chunk_size")
+    if cfg.chunk_size <= 0 or cfg.overlap < 0 or cfg.overlap >= cfg.chunk_size:
+        raise ValueError("chunk_size must be positive and 0 <= overlap < chunk_size")
 
     cleaned = " ".join(text.split())
     if not cleaned:
