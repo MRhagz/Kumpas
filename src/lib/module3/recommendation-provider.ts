@@ -94,7 +94,8 @@ async function getRankedRecommendations(
     .from("ranked_recommendations")
     .select("*")
     .eq("session_id", sessionId)
-    .order("rank", { ascending: true });
+    .order("rank", { ascending: true, nullsFirst: false })
+    .order("career_path", { ascending: true });
 
   if (recErr) {
     throw new Error(`Failed to fetch recommendations: ${recErr.message}`);
@@ -103,6 +104,9 @@ async function getRankedRecommendations(
     throw new Error(`No recommendations found for session ${sessionId}`);
   }
 
+  if (recs.some((r) => r.score_contract !== "0-100-v1")) throw new Error("Legacy scoring contract: regenerate analysis before producing a report.");
+
+  recs.sort((a, b) => (a.rank ?? Infinity) - (b.rank ?? Infinity) || a.career_path.localeCompare(b.career_path, "en"));
   const recIds = recs.map((r) => r.id);
   const { data: sources, error: srcErr } = await supabaseAdmin
     .from("recommendation_sources")
@@ -142,6 +146,9 @@ async function getRankedRecommendations(
       (r.key_signals as string[]) ?? [],
     ),
     sources: sourcesByRec.get(r.id) ?? [],
+    approvedProfileVersion: r.approved_profile_version,
+    componentEvidence: r.component_evidence,
+    weights: r.score_weights,
     status: r.status,
     degradedReason: r.degraded_reason ?? undefined,
     incompleteReason: r.incomplete_reason ?? undefined,

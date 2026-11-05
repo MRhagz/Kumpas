@@ -45,16 +45,19 @@ export interface KeySignalDetail {
 
 export interface RankedRecommendation {
   id: string;
-  rank: number;
+  rank: number | null;
   careerPath: string;
-  alignmentScore: number;
-  aptitudeFit: number;
-  marketDemand: number;
-  financialFeasibility: number;
+  alignmentScore: number | null;
+  aptitudeFit: number | null;
+  marketDemand: number | null;
+  financialFeasibility: number | null;
   reasoningSummary: string;
   keySignals: string[];
   keySignalDetails: KeySignalDetail[];
   sources: RecommendationSource[];
+  approvedProfileVersion?: number | null;
+  componentEvidence?: import("@/lib/module3/types").CandidateCareerPath["componentEvidence"];
+  weights?: Readonly<{ aptitude: number; demand: number; feasibility: number }>;
   status: RecommendationStatus;
   degradedReason?: string;
   incompleteReason?: string;
@@ -64,6 +67,7 @@ export interface RankedRecommendationList {
   sessionId: string;
   generatedAt: string;
   recommendations: RankedRecommendation[];
+  limitation?: string;
 }
 
 export interface AcademicEvidenceSummary {
@@ -107,10 +111,11 @@ export interface ReportGenerationResponse {
 }
 
 export interface ReportRecommendationSummary {
+  incompleteReason?: string;
   id: string;
-  rank: number;
+  rank: number | null;
   careerPath: string;
-  alignmentScore: number;
+  alignmentScore: number | null;
   reasoningSummary: string;
   keySignals: string[];
   keySignalDetails: KeySignalDetail[];
@@ -135,8 +140,8 @@ const KEY_SIGNAL_POLARITIES: KeySignalPolarity[] = [
   "neutral",
 ];
 
-export function isNormalizedScore(score: number): boolean {
-  return Number.isFinite(score) && score >= 0 && score <= 1;
+export function isAlignmentScore(score: unknown): score is number {
+  return typeof score === "number" && Number.isFinite(score) && score >= 0 && score <= 100;
 }
 
 export function isSourceAcquisitionMethod(
@@ -198,9 +203,7 @@ export function validateRankedRecommendationList(
     errors.push("Generated timestamp must be a valid ISO date.");
   }
 
-  if (list.recommendations.length < 3) {
-    errors.push("At least three recommendations are required.");
-  }
+  if (list.recommendations.length === 0) errors.push("Insufficient evidence for a report.");
 
   list.recommendations.forEach((recommendation, index) => {
     const label = `Recommendation ${index + 1}`;
@@ -219,9 +222,17 @@ export function validateRankedRecommendationList(
     }
     careerPaths.add(normalizedCareerPath);
 
-    if (recommendation.rank !== index + 1) {
-      errors.push(`${label} rank must match its list position.`);
-    }
+    const components = [recommendation.aptitudeFit, recommendation.marketDemand, recommendation.financialFeasibility];
+    if (components.every((s) => s === null)) errors.push(`${label} has no supported component evidence.`);
+    const partial = components.some((s) => s === null);
+    const previous = list.recommendations[index - 1];
+    const expectedRank = partial ? null : previous && previous.alignmentScore === recommendation.alignmentScore ? previous.rank : index + 1;
+    if (recommendation.rank !== expectedRank) errors.push(`${label} must use its shared rank or null for a partial comparison.`);
+    if (partial && (recommendation.alignmentScore !== null || recommendation.status !== "incomplete" || !recommendation.incompleteReason)) errors.push(`${label} must be an explicitly unscored partial comparison.`);
+    if (!partial && recommendation.alignmentScore === null) errors.push(`${label} requires a total.`);
+    if (previous && previous.alignmentScore === null && !partial) errors.push(`${label} must precede unscored partial comparisons.`);
+    if (previous && recommendation.alignmentScore !== null && previous.alignmentScore !== null && previous.alignmentScore < recommendation.alignmentScore) errors.push(`${label} is out of score order.`);
+    if (previous && previous.alignmentScore === recommendation.alignmentScore && previous.careerPath.localeCompare(recommendation.careerPath, "en") > 0) errors.push(`${label} must use alphabetical tie order.`);
 
     const scoreFields = [
       ["alignmentScore", recommendation.alignmentScore],
@@ -231,8 +242,8 @@ export function validateRankedRecommendationList(
     ] as const;
 
     scoreFields.forEach(([fieldName, value]) => {
-      if (!isNormalizedScore(value)) {
-        errors.push(`${label} ${fieldName} must be between 0 and 1.`);
+      if (value !== null && !isAlignmentScore(value)) {
+        errors.push(`${label} ${fieldName} must be between 0 and 100 or null.`);
       }
     });
 

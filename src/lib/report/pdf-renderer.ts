@@ -183,9 +183,10 @@ class StyledReportPdf {
 
   private renderAcademicEvidence(): void {
     const evidence = this.payload.academicEvidence;
+    const completenessNote = evidence.completenessNote + " Scores compare supported options; they are not probabilities of career success." + (this.payload.rankedRecommendations.recommendations.filter((r) => r.rank !== null).length < 3 ? " Fewer than three scored paths are supported. Partial comparisons remain unscored." : "");
     const noteLines = Math.max(
       1,
-      wrapText(evidence.completenessNote, CONTENT_WIDTH - 32, 9).length,
+      wrapText(completenessNote, CONTENT_WIDTH - 32, 9).length,
     );
     const topPad = 20;
     const bottomPad = 14;
@@ -217,7 +218,7 @@ class StyledReportPdf {
       48,
     );
     this.drawParagraph(
-      evidence.completenessNote,
+      completenessNote,
       leftX,
       topY - documentsRowHeight - rowGap + 8,
       CONTENT_WIDTH - 32,
@@ -230,7 +231,8 @@ class StyledReportPdf {
   }
 
   private renderRecommendationOverview(): void {
-    const recommendations = this.payload.rankedRecommendations.recommendations.slice(0, 3);
+    const recommendations = this.payload.rankedRecommendations.recommendations.filter((r) => r.rank !== null).slice(0, 3);
+    if (recommendations.length === 0) return;
     const gap = SPACE_1;
     const cardWidth = (CONTENT_WIDTH - gap * 2) / 3;
 
@@ -294,8 +296,8 @@ class StyledReportPdf {
         font: "bold",
         size: 18,
       });
-      this.drawScoreBar(x + 58, scoreY - 4, cardWidth - 70, recommendation.alignmentScore);
-      this.drawText(recommendation.status.toUpperCase(), x + SPACE_1, scoreY - 17, {
+      this.drawScoreBar(x + SPACE_1, scoreY - 12, cardWidth - SPACE_1 * 2, recommendation.alignmentScore);
+      this.drawText(recommendation.status.toUpperCase(), x + SPACE_1, scoreY - 25, {
         color: statusColor(recommendation.status),
         font: "bold",
         size: 7,
@@ -307,9 +309,16 @@ class StyledReportPdf {
 
   private renderRecommendations(): void {
     this.addPage();
-    this.drawSectionLabel("Ranked Career Recommendations");
+    const partialOnly = this.payload.rankedRecommendations.recommendations.every((r) => r.rank === null);
+    this.drawSectionLabel(partialOnly ? "Unscored Partial Comparisons" : "Ranked Career Recommendations");
     this.y -= 4;
+    let partialHeadingShown = partialOnly;
     this.payload.rankedRecommendations.recommendations.forEach((recommendation) => {
+      if (recommendation.rank === null && !partialHeadingShown) {
+        this.addPage();
+        this.drawSectionLabel("Unscored Partial Comparisons");
+        partialHeadingShown = true;
+      }
       this.renderRecommendation(recommendation);
     });
   }
@@ -359,7 +368,7 @@ class StyledReportPdf {
     this.drawRoundedPanel(MARGIN_X, cardTop - cardHeight, CONTENT_WIDTH, cardHeight, [1, 1, 1]);
     this.drawRect(MARGIN_X, cardTop - headerHeight, CONTENT_WIDTH, headerHeight, SAGE_DARK);
 
-    this.drawText(`Recommendation ${recommendation.rank}`, MARGIN_X + 16, cardTop - 15, {
+    this.drawText(recommendation.rank === null ? "Unscored partial comparison" : `Recommendation ${recommendation.rank}`, MARGIN_X + 16, cardTop - 15, {
       color: [0.82, 0.92, 0.88],
       font: "bold",
       size: 7,
@@ -743,9 +752,9 @@ class StyledReportPdf {
     });
   }
 
-  private drawScoreBar(x: number, y: number, width: number, value: number): void {
+  private drawScoreBar(x: number, y: number, width: number, value: number | null): void {
     this.drawRect(x, y, width, 5, [0.9, 0.91, 0.92]);
-    this.drawRect(x, y, Math.max(0, Math.min(width, width * value)), 5, SAGE);
+    this.drawRect(x, y, Math.max(0, Math.min(width, width * (value ?? 0) / 100)), 5, SAGE);
   }
 
   private drawRoundedPanel(x: number, y: number, width: number, height: number, color: Rgb): void {
@@ -1183,8 +1192,8 @@ function formatAcquisitionMethod(method: string): string {
   return ACQUISITION_METHOD_LABELS[method] ?? method;
 }
 
-function formatPercent(value: number): string {
-  return `${Math.round(value * 100)}%`;
+function formatPercent(value: number | null): string {
+  return value === null ? "Unavailable" : `${value.toFixed(2)}%`;
 }
 
 function formatDate(value: string): string {

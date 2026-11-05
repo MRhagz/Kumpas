@@ -1,4 +1,6 @@
 import type { RankedRecommendationList } from "@/lib/report/types";
+import type { ApprovedProfile } from "@/types";
+import { InsufficientEvidenceError } from "./alignment-score-calculator";
 import type { AgentOutput } from "./types";
 import { synthesisInterpreter } from "./synthesis-interpreter";
 import { alignmentScoreCalculator } from "./alignment-score-calculator";
@@ -9,22 +11,26 @@ export class MetaAgentSynthesizer {
   async synthesize(
     sessionId: string,
     agentOutputs: AgentOutput[],
+    profile: ApprovedProfile,
+    approvedProfileVersion: number | null = null,
   ): Promise<RankedRecommendationList> {
-    const synthesis = await this.runSynthesisInterpreter(agentOutputs);
+    const synthesis = await this.runSynthesisInterpreter(agentOutputs, profile);
 
-    const scoredPaths = alignmentScoreCalculator.calculate(synthesis);
+    const scoredPaths = alignmentScoreCalculator.calculate(synthesis).filter((p) => p.aptitudeScore !== null || p.demandScore !== null || p.feasibilityScore !== null);
+
+    if (scoredPaths.length === 0) throw new InsufficientEvidenceError();
 
     const rankedPaths = await this.runRankingAgent(scoredPaths);
 
-    return rankedRecommendationBuilder.build(sessionId, rankedPaths, agentOutputs);
+    return rankedRecommendationBuilder.build(sessionId, rankedPaths, agentOutputs, approvedProfileVersion);
   }
 
-  private async runSynthesisInterpreter(agentOutputs: AgentOutput[]) {
+  private async runSynthesisInterpreter(agentOutputs: AgentOutput[], profile: ApprovedProfile) {
     try {
-      return await synthesisInterpreter.synthesize(agentOutputs);
+      return await synthesisInterpreter.synthesize(agentOutputs, profile);
     } catch (firstError) {
       console.warn("[MetaAgentSynthesizer] SynthesisInterpreter first attempt failed, retrying...", firstError);
-      return await synthesisInterpreter.synthesize(agentOutputs);
+      return await synthesisInterpreter.synthesize(agentOutputs, profile);
     }
   }
 
