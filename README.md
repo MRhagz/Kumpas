@@ -102,7 +102,7 @@ Install dependencies:
 npm install
 ```
 
-Create `.env.local` with the required project secrets:
+Copy `.env.example` to `.env.local` and fill the required project keys:
 
 ```bash
 NEXT_PUBLIC_SUPABASE_URL=
@@ -113,6 +113,10 @@ ACADEMIC_AUDITOR_API_KEY=
 INDUSTRY_ANALYST_API_KEY=
 FEASIBILITY_STRATEGIST_API_KEY=
 SYNTHESIS_API_KEY=
+GEMINI_GENERATION_MODEL=gemini-3.8-flash
+GEMINI_API_VERSION=v1beta
+EMBEDDING_MODEL=gemini-embedding-001
+EMBEDDING_DIMENSIONS=768
 REPORT_RETENTION_SECRET=
 ```
 
@@ -123,6 +127,17 @@ npm run dev
 ```
 
 Open [http://localhost:3000](http://localhost:3000).
+
+All five Gemini operation keys are required at server startup. Keep them in the
+same billing-enabled Google Cloud project. Generation and extraction use Gemini
+3.8 Flash; document/query embeddings retain `gemini-embedding-001` at 768 dimensions.
+Missing keys, unsupported model/API settings and insecure service URLs prevent
+startup. Supabase requires HTTPS; development permits HTTP only on loopback.
+Rebuild if changing `NEXT_PUBLIC_SUPABASE_URL`, which Next.js embeds at build time.
+Never prefix Gemini or privileged keys with `NEXT_PUBLIC_`.
+
+Provider settings, permitted data flows and verification limits are recorded in
+[SW-29 provider configuration](docs/sw29-provider-configuration.md).
 
 ---
 

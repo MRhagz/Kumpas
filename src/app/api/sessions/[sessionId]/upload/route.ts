@@ -71,10 +71,10 @@ export async function POST(
       piiCount,
       status: "complete",
     });
-  } catch (err) {
-    console.error(`[upload route] sessionId=${sessionId}`, err);
+  } catch {
+    console.error("[Upload processing] Request failed");
     return Response.json(
-      { error: err instanceof Error ? err.message : "Upload processing failed" },
+      { error: "Upload processing failed" },
       { status: 500 },
     );
   }

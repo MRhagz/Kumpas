@@ -1,9 +1,91 @@
-const DEFAULT_GENERATION_MODEL = "gemini-3.6-flash";
+import "server-only";
+
+import { GoogleGenAI, type GenerateContentResponse } from "@google/genai";
+import { assertEmbeddingConfiguration } from "./embedding-contract";
+
+const GENERATION_MODEL = "gemini-3.8-flash";
+const GEMINI_ORIGIN = "https://generativelanguage.googleapis.com";
+
+export function getGeminiApiVersion(): string {
+  const version = process.env.GEMINI_API_VERSION?.trim() ?? "v1beta";
+  if (version !== "v1beta") {
+    throw new AgentConfigurationError("GEMINI_API_VERSION must be v1beta.");
+  }
+  return version;
+}
 
 export function getGeminiGenerationModel(): string {
-  return (
-    process.env.GEMINI_GENERATION_MODEL?.trim() || DEFAULT_GENERATION_MODEL
-  );
+  const model = process.env.GEMINI_GENERATION_MODEL?.trim() ?? GENERATION_MODEL;
+  if (model !== GENERATION_MODEL) {
+    throw new AgentConfigurationError("GEMINI_GENERATION_MODEL must be gemini-3.8-flash.");
+  }
+  return model;
+}
+
+export function createGeminiClient(apiKey: string): GoogleGenAI {
+  return new GoogleGenAI({
+    apiKey: requireApiKey("Gemini", apiKey),
+    vertexai: false,
+    httpOptions: { baseUrl: GEMINI_ORIGIN, apiVersion: getGeminiApiVersion() },
+  });
+}
+
+export function getGeminiResponseText(response: GenerateContentResponse): string {
+  return (response.candidates?.[0]?.content?.parts ?? [])
+    .filter((part) => !part.thought)
+    .map((part) => part.text ?? "")
+    .join("");
+}
+
+export function validateProviderConfiguration(): void {
+  getGeminiGenerationModel();
+  getGeminiApiVersion();
+  assertEmbeddingConfiguration();
+  for (const name of [
+    "DOCUMENT_INTAKE_API_KEY", "ACADEMIC_AUDITOR_API_KEY",
+    "INDUSTRY_ANALYST_API_KEY", "FEASIBILITY_STRATEGIST_API_KEY", "SYNTHESIS_API_KEY",
+  ]) {
+    requireApiKey(name, process.env[name]);
+  }
+  for (const name of Object.keys(process.env)) {
+    if (/^NEXT_PUBLIC_.*(?:GEMINI|API_KEY|SERVICE_ROLE|SECRET)/.test(name)) {
+      throw new AgentConfigurationError("Provider and privileged credentials must not use NEXT_PUBLIC_ names.");
+    }
+  }
+  // Reflect prevents Next's optimizer from replacing this runtime check with the build value.
+  const raw = (Reflect.get(process.env, "NEXT_PUBLIC_SUPABASE_URL") as string | undefined)?.trim();
+  let url: URL;
+  try {
+    url = new URL(raw ?? "");
+  } catch {
+    throw new AgentConfigurationError("NEXT_PUBLIC_SUPABASE_URL must be a valid service URL.");
+  }
+  const local = process.env.NODE_ENV === "development" &&
+    ["localhost", "127.0.0.1", "[::1]"].includes(url.hostname);
+  if ((url.protocol !== "https:" && !(local && url.protocol === "http:")) ||
+      url.username || url.password || url.search || url.hash) {
+    throw new AgentConfigurationError("Supabase requires HTTPS; HTTP is allowed only on loopback in development.");
+  }
+  if (raw !== process.env.NEXT_PUBLIC_SUPABASE_URL?.trim()) {
+    throw new AgentConfigurationError("NEXT_PUBLIC_SUPABASE_URL changed since the build; rebuild before starting.");
+  }
+  requireApiKey("Supabase service", process.env.SUPABASE_SERVICE_ROLE_KEY);
+}
+
+// All image operations share the approved model, endpoint and header authentication.
+export async function requestGeminiImage(body: Record<string, unknown>): Promise<Response> {
+  const apiKey = requireApiKey("Document intake", process.env.DOCUMENT_INTAKE_API_KEY);
+  const url = `${GEMINI_ORIGIN}/${getGeminiApiVersion()}/models/${getGeminiGenerationModel()}:generateContent`;
+  try {
+    return await fetch(url, {
+      method: "POST",
+      redirect: "error",
+      headers: { "Content-Type": "application/json", "x-goog-api-key": apiKey },
+      body: JSON.stringify(body),
+    });
+  } catch {
+    throw new Error("Gemini image request failed.");
+  }
 }
 
 export function requireApiKey(

@@ -1,4 +1,4 @@
-import { GoogleGenAI } from "@google/genai";
+import { createGeminiClient } from "./gemini-config";
 import { isSourceAcquisitionMethod } from "@/lib/report/types";
 import {
   getGeminiGenerationModel,
@@ -139,11 +139,7 @@ function normalizeSourceReferences(
     const acquisitionMethod = String(ref?.acquisitionMethod ?? "").trim();
 
     if (!title || !reference || !isSourceAcquisitionMethod(acquisitionMethod)) {
-      console.warn("[SynthesisInterpreter] dropping invalid sourceReference", {
-        title,
-        reference,
-        acquisitionMethod,
-      });
+      console.warn("[SynthesisInterpreter] dropping invalid sourceReference");
       return acc;
     }
 
@@ -169,7 +165,7 @@ export class SynthesisInterpreter {
       "SynthesisInterpreter",
       process.env.SYNTHESIS_API_KEY,
     );
-    const ai = new GoogleGenAI({ apiKey });
+    const ai = createGeminiClient(apiKey);
 
     const result = await ai.models.generateContent({
       model: getGeminiGenerationModel(),

@@ -30,6 +30,7 @@ import re
 from dataclasses import dataclass
 
 import httpx
+from .config import require_https
 from bs4 import BeautifulSoup
 
 CHED_LEGACY_BASE = "https://legacy.ched.gov.ph"
@@ -73,6 +74,7 @@ class PublicationIndexChecker:
         self._client = client or httpx.Client(
             timeout=timeout,
             follow_redirects=True,
+            event_hooks={"request": [require_https]},
             headers={"User-Agent": "Kumpas-Ingestion/0.1 (+github-actions)"},
         )
 
@@ -86,6 +88,7 @@ class PublicationIndexChecker:
         return entries
 
     def _fetch_html(self, url: str) -> str:
+        require_https(httpx.Request("GET", url))
         try:
             response = self._client.get(url)
         except httpx.HTTPError as exc:

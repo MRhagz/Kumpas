@@ -1,4 +1,4 @@
-import { GoogleGenAI } from "@google/genai";
+import { createGeminiClient } from "./gemini-config";
 import {
   getGeminiGenerationModel,
   requireApiKey,
@@ -48,7 +48,7 @@ export class RankingAgent {
       "RankingAgent",
       process.env.SYNTHESIS_API_KEY,
     );
-    const ai = new GoogleGenAI({ apiKey });
+    const ai = createGeminiClient(apiKey);
 
     const result = await ai.models.generateContent({
       model: getGeminiGenerationModel(),

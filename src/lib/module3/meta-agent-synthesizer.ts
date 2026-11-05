@@ -22,8 +22,8 @@ export class MetaAgentSynthesizer {
   private async runSynthesisInterpreter(agentOutputs: AgentOutput[]) {
     try {
       return await synthesisInterpreter.synthesize(agentOutputs);
-    } catch (firstError) {
-      console.warn("[MetaAgentSynthesizer] SynthesisInterpreter first attempt failed, retrying...", firstError);
+    } catch {
+      console.warn("[MetaAgentSynthesizer] SynthesisInterpreter first attempt failed, retrying...");
       return await synthesisInterpreter.synthesize(agentOutputs);
     }
   }
@@ -31,8 +31,8 @@ export class MetaAgentSynthesizer {
   private async runRankingAgent(scoredPaths: Awaited<ReturnType<typeof alignmentScoreCalculator.calculate>>) {
     try {
       return await rankingAgent.generateReasoning(scoredPaths);
-    } catch (error) {
-      console.warn("[MetaAgentSynthesizer] RankingAgent failed, proceeding with placeholder reasoning", error);
+    } catch {
+      console.warn("[MetaAgentSynthesizer] RankingAgent failed, proceeding with placeholder reasoning");
       return scoredPaths.map((path) => ({
         ...path,
         reasoningSummary: "",

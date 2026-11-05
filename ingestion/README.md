@@ -29,8 +29,20 @@ shared services.
 | `SUPABASE_SERVICE_ROLE_KEY` | repository, logger | Supabase project settings (RLS-bypass key) |
 | `GEMINI_API_KEY` | embedding service | Google AI Studio |
 
-In GitHub Actions these come from repository secrets. Locally, set them in your
-shell or `.env` file (never commit).
+In GitHub Actions these come from repository secrets. Locally, export them in
+your shell using `ingestion/.env.example` as the template. Python does not
+automatically load `.env` files. Never commit actual credentials.
+
+`GEMINI_API_VERSION`, when set, must be `v1beta`. Embedding configuration remains
+`gemini-embedding-001` / 768 dimensions. Missing or whitespace-only keys,
+conflicting `SUPABASE_URL` and `NEXT_PUBLIC_SUPABASE_URL`, and non-HTTPS service
+URLs fail before pipeline work starts. For local Supabase only, `KUMPAS_ENV=development`
+permits HTTP on loopback. Public-source downloads always require HTTPS, including
+redirects; `file://` inputs remain local. Gemini authentication uses headers,
+and provider failure bodies are excluded from embedding exceptions.
+
+See [SW-29 provider configuration](../docs/sw29-provider-configuration.md) for the
+shared billing/account record and approved data boundaries.
 
 ## Adding a new pipeline
 

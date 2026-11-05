@@ -83,12 +83,12 @@ export async function POST(
         error: o.error,
       })),
     });
-  } catch (err) {
+  } catch {
     await sessionProgressTracker.markAnalysisFailed(sessionId);
 
-    console.error(`[analyze route] sessionId=${sessionId}`, err);
+    console.error("[Analysis] Request failed");
     return json(
-      { error: err instanceof Error ? err.message : "Analysis failed" },
+      { error: "Analysis failed" },
       { status: 500 },
     );
   }

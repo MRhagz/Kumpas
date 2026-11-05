@@ -70,7 +70,6 @@ export class AgentOperationError extends Error {
     this.name = "AgentOperationError";
     this.status = status;
     this.retryable = isTemporaryStatus(status);
-    this.cause = cause;
   }
 }
 
@@ -96,5 +95,5 @@ export function isRetryableError(error: unknown): boolean {
 }
 
 export function getPublicErrorMessage(error: unknown): string {
-  return error instanceof Error ? error.message : "Agent execution failed.";
+  return error instanceof AgentOperationError ? error.message : "Agent execution failed. Check server configuration.";
 }

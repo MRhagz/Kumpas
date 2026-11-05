@@ -4,17 +4,15 @@
  * POST /api/extract-notes
  * Body: FormData with `file` (image)
  *
- * Sends the image directly to Gemini 2.0 Flash Vision for reading
+ * Uses the configured Gemini image endpoint for reading
  * handwritten/typed counselor notes and structuring into 5 sections.
- * PII is excluded from the output via prompt instructions.
+ * Prompt instructions do not replace SW-05 image redaction.
  */
 
 import { type NextRequest } from "next/server";
 import { requireUser, unauthorizedResponse } from "@/lib/auth/api-auth";
 
-const GEMINI_API_KEY = process.env.DOCUMENT_INTAKE_API_KEY;
-const GEMINI_MODEL = "gemini-2.5-flash";
-const GEMINI_URL = `https://generativelanguage.googleapis.com/v1beta/models/${GEMINI_MODEL}:generateContent?key=${GEMINI_API_KEY}`;
+import { getGeminiResponseText, requestGeminiImage } from "@/lib/module3/gemini-config";
 
 const PROMPT = `You are a career counselor's assistant. You are given an image of handwritten or typed interview notes taken during a career counseling session with a student.
 
@@ -50,13 +48,6 @@ export async function POST(request: NextRequest) {
       return Response.json({ error: "Confirm that prepared notes exclude personal identifiers and confidential details" }, { status: 400 });
     }
 
-    if (!GEMINI_API_KEY) {
-      return Response.json(
-        { error: "DOCUMENT_INTAKE_API_KEY not configured" },
-        { status: 500 }
-      );
-    }
-
     const file = formData.get("file") as File | null;
 
     if (!file) {
@@ -72,43 +63,35 @@ export async function POST(request: NextRequest) {
     const mimeType = file.type || "image/jpeg";
 
     // Call Gemini Vision API with image + text prompt
-    const geminiResponse = await fetch(GEMINI_URL, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        contents: [
-          {
-            parts: [
-              { text: PROMPT },
-              {
-                inlineData: {
-                  mimeType,
-                  data: base64Data,
-                },
+    const geminiResponse = await requestGeminiImage({
+      contents: [
+        {
+          parts: [
+            { text: PROMPT },
+            {
+              inlineData: {
+                mimeType,
+                data: base64Data,
               },
-            ],
-          },
-        ],
-        generationConfig: {
-          temperature: 0.1,
-          maxOutputTokens: 4096,
-          responseMimeType: "application/json",
+            },
+          ],
         },
-      }),
+      ],
+      generationConfig: {
+        maxOutputTokens: 4096,
+        responseMimeType: "application/json",
+      },
     });
 
     if (!geminiResponse.ok) {
-      const errorText = await geminiResponse.text();
-      console.error("[extract-notes] Gemini API error:", errorText);
       return Response.json(
-        { error: "Gemini API request failed", details: errorText },
+        { error: "Gemini API request failed" },
         { status: 502 }
       );
     }
 
     const geminiData = await geminiResponse.json();
-    const rawText =
-      geminiData?.candidates?.[0]?.content?.parts?.[0]?.text ?? "";
+    const rawText = getGeminiResponseText(geminiData);
 
     // Parse the JSON response
     let parsed: Record<string, string>;
@@ -119,16 +102,19 @@ export async function POST(request: NextRequest) {
         .trim();
       parsed = JSON.parse(cleaned);
     } catch {
-      console.error("[extract-notes] Failed to parse Gemini response:", rawText);
       return Response.json(
-        { error: "Failed to parse AI response as JSON", raw: rawText },
+        { error: "Failed to parse AI response as JSON" },
         { status: 422 }
       );
     }
 
-    return Response.json(parsed);
-  } catch (err) {
-    console.error("[extract-notes] Unexpected error:", err);
+    return Response.json(Object.fromEntries(
+      ["careerGoal", "interests", "financial", "concerns", "impression"].map(
+        (key) => [key, typeof parsed?.[key] === "string" ? parsed[key] : "<p></p>"],
+      ),
+    ));
+  } catch {
+    console.error("[extract-notes] Request failed");
     return Response.json(
       { error: "Internal server error" },
       { status: 500 }

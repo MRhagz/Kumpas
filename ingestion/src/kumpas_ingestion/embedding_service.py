@@ -37,7 +37,6 @@ class EmbeddingService:
     def _embed_one(self, text: str, task_type: TaskType) -> list[float]:
         url = (
             f"{_BASE_URL}/{self._config.embedding_model}:embedContent"
-            f"?key={self._config.gemini_api_key}"
         )
         body = {
             "model": f"models/{self._config.embedding_model}",
@@ -46,12 +45,15 @@ class EmbeddingService:
             "outputDimensionality": self._config.embedding_dimensions,
         }
         try:
-            response = self._client.post(url, json=body)
+            response = self._client.post(
+                url, json=body, headers={"x-goog-api-key": self._config.gemini_api_key},
+                follow_redirects=False,
+            )
             response.raise_for_status()
             values = response.json()["embedding"]["values"]
-        except (httpx.HTTPError, ValueError, KeyError, TypeError) as exc:
+        except (httpx.HTTPError, ValueError, KeyError, TypeError):
             # Provider error bodies and request URLs may contain credentials or source content.
-            raise EmbeddingError("Gemini document embedding failed; check provider/configuration") from exc
+            raise EmbeddingError("Gemini document embedding failed; check provider/configuration") from None
         if not isinstance(values, list) or len(values) != self._config.embedding_dimensions:
             raise EmbeddingError(
                 f"Expected {self._config.embedding_dimensions}-dimensional document embedding"
