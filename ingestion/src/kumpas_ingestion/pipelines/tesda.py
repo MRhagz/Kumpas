@@ -13,8 +13,6 @@ from __future__ import annotations
 
 import argparse
 import csv
-import hashlib
-import json
 import os
 import re
 import sys
@@ -23,6 +21,7 @@ from contextlib import closing
 from datetime import date
 from decimal import Decimal
 from pathlib import Path
+from urllib.parse import quote
 
 from pydantic import BaseModel, ConfigDict, Field, HttpUrl, ValidationError, field_validator
 
@@ -109,10 +108,11 @@ class TESDARecord(BaseModel):
         return value
 
     @property
-    def program_index(self) -> int:
-        # Stable within the exact source reference, independent of CSV row order.
-        key = json.dumps([self.tesda_qualification_code, self.program_name]).encode("utf-8")
-        return int.from_bytes(hashlib.sha256(key).digest()[:4], "big") & 0x7FFF_FFFF
+    def source_url(self) -> str:
+        code = quote(self.tesda_qualification_code, safe="")
+        name = quote(self.program_name, safe="")
+        separator = "&" if "#" in self.source_reference else "#"
+        return f"{self.source_reference}{separator}tesda-program={code}/{name}"
 
     def to_embedding_text(self) -> str:
         return (
@@ -131,8 +131,8 @@ class TESDARecord(BaseModel):
         return ChunkInput(
             source_type=SOURCE_TYPE,
             silo_id=SiloId.PATH_FEASIBILITY,
-            source_url=self.source_reference,
-            chunk_index=self.program_index,
+            source_url=self.source_url,
+            chunk_index=0,
             content=self.to_embedding_text(),
             acquisition_method="manual_curation",
             official_source_url=self.official_source_url or (
@@ -175,7 +175,7 @@ def load_and_validate(csv_path: Path) -> list[TESDARecord]:
 
     records: list[TESDARecord] = []
     errors: list[str] = []
-    seen_keys: set[tuple[str, int]] = set()
+    seen_keys: set[str] = set()
 
     with csv_path.open(newline="", encoding="utf-8-sig") as fh:
         reader = csv.DictReader(fh, strict=True)
@@ -199,11 +199,11 @@ def load_and_validate(csv_path: Path) -> list[TESDARecord]:
                     errors.append(f"row {line_number}: {loc}: {err['msg']}")
                 continue
 
-            key = (record.source_reference, record.program_index)
+            key = record.source_url
             if key in seen_keys:
                 errors.append(
                     f"row {line_number}: tesda_qualification_code, program_name: "
-                    "duplicate program identity or chunk index within source_reference"
+                    "duplicate program identity within source_reference"
                 )
                 continue
             seen_keys.add(key)

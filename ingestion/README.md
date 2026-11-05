@@ -91,8 +91,8 @@ pip install -e ".[psa,pdf,tesda,dev]"
   re-embedding and the STD R03 retrieval evaluation.
 - Knowledge-base writes use the service-role key and bypass RLS by design;
   this code never runs inside a counselor session.
-- TESDA stores the official citation as `source_url` and derives the stable
-  `chunk_index` from qualification code and program name within that citation.
+- TESDA uses the official citation plus an encoded qualification code and
+  program name as its stable `source_url`.
   See the [semester CSV contract](data/tesda/README.md).
 
 ## SW-09 rollout and refresh behavior

@@ -43,7 +43,8 @@ class TESDATests(unittest.TestCase):
             self.assertEqual(row["source_type"], "tesda_manual")
             self.assertEqual(row["silo_id"], "path_feasibility")
             self.assertEqual(row["acquisition_method"], "manual_curation")
-            self.assertEqual(row["source_url"], SOURCE)
+            self.assertTrue(row["source_url"].startswith(f"{SOURCE}#tesda-program="))
+            self.assertEqual(row["chunk_index"], 0)
             self.assertEqual(row["official_source_url"], SOURCE)
             self.assertEqual(row["publication_date"], "2026-06-01")
             for field in ("program_name", "tesda_qualification_code", "provider_name", "location",
@@ -110,6 +111,17 @@ class TESDATests(unittest.TestCase):
                 self.assertEqual(tesda.run(self.csv), 1)
                 client.rpc.assert_not_called()
                 factory.assert_not_called()
+
+    def test_program_fragment_encodes_delimiters_and_preserves_source_fragment(self):
+        rows = semester_rows()
+        citation = f"{SOURCE}#page=2"
+        rows[0].update(source_reference=citation, official_source_url="",
+                       tesda_qualification_code="A/B", program_name="C # %")
+        write_csv(self.csv, rows)
+        chunk = tesda.load_and_validate(self.csv)[0].to_chunk_input()
+        self.assertEqual(chunk.source_url, f"{citation}&tesda-program=A%2FB/C%20%23%20%25")
+        self.assertEqual(chunk.source_metadata["source_reference"], citation)
+        self.assertEqual(chunk.official_source_url, citation)
 
     def test_unavailable_optional_provenance_stays_missing_and_numeric_spellings_are_stable(self):
         rows = semester_rows()

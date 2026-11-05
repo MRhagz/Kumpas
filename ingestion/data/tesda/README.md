@@ -27,9 +27,9 @@ legacy file on a code-only merge; existing knowledge records remain available.
 
 Use UTF-8 CSV with the specified headers. Leave unknown optional values blank.
 The validator checks syntax; the curator verifies that references are official and
-the records accurately reflect them. The exact reference is stored as `source_url`.
-The qualification code and program name determine a stable index within the source.
-Duplicate identities and index collisions are rejected before embedding.
+the records accurately reflect them. The citation plus an encoded qualification
+code and program name form the stable `source_url`. The exact citation remains in
+`source_reference`. Duplicate program identities within a source fail before embedding.
 
 From the repository root, validate without deployment credentials:
 
