@@ -11,6 +11,7 @@ from __future__ import annotations
 from pathlib import Path
 
 import httpx
+from .config import require_https
 
 
 class PDFDownloadError(RuntimeError):
@@ -26,7 +27,9 @@ class PDFDownloader:
     """
 
     def __init__(self, client: httpx.Client | None = None, timeout: float = 60.0) -> None:
-        self._client = client or httpx.Client(timeout=timeout, follow_redirects=True)
+        self._client = client or httpx.Client(
+            timeout=timeout, follow_redirects=True, event_hooks={"request": [require_https]}
+        )
 
     def download(self, url: str) -> bytes:
         if url.startswith("file://"):
@@ -40,6 +43,7 @@ class PDFDownloader:
         return location.read_bytes()
 
     def _read_http(self, url: str) -> bytes:
+        require_https(httpx.Request("GET", url))
         try:
             response = self._client.get(url)
         except httpx.HTTPError as exc:

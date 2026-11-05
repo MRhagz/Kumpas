@@ -1,4 +1,4 @@
-import { GoogleGenAI } from "@google/genai";
+import { createGeminiClient } from "./gemini-config";
 
 import {
   EMBEDDING_MODEL,
@@ -10,7 +10,7 @@ import {
 export class QueryEmbeddingService {
   async embed(query: string, apiKey: string): Promise<number[]> {
     assertEmbeddingConfiguration();
-    const ai = new GoogleGenAI({ apiKey });
+    const ai = createGeminiClient(apiKey);
 
     const result = await ai.models.embedContent({
       model: EMBEDDING_MODEL,

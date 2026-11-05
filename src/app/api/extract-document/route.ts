@@ -4,16 +4,15 @@
  * POST /api/extract-document
  * Body: FormData with `file` (image/pdf) and `docType` (ncae | form_137 | nat)
  *
- * Sends the image directly to Gemini 2.0 Flash Vision for extraction
- * and applies PII redaction on the structured output.
+ * Uses the configured Gemini image endpoint for extraction
+ * Image redaction before transmission is tracked separately in SW-05.
  */
 
 import { type NextRequest } from "next/server";
 import { requireUser, unauthorizedResponse } from "@/lib/auth/api-auth";
+import { selectExtractionData } from "@/lib/module3/provider-inputs";
 
-const GEMINI_API_KEY = process.env.DOCUMENT_INTAKE_API_KEY;
-const GEMINI_MODEL = "gemini-2.5-flash";
-const GEMINI_URL = `https://generativelanguage.googleapis.com/v1beta/models/${GEMINI_MODEL}:generateContent?key=${GEMINI_API_KEY}`;
+import { getGeminiResponseText, requestGeminiImage } from "@/lib/module3/gemini-config";
 
 /* ─── Prompt templates per document type ─── */
 
@@ -84,13 +83,6 @@ export async function POST(request: NextRequest) {
   if (!user) return unauthorizedResponse();
 
   try {
-    if (!GEMINI_API_KEY) {
-      return Response.json(
-        { error: "DOCUMENT_INTAKE_API_KEY not configured" },
-        { status: 500 }
-      );
-    }
-
     const formData = await request.formData();
     const file = formData.get("file") as File | null;
     const docType = formData.get("docType") as string | null;
@@ -116,43 +108,35 @@ export async function POST(request: NextRequest) {
     const mimeType = file.type || "image/jpeg";
 
     // Call Gemini Vision API with image + text prompt
-    const geminiResponse = await fetch(GEMINI_URL, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        contents: [
-          {
-            parts: [
-              { text: promptTemplate },
-              {
-                inlineData: {
-                  mimeType,
-                  data: base64Data,
-                },
+    const geminiResponse = await requestGeminiImage({
+      contents: [
+        {
+          parts: [
+            { text: promptTemplate },
+            {
+              inlineData: {
+                mimeType,
+                data: base64Data,
               },
-            ],
-          },
-        ],
-        generationConfig: {
-          temperature: 0.1,
-          maxOutputTokens: 4096,
-          responseMimeType: "application/json",
+            },
+          ],
         },
-      }),
+      ],
+      generationConfig: {
+        maxOutputTokens: 4096,
+        responseMimeType: "application/json",
+      },
     });
 
     if (!geminiResponse.ok) {
-      const errorText = await geminiResponse.text();
-      console.error("[extract-document] Gemini API error:", errorText);
       return Response.json(
-        { error: "Gemini API request failed", details: errorText },
+        { error: "Gemini API request failed" },
         { status: 502 }
       );
     }
 
     const geminiData = await geminiResponse.json();
-    const rawText =
-      geminiData?.candidates?.[0]?.content?.parts?.[0]?.text ?? "";
+    const rawText = getGeminiResponseText(geminiData);
 
     // Parse the JSON response
     let parsed: Record<string, unknown>;
@@ -163,19 +147,18 @@ export async function POST(request: NextRequest) {
         .trim();
       parsed = JSON.parse(cleaned);
     } catch {
-      console.error("[extract-document] Failed to parse Gemini response:", rawText);
       return Response.json(
-        { error: "Failed to parse AI response as JSON", raw: rawText },
+        { error: "Failed to parse AI response as JSON" },
         { status: 422 }
       );
     }
 
     // Wrap in the typed envelope
-    const result = { type: docType, data: parsed };
+    const result = selectExtractionData(docType, parsed);
 
     return Response.json(result);
-  } catch (err) {
-    console.error("[extract-document] Unexpected error:", err);
+  } catch {
+    console.error("[extract-document] Request failed");
     return Response.json(
       { error: "Internal server error" },
       { status: 500 }

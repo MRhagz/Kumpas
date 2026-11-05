@@ -1,4 +1,5 @@
-import { GoogleGenAI } from "@google/genai";
+import { selectAgentAnalysis } from "./provider-inputs";
+import { createGeminiClient } from "./gemini-config";
 import { AgentOperationError, runAgentStage } from "./agent-errors";
 import {
   getGeminiGenerationModel,
@@ -15,7 +16,6 @@ function buildQuery(profile: ApprovedProfile): string {
   const parts: string[] = [];
 
   parts.push(`Career goal: ${profile.counselorNotes.careerGoal}`);
-  parts.push(`Financial situation: ${profile.counselorNotes.financial}`);
 
   if (profile.academicData.ncae?.recommended_strand) {
     parts.push(`Recommended strand: ${profile.academicData.ncae.recommended_strand}`);
@@ -47,7 +47,6 @@ ${context || "No relevant scholarship or cost data retrieved."}
 Career Goal: ${profile.counselorNotes.careerGoal}
 Financial Situation: ${profile.counselorNotes.financial}
 Interests & Strengths: ${profile.counselorNotes.interests}
-Concerns & Red Flags: ${profile.counselorNotes.concerns}
 ${profile.academicData.form137?.gwa ? `GWA: ${profile.academicData.form137.gwa}` : ""}
 ${profile.academicData.nat?.composite_score ? `NAT Composite: ${profile.academicData.nat.composite_score}` : ""}
 
@@ -85,7 +84,7 @@ export class FeasibilityStrategistAgent {
       vectorStoreQueryService.query(AGENT_NAME, embedding),
     );
 
-    const ai = new GoogleGenAI({ apiKey: normalizedApiKey });
+    const ai = createGeminiClient(normalizedApiKey);
 
     const result = await runAgentStage(
       AGENT_NAME,
@@ -116,7 +115,7 @@ export class FeasibilityStrategistAgent {
     return {
       agentName: AGENT_NAME,
       status: "SUCCESS",
-      analysis: text,
+      analysis: selectAgentAnalysis(AGENT_NAME, text),
       retrievedChunks: chunks,
     };
   }

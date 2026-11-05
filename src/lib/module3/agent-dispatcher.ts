@@ -28,15 +28,15 @@ async function runWithRetry(
     return await fn();
   } catch (firstError) {
     if (!isRetryableError(firstError)) {
-      console.error(`[${agentName}] Non-retryable failure`, firstError);
+      console.error(`[${agentName}] Non-retryable failure`);
       return createFailedOutput(agentName, firstError);
     }
 
-    console.warn(`[${agentName}] First attempt failed, retrying...`, firstError);
+    console.warn(`[${agentName}] First attempt failed, retrying...`);
     try {
       return await fn();
     } catch (retryError) {
-      console.error(`[${agentName}] Retry failed`, retryError);
+      console.error(`[${agentName}] Retry failed`);
       return createFailedOutput(agentName, retryError);
     }
   }

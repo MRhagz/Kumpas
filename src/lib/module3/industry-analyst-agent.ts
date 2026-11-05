@@ -1,4 +1,5 @@
-import { GoogleGenAI } from "@google/genai";
+import { selectAgentAnalysis } from "./provider-inputs";
+import { createGeminiClient } from "./gemini-config";
 import { AgentOperationError, runAgentStage } from "./agent-errors";
 import {
   getGeminiGenerationModel,
@@ -46,7 +47,6 @@ ${context || "No relevant labor market data retrieved."}
 ## Student Profile Summary
 Career Goal: ${profile.counselorNotes.careerGoal}
 Interests & Strengths: ${profile.counselorNotes.interests}
-Financial Situation: ${profile.counselorNotes.financial}
 ${profile.academicData.ncae?.recommended_strand ? `Recommended Strand: ${profile.academicData.ncae.recommended_strand}` : ""}
 
 ## Instructions
@@ -83,7 +83,7 @@ export class IndustryAnalystAgent {
       vectorStoreQueryService.query(AGENT_NAME, embedding),
     );
 
-    const ai = new GoogleGenAI({ apiKey: normalizedApiKey });
+    const ai = createGeminiClient(normalizedApiKey);
 
     const result = await runAgentStage(AGENT_NAME, "analysis generation", () =>
       ai.models.generateContent({
@@ -111,7 +111,7 @@ export class IndustryAnalystAgent {
     return {
       agentName: AGENT_NAME,
       status: "SUCCESS",
-      analysis: text,
+      analysis: selectAgentAnalysis(AGENT_NAME, text),
       retrievedChunks: chunks,
     };
   }
