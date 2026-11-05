@@ -45,7 +45,7 @@ export default function ConfirmationApprovalBar({
             className={canApprove ? "animate-pulse group-hover:animate-spin" : ""}
           />
         )}
-        {isSubmitting ? "Preparing analysis…" : "Begin Multi Agent Analysis"}
+        {isSubmitting ? "Preparing analysis…" : "Approve Inputs and Begin Analysis"}
       </button>
       <p className="mt-3 text-center text-xs font-medium text-muted-text">
         {!documentsReady ? (

@@ -17,6 +17,8 @@ export type SessionNextStep =
 
 export interface SessionState {
   sessionId: string;
+  currentRunId?: string | null;
+  analysisRetryRequired?: boolean;
   status: Session["status"];
   expiresAt: string;
   lastActivity: string;
@@ -33,6 +35,7 @@ interface SessionStateRow {
   id: string;
   status: Session["status"];
   approved_profile: unknown | null;
+  current_run_id: string | null;
   module_status: unknown;
   report_status: ReportStatus;
   expires_at: string;
@@ -45,7 +48,7 @@ export class SessionStateManager {
     const { data: session, error } = await supabaseAdmin
       .from("sessions")
       .select(
-        "id, status, approved_profile, module_status, report_status, expires_at, last_activity, completed_at",
+        "id, status, approved_profile, module_status, report_status, expires_at, last_activity, completed_at, current_run_id",
       )
       .eq("id", sessionId)
       .maybeSingle();
@@ -61,13 +64,18 @@ export class SessionStateManager {
     const sessionRow = session as SessionStateRow;
     const moduleStatus = normalizeModuleStatus(sessionRow.module_status);
     const hasApprovedProfile = sessionRow.approved_profile !== null;
-    const hasRecommendations = await this.hasRankedRecommendations(sessionId);
+    const { data: run } = sessionRow.current_run_id ? await supabaseAdmin.from("analysis_runs")
+      .select("phase, deadline_at, recommendations").eq("run_id", sessionRow.current_run_id).single() : { data: null };
+    const analysisRetryRequired = !!run && (run.phase === "failed" || (run.phase !== "ready" && Date.parse(run.deadline_at) <= Date.now()));
+    const hasRecommendations = sessionRow.current_run_id ? !!run?.recommendations && !analysisRetryRequired : await this.hasRankedRecommendations(sessionId);
     const hasReport =
       sessionRow.report_status === "ready" ||
       sessionRow.report_status === "downloaded";
 
     return {
       sessionId: sessionRow.id,
+      currentRunId: sessionRow.current_run_id,
+      analysisRetryRequired,
       status: sessionRow.status,
       expiresAt: sessionRow.expires_at,
       lastActivity: sessionRow.last_activity,

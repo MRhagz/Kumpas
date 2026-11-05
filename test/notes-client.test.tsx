@@ -57,7 +57,7 @@ describe("F05 / S01 / S02 typed-only intake", () => {
     const interests = screen.getByRole("textbox", { name: "Personal Interests & Strengths (required)" });
     fireEvent.input(goal, { target: { innerHTML: "<p>Undecided</p>" } });
     fireEvent.input(interests, { target: { innerHTML: `<p>${scope}; mathematics PRIVATE-NOTE-ALPHA</p>` } });
-    const approve = screen.getByRole("button", { name: /Begin Multi Agent Analysis/ });
+    const approve = screen.getByRole("button", { name: /Approve Inputs and Begin Analysis/ });
     expect((approve as HTMLButtonElement).disabled).toBe(true);
     const review = screen.getByRole("checkbox", { name: /I have reviewed these notes/ });
     await user.click(review);

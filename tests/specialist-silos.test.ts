@@ -44,13 +44,18 @@ const profile: ApprovedProfile = {
   academicData: { ncae: { strand_scores: { STEM: 92 }, recommended_strand: "STEM" } },
 };
 
+function rpcResult(value: unknown) {
+  const response = Promise.resolve(value);
+  return Object.assign(response, { abortSignal: () => response });
+}
+
 beforeEach(() => {
   vi.clearAllMocks();
   vi.stubEnv("EMBEDDING_MODEL", "gemini-embedding-001");
   vi.stubEnv("EMBEDDING_DIMENSIONS", "768");
   boundary.embed.mockResolvedValue(vector);
   boundary.generate.mockResolvedValue({ text: '{"summary":"grounded analysis"}' });
-  boundary.rpc.mockImplementation(async (_name, args) => ({
+  boundary.rpc.mockImplementation((_name, args) => rpcResult({
     data: fixtures.filter((chunk) => chunk.silo_id === args.target_silo_id), error: null,
   }));
 });
@@ -86,14 +91,14 @@ describe("I05 specialist evidence isolation", () => {
 
   it.each(specialists)("%s rejects every foreign sentinel before generation", async (name, agent) => {
     for (const chunk of fixtures.filter((record) => record.silo_id !== AGENT_SILO_MAP[name])) {
-      boundary.rpc.mockResolvedValueOnce({ data: [chunk], error: null });
+      boundary.rpc.mockReturnValueOnce(rpcResult({ data: [chunk], error: null }));
       await expect(agent.analyze(profile, "test-key")).rejects.toThrow(/knowledge retrieval failed/);
     }
     expect(boundary.generate).not.toHaveBeenCalled();
   });
 
   it.each(specialists)("%s makes missing evidence explicit without generation", async (_name, agent) => {
-    boundary.rpc.mockResolvedValueOnce({ data: [], error: null });
+    boundary.rpc.mockReturnValueOnce(rpcResult({ data: [], error: null }));
     const result = await agent.analyze(profile, "test-key");
     expect(result.status).toBe("FAILED");
     expect(result.retrievedChunks).toEqual([]);
@@ -103,7 +108,7 @@ describe("I05 specialist evidence isolation", () => {
   });
 
   it("keeps TESDA in Path Feasibility and explicitly identifies missing CHED evidence", async () => {
-    boundary.rpc.mockResolvedValueOnce({ data: fixtures.filter((chunk) => chunk.source_type === "tesda_manual"), error: null });
+    boundary.rpc.mockReturnValueOnce(rpcResult({ data: fixtures.filter((chunk) => chunk.source_type === "tesda_manual"), error: null }));
     const result = await feasibilityStrategistAgent.analyze(profile, "test-key");
     expect(result.unavailableEvidence).toEqual(["ched_cmo: no relevant public evidence retrieved"]);
     expect(boundary.generate.mock.calls[0][0].contents).toContain(result.unavailableEvidence![0]);
@@ -130,13 +135,13 @@ describe("I05 specialist evidence isolation", () => {
     const good = fixtures[0];
     for (const bad of [null, { ...good, source_type: "dole_ble_lmi" },
       { ...good, embedding_model: "unverified" }, { ...good, embedding_dimensions: 3 }]) {
-      boundary.rpc.mockResolvedValueOnce({ data: [good, bad], error: null });
+      boundary.rpc.mockReturnValueOnce(rpcResult({ data: [good, bad], error: null }));
       await expect(vectorStoreQueryService.query("AcademicAuditor", vector)).rejects.toThrow(/unauthorized evidence/);
     }
   });
 
   it("propagates database failure without returning evidence", async () => {
-    boundary.rpc.mockResolvedValueOnce({ data: fixtures, error: { message: "database unavailable" } });
-    await expect(vectorStoreQueryService.query("AcademicAuditor", vector)).rejects.toThrow(/database unavailable/);
+    boundary.rpc.mockReturnValueOnce(rpcResult({ data: fixtures, error: { message: "database unavailable" } }));
+    await expect(vectorStoreQueryService.query("AcademicAuditor", vector)).rejects.toThrow(/Supabase knowledge retrieval unavailable/);
   });
 });

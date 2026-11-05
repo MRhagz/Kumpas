@@ -19,6 +19,8 @@ type AnalysisPageState =
   | { phase: "error"; message: string };
 
 interface SessionStateResponse {
+  currentRunId?: string | null;
+  analysisRetryRequired?: boolean;
   sessionId: string;
   nextStep: "input" | "analysis" | "report" | "complete" | "start-new-session";
   hasApprovedProfile: boolean;
@@ -72,7 +74,7 @@ function AnalysisContent() {
     }
   }, [sessionId]);
 
-  const generateReport = useCallback(async () => {
+  const generateReport = useCallback(async (runId: string) => {
     if (!sessionId) {
       throw new Error("No session ID found. Please start a new session.");
     }
@@ -80,7 +82,7 @@ function AnalysisContent() {
     const reportRes = await fetch("/api/reports", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ sessionId }),
+      body: JSON.stringify({ sessionId, runId }),
     });
     const reportBody = await reportRes.json();
 
@@ -93,7 +95,7 @@ function AnalysisContent() {
     setState({ phase: "reportReady", report: reportBody });
   }, [sessionId]);
 
-  const runPipeline = useCallback(async () => {
+  const runPipeline = useCallback(async (retry = false) => {
     if (!sessionId) {
       setState({ phase: "error", message: "No session ID found. Please start a new session." });
       return;
@@ -135,13 +137,20 @@ function AnalysisContent() {
         return;
       }
 
-      if (sessionState.hasRecommendations || sessionState.nextStep === "report") {
-        await generateReport();
+      if (!retry && sessionState.analysisRetryRequired) {
+        throw new Error("The previous analysis stopped. Your approved inputs are saved. Retry analysis or return to Confirm Information.");
+      }
+
+      if (sessionState.reportStatus === "ready" || (!retry && (sessionState.hasRecommendations || sessionState.nextStep === "report"))) {
+        if (!sessionState.currentRunId) throw new Error("Return to Confirm Information and approve inputs to start a timed analysis.");
+        await generateReport(sessionState.currentRunId);
         return;
       }
 
       const res = await fetch(`/api/sessions/${sessionId}/analyze`, {
         method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(retry ? { retryRunId: sessionState.currentRunId } : {}),
       });
 
       if (!res.ok) {
@@ -149,6 +158,7 @@ function AnalysisContent() {
         throw new Error(body.error || `Analysis failed (${res.status})`);
       }
 
+      const analysis = await res.json();
       markStages([
         "documentParsing", "notesParsing", "transcriptionLayer",
         "feasibility", "laborMarket", "jobDemand",
@@ -161,7 +171,7 @@ function AnalysisContent() {
       ]);
       await new Promise((r) => setTimeout(r, 600));
 
-      await generateReport();
+      await generateReport(analysis.runId);
     } catch (err) {
       setState({
         phase: "error",
@@ -199,9 +209,9 @@ function AnalysisContent() {
           message={state.message}
           onRetry={() => {
             hasRun.current = false;
-            runPipeline();
+            runPipeline(true);
           }}
-          onBack={() => router.push("/")}
+          onBack={() => router.push(`/input?session=${encodeURIComponent(sessionId ?? "")}`)}
         />
       )}
       {state.phase === "reportReady" && (

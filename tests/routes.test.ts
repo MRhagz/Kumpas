@@ -76,7 +76,7 @@ beforeEach(() => {
   m.getUser.mockResolvedValue({ data: { user: owner }, error: null });
   m.rpc.mockResolvedValue({ data: "active", error: null });
   m.maybeSingle.mockResolvedValue({ data: { counselor_id: ownerId, status: "active", expires_at: "2099-01-01" }, error: null });
-  m.from.mockReturnValue({ select: () => ({ eq: () => ({ maybeSingle: m.maybeSingle }) }) });
+  m.from.mockReturnValue({ select: () => ({ eq: () => ({ maybeSingle: m.maybeSingle, single: m.maybeSingle }) }) });
 });
 describe("F01/I03 protected route inventory", () => {
   it("inventories every exported API handler, including maintenance", () => {

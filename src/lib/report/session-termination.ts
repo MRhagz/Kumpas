@@ -33,8 +33,11 @@ export class SessionTerminationHandler {
     const warn = options.warn ?? this.warn;
     let reportPdfPurged = true;
     let sessionRowsPurged = true;
-    let sessionScrubbed = true;
+    const sessionScrubbed = true;
     let redactedImagesPurged = 0;
+
+    // Revoke first so a late provider/PDF result cannot publish during cleanup.
+    await this.scrubSession(sessionId, terminalStatus);
 
     try {
       await pdfFileStore.deleteReportPdf(sessionId);
@@ -78,16 +81,7 @@ export class SessionTerminationHandler {
       warn(`[SessionTerminationHandler] sessionId=${sessionId}: ${message}`);
     }
 
-    try {
-      await this.scrubSession(sessionId, terminalStatus);
-    } catch (error) {
-      sessionScrubbed = false;
-      const message =
-        error instanceof Error ? error.message : "Failed to scrub session.";
 
-      warnings.push(message);
-      warn(`[SessionTerminationHandler] sessionId=${sessionId}: ${message}`);
-    }
 
     return {
       sessionId,
@@ -141,6 +135,8 @@ export class SessionTerminationHandler {
   }
 
   private async purgeSessionRows(sessionId: string): Promise<void> {
+    await this.deleteRows("profile_versions", { session_id: sessionId });
+    await this.deleteRows("report_versions", { session_id: sessionId });
     await this.deleteRows("ranked_recommendations", {
       session_id: sessionId,
     });
