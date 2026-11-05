@@ -1,0 +1,11 @@
+period,occupation_major_group,sector,region,employed_thousands
+2026-Q5,Managers,Services,Philippines,10
+2026-Q1, ,Services,Philippines,10
+2026-Q1,Professionals, ,Philippines,10
+2026-Q1,Professionals,Services, ,10
+2026-Q1,Professionals,Services,Philippines,NaN
+2026-Q1,Professionals,Services,Philippines,Infinity
+2026-Q1,Professionals,Services,Philippines,0
+2026-Q1,Professionals,Services,Philippines,-1
+2026-Q1,Professionals,Services,Philippines,invalid
+2026-Q1,Professionals,Services,Philippines,
