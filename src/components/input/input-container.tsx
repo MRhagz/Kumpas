@@ -20,7 +20,9 @@ import {
   Info,
   PenLine,
 } from "lucide-react";
-import WysiwygField from "./wysiwyg-field";
+import SessionNotesForm from "./session-notes-form";
+import ProcessingNotice from "./processing-notice";
+import { requiredNotesFilled } from "@/lib/notes-validation";
 import DocumentUploadPanel from "./document-upload-panel";
 import ExtractionResultsPanel from "./extraction-results-panel";
 import EditableFieldForm from "./editable-field-form";
@@ -55,7 +57,7 @@ const GUIDE = [
     title: "Section 1 — Career Goal",
     bullets: [
       "What course or career does the student want to pursue?",
-      "Why do they want this? Write their exact words.",
+      "Why do they want this? Include relevant details without identifiers.",
       "How certain are they?",
       "Do they have a backup plan?",
     ],
@@ -105,54 +107,6 @@ interface SessionStateResponse {
   nextStep: "input" | "analysis" | "report" | "complete" | "start-new-session";
 }
 
-const SECTIONS_CONFIG = [
-  {
-    key: "careerGoal" as const,
-    label: "Career Goal",
-    icon: Target,
-    iconBg: "#dcfce7",
-    iconFg: "#166534",
-    labelColor: "#166534",
-    ph: "Start typing the student's career goal here…",
-  },
-  {
-    key: "interests" as const,
-    label: "Personal Interests & Strengths",
-    icon: Heart,
-    iconBg: "#fef08a",
-    iconFg: "#854d0e",
-    labelColor: "#b45309",
-    ph: "Describe the student's interests and natural strengths…",
-  },
-  {
-    key: "financial" as const,
-    label: "Family & Financial Situation",
-    icon: Wallet,
-    iconBg: "#ecfccb",
-    iconFg: "#3f6212",
-    labelColor: "#3f6212",
-    ph: "Note the family support situation and any financial constraints…",
-  },
-  {
-    key: "concerns" as const,
-    label: "Concerns & Red Flags",
-    icon: Flag,
-    iconBg: "#fee2e2",
-    iconFg: "#991b1b",
-    labelColor: "#b91c1c",
-    ph: "Flag any mismatches or concerns you observed…",
-  },
-  {
-    key: "impression" as const,
-    label: "Counselor's Overall Impression",
-    icon: MessageSquare,
-    iconBg: "#d1fae5",
-    iconFg: "#065f46",
-    labelColor: "#065f46",
-    ph: "Write your overall impression of the student…",
-  },
-] as const;
-
 interface SlotFileEntry {
   file: File;
   processingState: DocumentProcessingState;
@@ -195,6 +149,8 @@ export default function InputContainer() {
   const [imageSectionsReady, setImageSectionsReady] = useState(false);
   const [imageSectionHtml, setImageSectionHtml] = useState<ExtractedNotes>(EMPTY_NOTES);
   const [manualSectionHtml, setManualSectionHtml] = useState<ExtractedNotes>(EMPTY_NOTES);
+  const [processingConfirmed, setProcessingConfirmed] = useState(false);
+  const [notesReviewed, setNotesReviewed] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
 
   const sectionHtml = activeTab === "image" ? imageSectionHtml : manualSectionHtml;
@@ -267,6 +223,15 @@ export default function InputContainer() {
     };
   }, [resumableSessionId, router]);
 
+  const updateManualNotes = (notes: ExtractedNotes) => {
+    setNotesReviewed(false);
+    setManualSectionHtml(notes);
+  };
+  const updateImageNotes = (notes: ExtractedNotes) => {
+    setNotesReviewed(false);
+    setImageSectionHtml(notes);
+  };
+
   const tabHasData = (tab: InputMode) => {
     if (tab === "image")
       return !!(notesFile || Object.values(imageSectionHtml).some((v) => v.trim() !== ""));
@@ -276,6 +241,7 @@ export default function InputContainer() {
   const handleTabChange = (newTab: string) => {
     const target = newTab as InputMode;
     if (target === activeTab) return;
+    setNotesReviewed(false);
     if (tabHasData(activeTab)) {
       setPendingTab(target);
       setShowSwitchDialog(true);
@@ -285,6 +251,7 @@ export default function InputContainer() {
   };
 
   const resetImageState = () => {
+    setNotesReviewed(false);
     setNotesFile(null);
     setScanning(false);
     setScanError(null);
@@ -302,12 +269,15 @@ export default function InputContainer() {
   };
 
   const extractSections = async (file: File) => {
+    if (!processingConfirmed) return;
+    setNotesReviewed(false);
     setScanning(true);
     setScanError(null);
     setImageSectionsReady(false);
     try {
       const fd = new FormData();
       fd.append("file", file);
+      fd.append("notesReviewed", "true");
       const res = await fetch("/api/extract-notes", { method: "POST", body: fd });
       if (!res.ok) {
         const e = await res.json().catch(() => ({}));
@@ -338,6 +308,7 @@ export default function InputContainer() {
       resetImageState();
       return;
     }
+    if (!processingConfirmed) return;
     if (!f.type.startsWith("image/")) {
       toast.error("Invalid file type", { position: "top-center" });
       return;
@@ -430,7 +401,7 @@ export default function InputContainer() {
   }, []);
 
   const handleApprove = async () => {
-    if (!sessionId) return;
+    if (!sessionId || !processingConfirmed || !notesReviewed || !requiredNotesFilled(sectionHtml)) return;
     setIsSubmitting(true);
     try {
       const corrections: CorrectionLog[] = [];
@@ -484,6 +455,7 @@ export default function InputContainer() {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
+          notesReviewed,
           counselorNotes: {
             careerGoal: sectionHtml.careerGoal,
             interests: sectionHtml.interests,
@@ -527,6 +499,7 @@ export default function InputContainer() {
         <SessionProgressIndicator sessionId={sessionId} fallbackStep="upload" />
       </div>
 
+      <ProcessingNotice confirmed={processingConfirmed} onConfirm={setProcessingConfirmed} />
       <div className="overflow-hidden rounded-2xl border border-black/[0.06] bg-cream-light shadow-card">
         {/* Part 1: Counselor Notes */}
         <div className="p-6 sm:p-8">
@@ -621,6 +594,8 @@ export default function InputContainer() {
             </TabsList>
 
             <TabsContent value="image" className="mt-0">
+              <fieldset disabled={!processingConfirmed}>
+              {!processingConfirmed && <p className="mb-3 text-sm">Read and confirm the processing notice before uploading.</p>}
               {!notesFile ? (
                 <div
                   className={`relative flex flex-col items-center justify-center rounded-2xl border-2 border-dashed px-6 py-12 text-center cursor-pointer transition-all animate-fade-in ${
@@ -761,29 +736,15 @@ export default function InputContainer() {
                         then try again.
                       </div>
                     )}
-                    {imageSectionsReady &&
-                      SECTIONS_CONFIG.map((s) => (
-                        <WysiwygField
-                          key={s.key}
-                          label={s.label}
-                          icon={<s.icon size={12} />}
-                          iconBg={s.iconBg}
-                          iconFg={s.iconFg}
-                          labelColor={s.labelColor}
-                          placeholder={s.ph}
-                          htmlValue={imageSectionHtml[s.key]}
-                          onChange={(h) =>
-                            setImageSectionHtml((prev) => ({ ...prev, [s.key]: h }))
-                          }
-                        />
-                      ))}
+                    {imageSectionsReady && <SessionNotesForm value={imageSectionHtml} onChange={updateImageNotes} />}
                   </div>
                 </>
               )}
+              </fieldset>
             </TabsContent>
 
             <TabsContent value="manual" className="mt-0">
-              <EditableFieldForm value={manualSectionHtml} onChange={setManualSectionHtml} />
+              <EditableFieldForm value={manualSectionHtml} onChange={updateManualNotes} />
             </TabsContent>
           </Tabs>
         </div>
@@ -791,7 +752,7 @@ export default function InputContainer() {
         <hr className="border-t border-black/[0.06]" />
 
         {/* Part 2: DocumentUploadPanel */}
-        {sessionId ? (
+        {sessionId && processingConfirmed ? (
           <DocumentUploadPanel
             sessionId={sessionId}
             slots={{
@@ -822,7 +783,7 @@ export default function InputContainer() {
           />
         ) : (
           <div className="p-6 sm:p-8 flex items-center gap-2 text-muted-text text-[13px]">
-            <Loader2 size={16} className="animate-spin" /> Initializing session…
+            {sessionId ? "Read and confirm the processing notice to enable optional academic uploads." : <><Loader2 size={16} className="animate-spin" /> Initializing session…</>}
           </div>
         )}
 
@@ -834,11 +795,12 @@ export default function InputContainer() {
         )}
 
         {/* Part 3: ConfirmationApprovalBar */}
-        {sessionId && (
+        {sessionId && processingConfirmed && (
           <ConfirmationApprovalBar
             documentsReady={SLOT_KEYS.every((slot) => slotEntries[slot].every((entry) => entry.processingState.step === "complete"))}
             notes={sectionHtml}
-            sessionId={sessionId}
+            notesReviewed={notesReviewed}
+            onNotesReviewedChange={setNotesReviewed}
             isSubmitting={isSubmitting}
             onApprove={handleApprove}
           />

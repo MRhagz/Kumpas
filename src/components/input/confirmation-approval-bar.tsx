@@ -1,41 +1,36 @@
 "use client";
 
+import { requiredNotesFilled } from "@/lib/notes-validation";
 import { Sparkles, Loader2 } from "lucide-react";
 import type { ExtractedNotes } from "@/lib/analysis-types";
 
-function stripHtml(html: string): string {
-  return html.replace(/<[^>]*>/g, "").trim();
-}
-
-function allFieldsFilled(notes: ExtractedNotes): boolean {
-  return (
-    stripHtml(notes.careerGoal).length > 0 &&
-    stripHtml(notes.interests).length > 0 &&
-    stripHtml(notes.financial).length > 0 &&
-    stripHtml(notes.concerns).length > 0 &&
-    stripHtml(notes.impression).length > 0
-  );
-}
-
 interface ConfirmationApprovalBarProps {
   notes: ExtractedNotes;
-  sessionId: string;
+  notesReviewed: boolean;
+  onNotesReviewedChange: (reviewed: boolean) => void;
   isSubmitting: boolean;
-  documentsReady: boolean;
+  documentsReady?: boolean;
   onApprove: () => void;
 }
 
 export default function ConfirmationApprovalBar({
   notes,
-  sessionId: _sessionId,
+  notesReviewed,
+  onNotesReviewedChange,
   isSubmitting,
-  documentsReady,
+  documentsReady = true,
   onApprove,
 }: ConfirmationApprovalBarProps) {
-  const filled = allFieldsFilled(notes);
-  const canApprove = filled && documentsReady && !isSubmitting;
+  const filled = requiredNotesFilled(notes);
+  const canApprove = filled && notesReviewed && documentsReady && !isSubmitting;
   return (
     <div className="px-6 pb-6 sm:px-8 sm:pb-8">
+      <label className="mb-4 flex items-start gap-2 text-sm text-charcoal-2">
+        <input type="checkbox" checked={notesReviewed} disabled={isSubmitting}
+          onChange={(event) => onNotesReviewedChange(event.target.checked)} />
+        I have reviewed these notes and confirm that they exclude personal identifiers
+        and confidential details. I am submitting only a prepared career-guidance summary.
+      </label>
       <button
         type="button"
         disabled={!canApprove}
@@ -56,7 +51,9 @@ export default function ConfirmationApprovalBar({
         {!documentsReady ? (
           "Wait for selected documents to finish, or replace or remove failed uploads."
         ) : !filled ? (
-          "Fill in all five session note fields to enable analysis"
+          "Enter Career Goal (Undecided is valid) and Personal Interests and Strengths to enable analysis"
+        ) : !notesReviewed ? (
+          "Confirm your review of the notes before analysis"
         ) : (
           <span className="text-sage">All inputs ready. Click above to begin the analysis.</span>
         )}

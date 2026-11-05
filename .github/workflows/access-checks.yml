@@ -1,0 +1,44 @@
+name: Counselor access checks
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+permissions:
+  contents: read
+
+jobs:
+  access:
+    runs-on: ubuntu-latest
+    env:
+      NEXT_PUBLIC_SUPABASE_URL: https://example.supabase.co
+      NEXT_PUBLIC_SUPABASE_ANON_KEY: sw01-public-test-key
+      SUPABASE_SERVICE_ROLE_KEY: SW01_SERVER_SECRET_SENTINEL_DO_NOT_EXPOSE
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci --ignore-scripts --no-audit --no-fund
+      - run: npm run test:access
+      - run: npm run lint:access
+      - run: node node_modules/typescript/bin/tsc --noEmit --pretty false
+      - run: npm run build
+      - name: Check browser output for the server-only sentinel
+        shell: bash
+        run: |
+          if grep -R -l -F "$SUPABASE_SERVICE_ROLE_KEY" .next/static; then
+            echo "Server credential sentinel found in browser output"
+            exit 1
+          fi
+      - name: Check actual HTTP denial and login redirects
+        shell: bash
+        run: |
+          node node_modules/next/dist/bin/next start --hostname 127.0.0.1 --port 3117 > "$RUNNER_TEMP/kumpas-server.log" 2>&1 &
+          for attempt in {1..30}; do
+            if curl --fail --silent http://127.0.0.1:3117/login > /dev/null; then break; fi
+            sleep 1
+          done
+          npm run smoke:access

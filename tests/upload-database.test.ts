@@ -53,9 +53,9 @@ const setup = `create schema storage; create table storage.buckets (id text prim
   create table extraction_results (id uuid primary key, session_id uuid not null, counselor_id uuid not null,
     document_type text not null, structured_data jsonb not null, raw_gemini_response jsonb,
     redacted_image_path text, created_at timestamptz default now());`;
-beforeAll(async () => { connection.db = new PGlite(); await connection.db.exec(setup); await connection.db.exec(migration); });
+beforeAll(async () => { connection.db = new PGlite(); await connection.db.exec(setup); await connection.db.exec(migration); }, 30_000);
 beforeEach(async () => { await connection.db!.exec("delete from extraction_results"); });
-afterAll(async () => { await connection.db!.close(); vi.unstubAllGlobals(); });
+afterAll(async () => { await connection.db!.close(); vi.unstubAllGlobals(); }, 30_000);
 
 async function seed() {
   await connection.db!.query(`insert into extraction_results (id,session_id,counselor_id,document_type,structured_data,redacted_image_path)

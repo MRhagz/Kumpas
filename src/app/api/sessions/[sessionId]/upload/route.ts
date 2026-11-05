@@ -45,7 +45,7 @@ export async function POST(
     // DocumentStorageService: persist redacted image to kumpas-documents bucket
     const docId = randomUUID();
     redactedPath = await documentStorageService.storeRedacted(redactedBuffer, sessionId, docId);
-    const redactedImageUrl = await documentStorageService.retrieveRedacted(redactedPath);
+    const redactedImageUrl = `/api/sessions/${encodeURIComponent(sessionId)}/documents/${docId}`;
     await sessionInitializationService.updateLastActivity(sessionId);
 
     // GeminiExtractionService: structured extraction from the redacted image

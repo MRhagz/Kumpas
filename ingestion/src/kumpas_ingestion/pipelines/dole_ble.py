@@ -24,9 +24,8 @@ present, is preserved in source_metadata so the counselor-facing
 freshness display can show the official BLE source URL even though the
 runner only saw a local file.
 
-Stale rows: this pipeline never deletes. Removing a PDF from the
-directory does not remove its chunks from the silo — manual cleanup is
-expected for MVP, matching Modules 1.1 and 1.3.
+Successful publications replace their earlier chunks atomically. Failed or absent
+publications retain their last valid records.
 """
 
 from __future__ import annotations
@@ -37,12 +36,13 @@ import sys
 from pathlib import Path
 from typing import Iterable
 
+from pydantic import ValidationError
 from supabase import create_client
 
 from ..config import IngestionConfig
 from ..embedding_service import EmbeddingService
 from ..ingestion_logger import IngestionLogger
-from ..models import ChunkInput, KnowledgeChunk
+from ..models import ChunkInput
 from ..pdf_downloader import PDFDownloader, PDFDownloadError
 from ..pdf_text_extractor import PDFTextExtractionError, PDFTextExtractor
 from ..silos import SiloId
@@ -114,11 +114,14 @@ def _build_chunks(
             base_metadata[key] = value.strip()
     return [
         ChunkInput(
+            source_type=SOURCE_TYPE,
             silo_id=SiloId.LIVE_LABOR_DEMAND,
             source_url=source_url,
             chunk_index=index,
             content=text,
             acquisition_method="operator_curated_pdf",
+            official_source_url=source_url if sidecar.get("source_url") else None,
+            publication_date=sidecar.get("publication_date") or None,
             source_metadata=base_metadata,
         )
         for index, text in enumerate(chunks)
@@ -163,12 +166,10 @@ def run() -> int:
         return 1
 
     if not pdfs:
-        log_id = logger.record(
+        logger.record(
             run_status="no_op",
             run_metadata={"directory": str(directory)},
         )
-        repository = VectorStoreRepository(supabase)
-        repository.update_ingestion_metadata(SOURCE_TYPE, log_id)
         print(f"No PDFs found in {directory}. Logging no-op.")
         return 0
 
@@ -183,7 +184,7 @@ def run() -> int:
     for pdf_path in pdfs:
         try:
             chunks = _process_pdf(pdf_path, downloader, extractor, cleaner)
-        except (PDFDownloadError, PDFTextExtractionError, DoleBleIngestionError) as exc:
+        except (PDFDownloadError, PDFTextExtractionError, DoleBleIngestionError, ValidationError) as exc:
             failures.append((pdf_path.name, str(exc)))
             continue
         aggregated.extend(chunks)
@@ -205,60 +206,19 @@ def run() -> int:
         )
         return 1
 
-    diff = repository.diff(aggregated)
-    needs_embedding = diff.to_insert + diff.to_update
-    print(
-        f"DOLE BLE diff: {len(diff.to_insert)} new, {len(diff.to_update)} changed, "
-        f"{len(diff.to_skip)} unchanged"
-    )
-
-    if not needs_embedding:
-        log_id = logger.record(
-            run_status="no_op",
-            run_metadata={
-                "files_processed": len(processed),
-                "files_failed": len(failures),
-                "skipped_unchanged": len(diff.to_skip),
-            },
-        )
-        repository.update_ingestion_metadata(SOURCE_TYPE, log_id)
-        return 0
-
     embedding_service = EmbeddingService(cfg)
     try:
-        vectors = embedding_service.embed_documents(
-            [c.content for c in needs_embedding]
+        repository.refresh(
+            aggregated, SOURCE_TYPE, embedding_service, logger.prepare(run_metadata={
+                "files_processed": len(processed), "files_failed": len(failures),
+            })
         )
+    except Exception as exc:
+        logger.record(run_status="failure", error_message=f"DOLE refresh failed: {exc}")
+        return 1
     finally:
         embedding_service.close()
 
-    knowledge_chunks: list[KnowledgeChunk] = [
-        KnowledgeChunk(
-            silo_id=chunk.silo_id,
-            source_url=chunk.source_url,
-            chunk_index=chunk.chunk_index,
-            content=chunk.content,
-            content_hash=chunk.content_hash,
-            embedding=vector,
-            acquisition_method=chunk.acquisition_method,
-            source_metadata=chunk.source_metadata,
-        )
-        for chunk, vector in zip(needs_embedding, vectors, strict=True)
-    ]
-
-    written = repository.write(knowledge_chunks)
-    log_id = logger.record(
-        run_status="success",
-        records_upserted=written,
-        run_metadata={
-            "files_processed": len(processed),
-            "files_failed": len(failures),
-            "inserted": len(diff.to_insert),
-            "updated": len(diff.to_update),
-            "skipped_unchanged": len(diff.to_skip),
-        },
-    )
-    repository.update_ingestion_metadata(SOURCE_TYPE, log_id)
     return 0
 
 
