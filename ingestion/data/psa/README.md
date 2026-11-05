@@ -37,30 +37,50 @@ ingestion — only the delivery path is manual.
 
 | column | type | rule |
 | --- | --- | --- |
-| `period` | string | reporting period, e.g. `2024-Q4` |
+| `period` | string | quarterly reporting period, `YYYY-Q1` through `YYYY-Q4` (legacy `YYYYQn` also accepted) |
 | `occupation_major_group` | string | PSOC 1-digit major group name |
 | `sector` | string | typically `Agriculture`, `Industry`, or `Services` |
 | `region` | string | `Philippines` for national totals, or a specific region |
-| `employed_thousands` | number | `> 0`; persons employed, in thousands |
+| `employed_thousands` | number | finite and `> 0`; persons employed, in thousands; decimal precision retained |
 
 The pipeline reads exactly these column names. The uniqueness key
 for upserts is `(period, occupation_major_group, sector, region)`.
-Two rows with the same tuple in the same CSV cause that row to be
-skipped (not a hard failure — the rest of the run continues).
+At least ten unique valid records are required. Missing columns, duplicate
+headers/keys, malformed CSV structure, invalid quarters, blank required fields,
+and invalid employment values reject the **entire batch** before embedding or
+knowledge writes. Errors identify the batch, row, and field where applicable.
+Extra columns are excluded from the knowledge payload. Only public aggregate
+government statistics belong here; never commit student/session content.
 
 ## Local testing
 
 ```bash
-cd /home/milleza/projects/Kumpas
-set -a && source .env.local && set +a
+python -m pip install -e './ingestion[psa]'
 export PSA_OPENSTAT_URL="file://$PWD/ingestion/data/psa/sample_lfs.csv"
-cd ingestion && .venv/bin/python -m kumpas_ingestion.pipelines.psa
+export PSA_SOURCE_URL="https://openstat.psa.gov.ph/" # use the exact official table URL
+# Set PSA_PUBLICATION_DATE=YYYY-MM-DD when the release date is known.
+python -m kumpas_ingestion.pipelines.psa --validate-only
+python -m unittest discover -s ingestion/tests -v
 ```
+
+Validation-only mode needs no Gemini or Supabase credentials and makes no
+external service calls for a local file. To import, configure `SUPABASE_URL`,
+`SUPABASE_SERVICE_ROLE_KEY`, and `GEMINI_API_KEY`, then omit `--validate-only`.
+Production GitHub Actions uses the same secrets and the `PSA_SOURCE_URL` and
+optional `PSA_PUBLICATION_DATE` repository variables. The official URL stays
+independent of the runner's file path and is retained with each record.
+
+PRs run validation and disposable PostgreSQL/pgvector tests without production
+secrets. Main-branch push/manual imports wait for both jobs to pass. A manual
+run on another branch cannot ingest into production. The PR validator's generic
+OpenSTAT URL fallback checks structure only; production imports still require
+the operator's configured official source URL. It does not certify source data.
 
 ## Known limitations
 
-- Removed rows are **not** auto-deleted from the database. Same caveat
-  as Module 1.3.
+- A validated replacement removes superseded PSA records atomically. Unchanged
+  reruns reuse stored embeddings and preserve record timestamps and successful
+  freshness markers. Embedding/write failures retain the previous valid batch.
 - The current `sample_lfs.csv` contains illustrative values — they
   are not the real PSA-published numbers. Do not let placeholder rows
   leak into a live counseling deployment without first replacing them
