@@ -111,7 +111,7 @@ it("expired leases can be reclaimed; late results and cleanup cannot overwrite o
 it("removes persisted values and rejects approval during an active replacement", async () => {
   await seed();
   const claim = await academicDocumentStore.claim(session, owner, "nat", doc);
-  await expect(studentProfileBuilder.buildAndSave({ sessionId: session, counselorNotes: { careerGoal: "Undecided", interests: "Math", financial: "", concerns: "", impression: "" }, corrections: [] })).rejects.toThrow("still in progress");
+  await expect(studentProfileBuilder.buildAndSave({ sessionId: session, counselorId: owner, counselorNotes: { careerGoal: "Undecided", interests: "Math", financial: "", concerns: "", impression: "" }, corrections: [] })).rejects.toThrow("still in progress");
   await academicDocumentStore.remove(claim);
   expect((await connection.db!.query("select * from extraction_results")).rows).toHaveLength(0);
 });
