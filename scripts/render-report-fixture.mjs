@@ -39,7 +39,7 @@ const payload = {
         rank: 1,
         careerPath:
           "BS Computer Science (General Software Engineering/Specialized IT)",
-        scores: [0.87, 0.85, 0.98, 0.7],
+        scores: [87.0, 85.0, 98.0, 70.0],
         sources: [
           {
             id: "src-a",
@@ -71,13 +71,13 @@ const payload = {
         id: "rec-2",
         rank: 2,
         careerPath: "BS Computer Science (Game Development Specialization)",
-        scores: [0.85, 0.9, 0.95, 0.6],
+        scores: [85.0, 90.0, 95.0, 60.0],
       }),
       makeRec({
         id: "rec-3",
         rank: 3,
         careerPath: "TESDA-Certified Programming/IT Specialist",
-        scores: [0.79, 0.8, 0.75, 0.85],
+        scores: [79.0, 80.0, 75.0, 85.0],
         sources: [
           {
             id: "src-d",

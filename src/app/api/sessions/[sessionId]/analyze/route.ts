@@ -1,6 +1,7 @@
 import { type NextRequest } from "next/server";
 import { supabaseAdmin } from "@/lib/supabase";
 import { agentDispatcher } from "@/lib/module3/agent-dispatcher";
+import { InsufficientEvidenceError } from "@/lib/module3/alignment-score-calculator";
 import { metaAgentSynthesizer } from "@/lib/module3/meta-agent-synthesizer";
 import { sessionProgressTracker } from "@/lib/module5/session-progress";
 import {
@@ -34,7 +35,7 @@ export async function POST(
   try {
     const { data: session, error: fetchErr } = await supabaseAdmin
       .from("sessions")
-      .select("approved_profile, status")
+      .select("approved_profile, status, current_profile_version")
       .eq("id", sessionId)
       .single();
 
@@ -71,6 +72,8 @@ export async function POST(
     const rankedRecommendations = await metaAgentSynthesizer.synthesize(
       sessionId,
       agentOutputs,
+      approvedProfile,
+      session.current_profile_version || null,
     );
 
     await sessionProgressTracker.markAnalysisComplete(sessionId);
@@ -89,7 +92,7 @@ export async function POST(
     console.error(`[analyze route] sessionId=${sessionId}`, err);
     return json(
       { error: err instanceof Error ? err.message : "Analysis failed" },
-      { status: 500 },
+      { status: err instanceof InsufficientEvidenceError ? 422 : 500 },
     );
   }
 }

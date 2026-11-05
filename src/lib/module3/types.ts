@@ -53,12 +53,19 @@ export interface AgentOutput {
 
 export interface CandidateCareerPath {
   careerPath: string;
-  aptitudeScore: number;
-  demandScore: number;
-  feasibilityScore: number;
+  aptitudeScore: number | null;
+  demandScore: number | null;
+  feasibilityScore: number | null;
+  componentEvidence: Record<"aptitude" | "demand" | "feasibility", ComponentEvidence | null>;
   signals: string[];
   keySignalDetails: KeySignalDetail[];
   sourceReferences: SourceReference[];
+}
+
+export interface ComponentEvidence {
+  inputReferences: string[];
+  sourceReferences: { reference: string; chunkIndex: number }[];
+  explanation: string;
 }
 
 export interface KeySignalDetail {
@@ -83,7 +90,8 @@ export interface IntermediateSynthesis {
 // ─── AlignmentScoreCalculator Types ────────────────────────────────
 
 export interface ScoredCareerPath extends CandidateCareerPath {
-  alignmentScore: number;
+  alignmentScore: number | null;
+  rank: number | null;
 }
 
 // ─── RankingAgent Types ────────────────────────────────────────────

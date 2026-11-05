@@ -201,7 +201,10 @@ function AnalysisContent() {
             hasRun.current = false;
             runPipeline();
           }}
-          onBack={() => router.push("/")}
+          onBack={() => {
+            if (state.message.startsWith("Insufficient evidence")) void onNewSession();
+            else router.push("/");
+          }}
         />
       )}
       {state.phase === "reportReady" && (

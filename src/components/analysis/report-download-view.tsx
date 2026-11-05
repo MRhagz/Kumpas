@@ -108,8 +108,8 @@ export default function ReportDownloadView({
               <span className="text-forest">{topCareerPath}</span>
             </h1>
             <p className="mt-2 text-sm text-muted-text">
-              Ranked career recommendations with academic evidence and a
-              signed PDF report.
+              Career comparisons with academic evidence and a
+              signed PDF report. Scores compare supported options; they are not probabilities of career success.
             </p>
           </div>
           <button
@@ -126,7 +126,7 @@ export default function ReportDownloadView({
       </header>
 
       <div className="mb-5 grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
-        {report.recommendations.slice(0, 3).map((recommendation) => (
+        {report.recommendations.filter((r) => r.rank !== null).map((recommendation) => (
           <RecommendationCard
             key={recommendation.id}
             recommendation={recommendation}
@@ -135,6 +135,22 @@ export default function ReportDownloadView({
           />
         ))}
       </div>
+
+      {report.recommendations.some((r) => r.rank === null) && (
+        <section className="mb-5">
+          <h2 className="mb-3 text-lg font-semibold">Unscored partial comparisons</h2>
+          <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+            {report.recommendations.filter((r) => r.rank === null).map((recommendation) => (
+              <RecommendationCard key={recommendation.id} recommendation={recommendation}
+                isSelected={recommendation.id === selectedRecommendation?.id}
+                onSelect={() => setSelectedRecommendationId(recommendation.id)} />
+            ))}
+          </div>
+        </section>
+      )}
+      {report.recommendations.filter((r) => r.rank !== null).length < 3 && (
+        <p className="mb-5 text-sm text-muted-text">Fewer than three scored paths are supported by the available evidence. Missing components remain unscored.</p>
+      )}
 
       <section className="grid gap-5 lg:grid-cols-[1fr_340px]">
         <div className="space-y-5">
@@ -252,7 +268,7 @@ function RecommendationCard({
             isSelected ? "text-white/70" : "text-muted-text"
           }`}
         >
-          Rank {recommendation.rank}
+          {recommendation.rank === null ? "Unscored partial comparison" : `Rank ${recommendation.rank}`}
         </p>
         <BarChart3
           size={16}
@@ -290,7 +306,7 @@ function RecommendationDetail({
       <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
         <div className="flex items-start gap-4">
           <div className="flex h-16 w-16 shrink-0 items-center justify-center rounded-full border-2 border-forest/40 text-xl font-bold text-ink">
-            {Math.round(recommendation.alignmentScore * 100)}
+            {formatScore(recommendation.alignmentScore)}
           </div>
           <div>
             <p className="text-[10px] font-semibold uppercase tracking-widest text-muted-text">
@@ -306,6 +322,9 @@ function RecommendationDetail({
         </div>
       </div>
 
+      {recommendation.incompleteReason && (
+        <p className="mt-4 text-sm text-amber-800">{recommendation.incompleteReason}</p>
+      )}
       <div className="mt-6">
         <p className="mb-3 text-[10px] font-semibold uppercase tracking-widest text-muted-text">
           Key Signals
@@ -450,8 +469,8 @@ function MetadataRow({ label, value }: { label: string; value: string }) {
   );
 }
 
-function formatScore(score: number): string {
-  return `${Math.round(score * 100)}%`;
+function formatScore(score: number | null): string {
+  return score === null ? "Unscored" : `${score.toFixed(2)}%`;
 }
 
 function getRecommendationSubtitle(

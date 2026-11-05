@@ -63,8 +63,8 @@ export class SessionStateManager {
     const hasApprovedProfile = sessionRow.approved_profile !== null;
     const hasRecommendations = await this.hasRankedRecommendations(sessionId);
     const hasReport =
-      sessionRow.report_status === "ready" ||
-      sessionRow.report_status === "downloaded";
+      hasRecommendations && (sessionRow.report_status === "ready" ||
+      sessionRow.report_status === "downloaded");
 
     return {
       sessionId: sessionRow.id,
@@ -91,7 +91,8 @@ export class SessionStateManager {
     const { count, error } = await supabaseAdmin
       .from("ranked_recommendations")
       .select("id", { count: "exact", head: true })
-      .eq("session_id", sessionId);
+      .eq("session_id", sessionId)
+      .eq("score_contract", "0-100-v1");
 
     if (error) {
       throw new Error(`Failed to load recommendation state: ${error.message}`);
