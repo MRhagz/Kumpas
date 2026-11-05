@@ -166,7 +166,14 @@ export default function InputContainer() {
           );
 
           if (!response.ok) {
-            throw new Error("Could not resume this session. Please start a new one.");
+            if (response.status === 401) {
+              const next = `/input?session=${encodeURIComponent(resumableSessionId)}`;
+              window.location.replace(`/login?next=${encodeURIComponent(next)}`);
+              return;
+            }
+            throw new Error(response.status === 404
+              ? "This draft is unavailable. Return to your drafts or start a new session."
+              : "Could not load your saved draft. Refresh to try again.");
           }
 
           const sessionState = (await response.json()) as SessionStateResponse;
@@ -204,6 +211,7 @@ export default function InputContainer() {
 
         if (isMounted) {
           setSessionId(data.sessionId);
+          window.history.replaceState(null, "", `/input?session=${encodeURIComponent(data.sessionId)}`);
         }
       } catch (error) {
         if (isMounted) {
@@ -489,6 +497,7 @@ export default function InputContainer() {
           <AlertTriangle size={18} className="shrink-0" />
           <span className="text-[14px]">{sessionError}</span>
         </div>
+        <a className="mt-4 inline-block underline" href="/input">Return to saved drafts</a>
       </section>
     );
   }

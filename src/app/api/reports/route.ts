@@ -30,6 +30,16 @@ export async function POST(request: Request): Promise<Response> {
     const current = await loadProcessingRun(sessionId, user.id);
     run = current.run;
     if (body.runId !== run.run_id || !run.recommendations) throw new ProcessingError(stage, "stale");
+    const loadReportVersion = async (version: number) => {
+      const { data, error } = await supabaseAdmin.from("report_versions").select("generated_at, expires_at")
+        .eq("session_id", sessionId).eq("counselor_id", user.id)
+        .eq("run_id", current.run.run_id).eq("approved_profile_version", current.run.approved_profile_version)
+        .eq("report_version", version).in("status", ["draft", "approved"])
+        .gt("expires_at", new Date().toISOString()).single();
+      if (error || !data) throw new ProcessingError("draft publication", "stale");
+      return data;
+    };
+    const readyReport = run.phase === "ready" ? await loadReportVersion(current.reportVersion) : null;
     const budget = runBudget(run);
     if (run.phase !== "ready") {
       budget.assert(stage);
@@ -58,9 +68,7 @@ export async function POST(request: Request): Promise<Response> {
       // An already-ready draft is read back, never regenerated with a new clock.
       byteLength = (await pdfFileStore.downloadReportPdf(sessionId, current.reportVersion)).size;
     }
-    const { data: report, error } = await supabaseAdmin.from("report_versions").select("generated_at, expires_at")
-      .eq("session_id", sessionId).eq("run_id", run.run_id).single();
-    if (error || !report) throw new ProcessingError("draft publication", "stale");
+    const report = readyReport ?? await loadReportVersion(reportVersion!);
     const response: ReportGenerationResponse = {
       sessionId, downloadUrl: `/api/reports/${encodeURIComponent(sessionId)}?download=1`,
       expiresAt: report.expires_at, generatedAt: report.generated_at, byteLength,

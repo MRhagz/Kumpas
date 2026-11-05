@@ -1,24 +1,18 @@
 import "server-only";
 
-import {
-  normalizeModuleStatus,
-  type ModuleStatus,
-  type ReportStatus,
-} from "@/lib/module5/session-progress";
+import type { ModuleStatus, ReportStatus } from "@/lib/module5/session-progress";
 import { supabaseAdmin } from "@/lib/supabase";
 import type { Session } from "@/types";
 
-export type SessionNextStep =
-  | "input"
-  | "analysis"
-  | "report"
-  | "complete"
-  | "start-new-session";
+export type SessionNextStep = "input" | "analysis" | "report" | "complete" | "start-new-session";
 
 export interface SessionState {
   sessionId: string;
-  currentRunId?: string | null;
-  analysisRetryRequired?: boolean;
+  currentRunId: string | null;
+  profileVersion: number;
+  analysisRetryRequired: boolean;
+  analysisRestartRequired: boolean;
+  processingInProgress: boolean;
   status: Session["status"];
   expiresAt: string;
   lastActivity: string;
@@ -31,111 +25,110 @@ export interface SessionState {
   nextStep: SessionNextStep;
 }
 
-interface SessionStateRow {
-  id: string;
-  status: Session["status"];
-  approved_profile: unknown | null;
-  current_run_id: string | null;
-  module_status: unknown;
-  report_status: ReportStatus;
-  expires_at: string;
-  last_activity: string;
-  completed_at: string | null;
+const STATE_COLUMNS =
+  "id, status, current_profile_version, current_run_id, current_report_version, report_status, expires_at, last_activity, completed_at";
+
+export async function listOwnerDrafts(counselorId: string) {
+  const { data, error } = await supabaseAdmin.from("sessions")
+    .select("id, created_at, expires_at, current_profile_version, profile_versions(profile_version, approved_at)")
+    .eq("counselor_id", counselorId).eq("status", "active")
+    .eq("profile_versions.counselor_id", counselorId)
+    .gt("current_profile_version", 0).gt("expires_at", new Date().toISOString())
+    .order("created_at", { ascending: false });
+  if (error) throw new Error("Saved drafts could not be loaded.");
+  return (data ?? []).filter((draft) => Date.parse(draft.expires_at) > Date.now() &&
+    draft.profile_versions.some((profile) =>
+      profile.profile_version === draft.current_profile_version && profile.approved_at !== null))
+    .map(({ id, created_at, expires_at }) => ({ id, created_at, expires_at }));
 }
 
 export class SessionStateManager {
-  async getSessionState(sessionId: string): Promise<SessionState | null> {
-    const { data: session, error } = await supabaseAdmin
-      .from("sessions")
-      .select(
-        "id, status, approved_profile, module_status, report_status, expires_at, last_activity, completed_at, current_run_id",
-      )
-      .eq("id", sessionId)
-      .maybeSingle();
+  async getSessionState(sessionId: string, counselorId: string): Promise<SessionState | null> {
+    const readSession = () => supabaseAdmin.from("sessions").select(STATE_COLUMNS)
+      .eq("id", sessionId).eq("counselor_id", counselorId)
+      .in("status", ["active", "completed"]).gt("expires_at", new Date().toISOString()).maybeSingle();
+    const { data: session, error } = await readSession();
+    if (error) throw new Error("Saved session could not be loaded.");
+    if (!session || !(Date.parse(session.expires_at) > Date.now())) return null;
 
-    if (error) {
-      throw new Error(`Failed to load session state: ${error.message}`);
+    const version = session.current_profile_version;
+    const runId = session.current_run_id;
+    const [profile, run, report] = await Promise.all([
+      version > 0 ? supabaseAdmin.from("profile_versions").select("profile_version")
+        .eq("session_id", sessionId).eq("counselor_id", counselorId)
+        .eq("profile_version", version).not("approved_at", "is", null).maybeSingle() : { data: null },
+      runId ? supabaseAdmin.from("analysis_runs").select("phase, status, deadline_at, recommendations")
+        .eq("session_id", sessionId).eq("counselor_id", counselorId)
+        .eq("run_id", runId).eq("approved_profile_version", version).maybeSingle() : { data: null },
+      runId && session.current_report_version > 0
+        ? supabaseAdmin.from("report_versions").select("status, expires_at")
+          .eq("session_id", sessionId).eq("counselor_id", counselorId)
+          .eq("run_id", runId).eq("approved_profile_version", version)
+          .eq("report_version", session.current_report_version)
+          .in("status", ["draft", "approved"]).maybeSingle() : { data: null },
+    ]);
+    if ([profile, run, report].some((result) => "error" in result && result.error)) {
+      throw new Error("Saved session versions could not be loaded.");
     }
 
-    if (!session) {
-      return null;
-    }
+    // Recheck the pointers in case a concurrent approval, retry or cancellation superseded these reads.
+    const latest = await readSession();
+    if (latest.error) throw new Error("Saved session could not be rechecked.");
+    if (!latest.data || latest.data.current_profile_version !== version ||
+        latest.data.current_run_id !== runId ||
+        latest.data.current_report_version !== session.current_report_version ||
+        latest.data.status !== session.status ||
+        !(Date.parse(latest.data.expires_at) > Date.now())) return null;
 
-    const sessionRow = session as SessionStateRow;
-    const moduleStatus = normalizeModuleStatus(sessionRow.module_status);
-    const hasApprovedProfile = sessionRow.approved_profile !== null;
-    const { data: run } = sessionRow.current_run_id ? await supabaseAdmin.from("analysis_runs")
-      .select("phase, deadline_at, recommendations").eq("run_id", sessionRow.current_run_id).single() : { data: null };
-    const analysisRetryRequired = !!run && (run.phase === "failed" || (run.phase !== "ready" && Date.parse(run.deadline_at) <= Date.now()));
-    const hasRecommendations = sessionRow.current_run_id ? !!run?.recommendations && !analysisRetryRequired : await this.hasRankedRecommendations(sessionId);
-    const hasReport =
-      sessionRow.report_status === "ready" ||
-      sessionRow.report_status === "downloaded";
+    const hasApprovedProfile = !!profile.data;
+    const currentRun = hasApprovedProfile && run.data?.status !== "superseded" ? run.data : null;
+    const hasReport = currentRun?.phase === "ready" && currentRun.status === "completed" &&
+      !!currentRun.recommendations && !!report.data && Date.parse(report.data.expires_at) > Date.now();
+    const analysisRestartRequired = hasApprovedProfile &&
+      (!currentRun || (currentRun.phase === "ready" && !hasReport));
+    const analysisRetryRequired = analysisRestartRequired || (!!currentRun && !hasReport &&
+      (currentRun.phase === "failed" || Date.parse(currentRun.deadline_at) <= Date.now()));
+    const hasRecommendations = !!currentRun?.recommendations &&
+      (hasReport || (!analysisRetryRequired && currentRun.status === "running" &&
+        currentRun.phase === "report_pending"));
+    const reportStatus: ReportStatus = hasReport
+      ? latest.data.status === "completed" && latest.data.report_status === "downloaded" ? "downloaded" : "ready"
+      : "not_started";
+    const moduleStatus: ModuleStatus = {
+      intake: hasApprovedProfile ? "complete" : "not_started",
+      profile: hasApprovedProfile ? "complete" : "not_started",
+      analysis: hasRecommendations ? "complete" : analysisRetryRequired ? "failed" : "not_started",
+      report: hasReport ? "complete" : "not_started",
+    };
+
+    let nextStep: SessionNextStep = "input";
+    if (reportStatus === "downloaded") nextStep = "complete";
+    else if (latest.data.status === "completed" && !hasReport) nextStep = "start-new-session";
+    else if (hasRecommendations) nextStep = "report";
+    else if (hasApprovedProfile) nextStep = "analysis";
 
     return {
-      sessionId: sessionRow.id,
-      currentRunId: sessionRow.current_run_id,
+      sessionId,
+      currentRunId: runId,
+      profileVersion: version,
       analysisRetryRequired,
-      status: sessionRow.status,
-      expiresAt: sessionRow.expires_at,
-      lastActivity: sessionRow.last_activity,
-      completedAt: sessionRow.completed_at,
+      analysisRestartRequired,
+      processingInProgress: !analysisRetryRequired &&
+        (currentRun?.phase === "analysis" || currentRun?.phase === "report"),
+      status: latest.data.status,
+      expiresAt: latest.data.expires_at,
+      lastActivity: latest.data.last_activity,
+      completedAt: latest.data.completed_at,
       moduleStatus,
-      reportStatus: sessionRow.report_status,
+      reportStatus,
       hasApprovedProfile,
       hasRecommendations,
       hasReport,
-      nextStep: getNextStep({
-        status: sessionRow.status,
-        reportStatus: sessionRow.report_status,
-        hasApprovedProfile,
-        hasRecommendations,
-        hasReport,
-      }),
+      nextStep,
     };
   }
-
-  private async hasRankedRecommendations(sessionId: string): Promise<boolean> {
-    const { count, error } = await supabaseAdmin
-      .from("ranked_recommendations")
-      .select("id", { count: "exact", head: true })
-      .eq("session_id", sessionId);
-
-    if (error) {
-      throw new Error(`Failed to load recommendation state: ${error.message}`);
-    }
-
-    return (count ?? 0) > 0;
-  }
-}
-
-function getNextStep(input: {
-  status: SessionState["status"];
-  reportStatus: ReportStatus;
-  hasApprovedProfile: boolean;
-  hasRecommendations: boolean;
-  hasReport: boolean;
-}): SessionNextStep {
-  if (input.status === "expired" || input.status === "cancelled") {
-    return "start-new-session";
-  }
-
-  if (input.hasReport) {
-    return input.reportStatus === "downloaded" ? "complete" : "report";
-  }
-
-  if (input.hasRecommendations) {
-    return "report";
-  }
-
-  if (input.hasApprovedProfile) {
-    return "analysis";
-  }
-
-  return "input";
 }
 
 export const sessionStateManager = new SessionStateManager();
 
-// Versioned workflow contract for downstream integration; legacy DTOs remain unchanged.
 export type { SessionVersionContract } from "@/lib/module5/versioned-contracts";
