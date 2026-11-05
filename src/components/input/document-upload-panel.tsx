@@ -1,6 +1,8 @@
 "use client";
 
 import { FolderOpen, Info } from "lucide-react";
+import { useRef } from "react";
+import { academicFileSizeError } from "@/lib/academic-upload-policy";
 import FileSlot from "./file-slot";
 import type { DocumentProcessingState, UploadedDocument } from "@/types";
 
@@ -8,6 +10,7 @@ interface SlotState {
   files: File[];
   docType: string;
   perFileProcessing: DocumentProcessingState[];
+  uploaded: UploadedDocument | null;
 }
 
 interface DocumentUploadPanelProps {
@@ -29,10 +32,12 @@ export default function DocumentUploadPanel({
   onDocumentUploaded,
   onUploadError,
 }: DocumentUploadPanelProps) {
-  const uploadOne = async (index: 1 | 2 | 3, file: File, docType: string) => {
+  const pending = useRef(new Set<number>());
+  const uploadOne = async (index: 1 | 2 | 3, file: File, docType: string, previous: UploadedDocument | null) => {
     const fd = new FormData();
     fd.append("file", file);
     fd.append("docType", docType);
+    if (previous) fd.append("replaceDocumentId", previous.documentId);
     try {
       const res = await fetch(`/api/sessions/${sessionId}/upload`, {
         method: "POST",
@@ -40,7 +45,8 @@ export default function DocumentUploadPanel({
       });
       if (!res.ok) {
         const e = await res.json().catch(() => ({}));
-        throw new Error(e.error || "Upload failed");
+        throw new Error(e.error || (res.status === 413
+          ? "File exceeds 10 MB (10,000,000 bytes). Choose a smaller file." : "Upload failed. Retry or replace the file."));
       }
       const data = await res.json();
       onDocumentUploaded(index, file, {
@@ -53,20 +59,44 @@ export default function DocumentUploadPanel({
       });
     } catch (err) {
       onUploadError(index, file, err instanceof Error ? err.message : "Upload failed");
+    } finally {
+      pending.current.delete(index);
     }
   };
 
   const handleFilesAdd = (index: 1 | 2 | 3, files: File[]) => {
-    onSlotFilesAdd(index, files);
     const docType = slots[index].docType;
-    if (!docType) return;
-    for (const file of files) {
-      void uploadOne(index, file, docType);
+    if (!docType || files.length !== 1 || pending.current.has(index)) return;
+    const file = files[0];
+    const error = academicFileSizeError(file);
+    if (error) { onUploadError(index, file, error); return; }
+    pending.current.add(index);
+    onSlotFilesAdd(index, files);
+    void uploadOne(index, file, docType, slots[index].uploaded);
+  };
+
+  const handleRemove = async (index: 1 | 2 | 3, fileIndex: number) => {
+    if (pending.current.has(index)) return;
+    const previous = slots[index].uploaded;
+    if (!previous) { onSlotFileRemove(index, fileIndex); return; }
+    pending.current.add(index);
+    onSlotFilesAdd(index, [slots[index].files[fileIndex]]);
+    try {
+      const query = new URLSearchParams({ docType: previous.docType, documentId: previous.documentId });
+      const response = await fetch(`/api/sessions/${sessionId}/upload?${query}`, { method: "DELETE" });
+      if (!response.ok) {
+        const body = await response.json().catch(() => ({}));
+        throw new Error(body.error || "Could not remove the document. Retry removal.");
+      }
+      onSlotFileRemove(index, fileIndex);
+    } catch (error) {
+      onUploadError(index, slots[index].files[fileIndex], error instanceof Error ? error.message : "Could not remove the document.");
+    } finally {
+      pending.current.delete(index);
     }
   };
 
-  // Each document type can appear in at most one slot. A Form 137 slot accepts multiple
-  // files internally (one per school the student attended) — handled inside FileSlot.
+  // Each academic type has at most one file; changing it requires Replace or Remove.
   const getExcluded = (index: 1 | 2 | 3) =>
     ([1, 2, 3] as const)
       .filter((i) => i !== index)
@@ -95,8 +125,8 @@ export default function DocumentUploadPanel({
       <div className="flex items-start sm:items-center gap-2.5 rounded-lg bg-ochre-pale/60 border border-ochre/10 px-3 py-2.5 mb-4 text-xs text-ochre leading-snug">
         <Info size={14} className="shrink-0 mt-0.5 sm:mt-0" />
         <span>
-          Accepted: NCAE Results, Form 137, or NAT Results — as PDF or photo (max 10 MB each).
-          A Form 137 slot accepts multiple files for students who attended different schools.
+          Optional: one NCAE, Form 137 and NAT file each. JPEG, PNG, WEBP or PDF,
+          up to 10 MB (10,000,000 bytes) per file. Use Replace to change a file.
         </span>
       </div>
       <div className="space-y-3">
@@ -109,7 +139,7 @@ export default function DocumentUploadPanel({
             docType={slots[i].docType}
             excludeTypes={getExcluded(i)}
             onFilesAdd={(f) => handleFilesAdd(i, f)}
-            onFileRemove={(fileIdx) => onSlotFileRemove(i, fileIdx)}
+            onFileRemove={(fileIdx) => { void handleRemove(i, fileIdx); }}
             onTypeChange={(t) => onSlotTypeChange(i, t)}
           />
         ))}

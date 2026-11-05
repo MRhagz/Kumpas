@@ -1,5 +1,6 @@
 import { supabaseAdmin } from "@/lib/supabase";
 import type { ExtractedAcademicData, ExtractionResult } from "@/types";
+import type { AcademicUploadClaim } from "./academic-document-store";
 
 const GEMINI_API_KEY = process.env.DOCUMENT_INTAKE_API_KEY!;
 const GEMINI_MODEL = "gemini-2.5-flash";
@@ -42,6 +43,7 @@ export class GeminiExtractionService {
     sessionId: string,
     counselorId: string,
     redactedImagePath: string | null,
+    claim: AcademicUploadClaim,
   ): Promise<ExtractionResult> {
     const prompt = PROMPTS[docType];
     if (!prompt) throw new Error(`Unsupported document type: ${docType}`);
@@ -108,14 +110,18 @@ export class GeminiExtractionService {
 
     const { data: saved, error } = await supabaseAdmin
       .from("extraction_results")
-      .insert({
+      .update({
         session_id: sessionId,
         counselor_id: counselorId,
         document_type: docType,
         raw_gemini_response: geminiData,
         structured_data: structuredData,
         redacted_image_path: redactedImagePath,
+        upload_token: null,
+        upload_expires_at: null,
       })
+      .eq("id", claim.id)
+      .eq("upload_token", claim.token)
       .select()
       .single();
 

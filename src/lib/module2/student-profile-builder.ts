@@ -21,12 +21,15 @@ export class StudentProfileBuilder {
 
     const { data: extractions, error: fetchErr } = await supabaseAdmin
       .from("extraction_results")
-      .select("document_type, structured_data")
+      .select("document_type, structured_data, upload_token, upload_expires_at")
       .eq("session_id", sessionId);
     if (fetchErr) throw new Error(`Failed to fetch extraction results: ${fetchErr.message}`);
+    if (extractions?.some((entry) => entry.upload_token && Date.parse(entry.upload_expires_at) > Date.now())) {
+      throw new Error("A document upload or removal is still in progress. Wait for it to finish and retry approval.");
+    }
 
     const academicData: ApprovedProfile["academicData"] = {};
-    // Form 137 may be uploaded once per school — concatenate subjects across all uploads.
+    // The upload store enforces at most one current record of each academic type.
     const form137Subjects: Form137Data["subjects"] = [];
     let form137SchoolYear: string | undefined;
     let form137Gwa: number | undefined;
