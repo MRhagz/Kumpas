@@ -39,7 +39,7 @@ class PDFTextExtractionError(RuntimeError):
 
 
 class PDFTextExtractor:
-    """Extracts text from a PDF, with an opt-in OCR fallback for scans.
+    """Extracts text from a PDF, with OCR enabled by default for scans.
 
     Two-stage pipeline:
       1. pdfplumber pass on the input bytes (cheap, no system deps).
@@ -67,26 +67,27 @@ class PDFTextExtractor:
             raise PDFTextExtractionError("empty PDF bytes")
 
         text, page_count = self._extract_with_pdfplumber(pdf_bytes)
+        if page_count == 0:
+            raise PDFTextExtractionError("PDF contains no pages")
         if not self._needs_ocr(text, page_count):
             return text
         if not self._enable_ocr:
-            _logger.warning(
-                "pdfplumber returned sparse text (chars=%d pages=%d) but OCR is disabled",
-                len(text),
-                page_count,
-            )
-            return text
+            raise PDFTextExtractionError("PDF requires OCR but OCR fallback is disabled")
 
         _logger.info(
             "pdfplumber sparse (chars=%d pages=%d) — running OCR fallback",
             len(text),
             page_count,
         )
-        ocr_bytes = self._ocr_pdf(pdf_bytes)
-        ocr_text, _ = self._extract_with_pdfplumber(ocr_bytes)
-        if not ocr_text.strip():
+        try:
+            ocr_bytes = self._ocr_pdf(pdf_bytes)
+        except OSError as exc:
+            raise PDFTextExtractionError(f"OCR temporary-file processing failed: {exc}") from exc
+        ocr_text, ocr_pages = self._extract_with_pdfplumber(ocr_bytes)
+        if (ocr_pages != page_count or not ocr_text.strip()
+                or self._needs_ocr(ocr_text, ocr_pages)):
             raise PDFTextExtractionError(
-                "OCR fallback produced no text — PDF may be unreadable"
+                "OCR fallback produced insufficient text or lost pages — PDF may be unreadable"
             )
         return ocr_text
 
@@ -101,12 +102,13 @@ class PDFTextExtractor:
     def _needs_ocr(self, text: str, page_count: int) -> bool:
         if page_count == 0:
             return False
-        avg_chars = len(text) / page_count
+        # Form feeds are separators inserted by this class, not extracted page text.
+        avg_chars = sum(len(page.strip()) for page in text.split("\f")) / page_count
         return avg_chars < self._ocr_min_chars_per_page
 
     def _ocr_pdf(self, pdf_bytes: bytes) -> bytes:
         try:
-            import ocrmypdf  # noqa: PLC0415  (deferred so non-OCR users skip the dep)
+            import ocrmypdf
         except ImportError as exc:
             raise PDFTextExtractionError(
                 "OCR fallback required but ocrmypdf is not installed. "
