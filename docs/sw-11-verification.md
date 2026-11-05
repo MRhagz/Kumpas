@@ -47,10 +47,14 @@ Approved documents read before editing:
   dependency. Deploy ingestion changes after the existing SW-09 migration is applied.
   The weekly schedule remains Monday 02:00 UTC; operators must verify the approved
   maintenance window is outside active counseling sessions before enabling ingestion.
-- The CHED workflow tests fixtures and a disposable PostgreSQL/pgvector cache contract
+- The CHED workflow calls the reusable `sw11-contracts.yml` workflow to test fixtures and a disposable PostgreSQL/pgvector cache contract
   before scheduled/manual ingestion. PR runs have no production secrets and cannot
   enter the ingestion job; manual production ingestion is restricted to main.
   Fixture tests explicitly require real OCR in CI, including Tesseract/eng and Ghostscript.
+- Repository inspection found `ingest-ched.yml` is `disabled_inactivity`. After merge,
+  re-enable that existing workflow in GitHub Actions to restore weekly discovery.
+  It was not enabled against the older main implementation during this task. The
+  separate PR/reusable contract workflow runs without enabling production ingestion.
 
 ## Commands and observed results
 
@@ -68,7 +72,7 @@ sandbox's temporary-directory permissions; the workspace temporary directory res
 | `../.tmp/sw11-tools/venv/Scripts/python.exe -m unittest discover -s ingestion/tests/ched -v` | 20 run: 19 passed, real OCR skipped locally because Tesseract/Ghostscript are unavailable. Real OCR is mandatory in CI. |
 | `../.tmp/sw11-tools/venv/Scripts/python.exe -m compileall -q ingestion/src ingestion/tests/ched` | Passed. |
 | `../.tmp/sw11-tools/venv/Scripts/ruff.exe check --config ingestion/pyproject.toml ingestion/src/kumpas_ingestion/pipelines/ched_cmo.py ingestion/src/kumpas_ingestion/publication_index_checker.py ingestion/src/kumpas_ingestion/pdf_downloader.py ingestion/src/kumpas_ingestion/pdf_text_extractor.py ingestion/tests/ched` | Passed. |
-| `../.tmp/sw11-tools/actionlint/actionlint.exe .github/workflows/ingest-ched.yml` | Passed with actionlint 1.7.12. |
+| `../.tmp/sw11-tools/actionlint/actionlint.exe .github/workflows/ingest-ched.yml .github/workflows/sw11-contracts.yml` | Passed with actionlint 1.7.12. |
 | `git diff --check` | Passed. |
 
 Read-only live discovery used the actual `PublicationIndexChecker.list_year(2026)`
