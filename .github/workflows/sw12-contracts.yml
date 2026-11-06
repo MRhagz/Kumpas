@@ -16,7 +16,7 @@ permissions:
 jobs:
   curated-fixtures:
     runs-on: ubuntu-latest
-    timeout-minutes: 15
+    timeout-minutes: 30
     env:
       SW12_REQUIRE_OCR: "1"
     steps:
@@ -26,8 +26,15 @@ jobs:
           python-version: "3.12"
       - name: Install curated PDF and OCR test dependencies
         run: |
-          sudo apt-get update -qq
-          sudo apt-get install -y --no-install-recommends tesseract-ocr tesseract-ocr-eng poppler-utils ghostscript
+          # Keep the runner's official HTTPS mirrors and skip the slow Azure mirror.
+          sudo sed -i '/azure\.archive\.ubuntu\.com/d' /etc/apt/apt-mirrors.txt
+          apt_options=(
+            -o Acquire::Retries=3
+            -o Acquire::http::Timeout=30
+            -o Acquire::https::Timeout=30
+          )
+          sudo apt-get "${apt_options[@]}" update -qq
+          sudo apt-get "${apt_options[@]}" install -y --no-install-recommends tesseract-ocr tesseract-ocr-eng poppler-utils ghostscript
           pip install -e './ingestion[pdf,fixtures,dev]'
       - run: python -m unittest discover -s ingestion/tests/dole -p test_dole_curated.py -v
       - run: ruff check --config ingestion/pyproject.toml ingestion/src/kumpas_ingestion/pipelines/dole_ble.py ingestion/src/kumpas_ingestion/pdf_downloader.py ingestion/tests/dole
