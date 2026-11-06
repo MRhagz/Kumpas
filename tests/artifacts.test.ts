@@ -76,4 +76,15 @@ describe("Private versioned PDF objects", () => {
     await newStore().deleteReportPdf(id);
     expect(bucket.remove).toHaveBeenCalledWith([`${id}/${id}.pdf`, `${id}/2.pdf`]);
   });
+
+  it("queues expired objects durably before any leased storage deletion", async () => {
+    const { newStore, bucket } = fixture();
+    bucket.list.mockResolvedValueOnce({ data: [{ name: id }], error: null })
+      .mockResolvedValueOnce({ data: [{ name: "1.pdf", created_at: "2026-11-04T00:00:00Z" }], error: null });
+    const queue = vi.fn(async () => undefined);
+    expect(await newStore().purgeExpiredReportPdfs(async () => null, queue))
+      .toMatchObject({ scannedCount: 1, deletedCount: 0 });
+    expect(queue).toHaveBeenCalledWith(`${id}/1.pdf`);
+    expect(bucket.remove).not.toHaveBeenCalled();
+  });
 });

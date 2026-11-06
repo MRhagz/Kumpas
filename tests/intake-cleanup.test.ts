@@ -1,5 +1,5 @@
 import { beforeEach, expect, it, vi } from "vitest";
-const m = vi.hoisted(() => ({ rpc: vi.fn(), remove: vi.fn(), result: { error: null as unknown }, operations: [] as unknown[] }));
+const m = vi.hoisted(() => ({ rpc: vi.fn(), remove: vi.fn(), result: { error: null as unknown }, operations: [] as unknown[], pending: false }));
 vi.mock("@/lib/supabase", () => ({ supabaseAdmin: {
   rpc: m.rpc, storage: { from: () => ({ remove: m.remove }) },
   from: (table: string) => {
@@ -12,21 +12,22 @@ vi.mock("@/lib/supabase", () => ({ supabaseAdmin: {
 } }));
 import { drainExtractionCleanup } from "@/lib/module2/extraction-cleanup";
 beforeEach(() => {
-  vi.clearAllMocks(); m.operations.length = 0; m.result = { error: null };
-  m.rpc.mockResolvedValue({ data: [{ id: "object", object_path: "PRIVATE-ARTIFACT.jpg", lease_token: "lease", attempts: 1 }], error: null });
+  vi.clearAllMocks(); m.operations.length = 0; m.result = { error: null }; m.pending = false;
+  m.rpc.mockImplementation(async (name: string) => name === "extraction_cleanup_pending" ? { data: m.pending, error: null } : ({ data: [{ id: "object", object_path: "PRIVATE-ARTIFACT.jpg", lease_token: "lease", attempts: 1 }], error: null }));
   m.remove.mockResolvedValue({ error: null });
 });
 it("deletes actual Storage objects and acknowledges only its claimed lease", async () => {
-  expect(await drainExtractionCleanup()).toEqual({ removed: 1, failed: 0 });
+  expect(await drainExtractionCleanup()).toEqual({ removed: 1, failed: 0, pending: false });
   expect(m.rpc).toHaveBeenCalledWith("claim_extraction_cleanup", { p_limit: 50, p_session_id: null });
   expect(m.remove).toHaveBeenCalledWith(["PRIVATE-ARTIFACT.jpg"]);
   expect(m.operations).toContainEqual({ key: "lease_token", value: "lease" });
 });
 it("retains failed deletion for bounded retry without returning or logging raw errors or paths", async () => {
+  m.pending = true;
   m.remove.mockResolvedValue({ error: { message: "SECRET SIGNED URL" } });
   const log = vi.spyOn(console, "error");
   try {
-    expect(await drainExtractionCleanup("cancelled-session")).toEqual({ removed: 0, failed: 1 });
+    expect(await drainExtractionCleanup("cancelled-session")).toEqual({ removed: 0, failed: 1, pending: true });
     expect(m.operations).toContainEqual(expect.objectContaining({ update: expect.objectContaining({ last_error: "storage_delete_failed", lease_token: null, lease_until: null }) }));
     expect(m.operations).not.toContainEqual(expect.objectContaining({ delete: true }));
     expect(log).not.toHaveBeenCalled();

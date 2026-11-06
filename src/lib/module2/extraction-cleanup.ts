@@ -26,5 +26,7 @@ export async function drainExtractionCleanup(sessionId: string | null = null, li
     if (result.error) throw new Error("Artifact cleanup state could not be saved");
     if (deletionFailed) failed++; else removed++;
   }
-  return { removed, failed };
+  const pending = await supabaseAdmin.rpc("extraction_cleanup_pending", { p_session_id: sessionId });
+  if (pending.error) throw new Error("Artifact cleanup state unavailable");
+  return { removed, failed, pending: pending.data === true };
 }
