@@ -85,6 +85,7 @@ export class SessionTerminationHandler {
   }
 
   private async purgeSessionRows(sessionId: string, purgeReports: boolean): Promise<void> {
+    // Correction audits have an independent calendar expiry and no cascading session FK.
     await this.deleteRows("profile_versions", { session_id: sessionId });
     if (purgeReports) await this.deleteRows("report_versions", { session_id: sessionId });
     await this.deleteRows("ranked_recommendations", {

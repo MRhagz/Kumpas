@@ -77,3 +77,14 @@ describe("SW-15 production operation wiring", () => {
     expect(provider.generate).not.toHaveBeenCalled();
   });
 });
+
+
+it("SW-08 excludes correction audits from actual specialist Gemini requests", async () => {
+  provider.generate.mockResolvedValue({ text: '{"summary":"synthetic"}' });
+  const withAudits = { ...profile, academicData: { ncae: { strand_scores: { STEM: 90 }, correction_logs: "AUDIT_SENTINEL" } },
+    correction_logs: [{ extracted_value: "AUDIT_SENTINEL", corrected_value: "CORRECTION_SENTINEL" }] };
+  await academicAuditorAgent.analyze(withAudits, "test", new ProcessingBudget());
+  expect(provider.generate).toHaveBeenCalled();
+  expect(JSON.stringify(provider.generate.mock.calls)).not.toContain("AUDIT_SENTINEL");
+  expect(JSON.stringify(provider.generate.mock.calls)).not.toContain("CORRECTION_SENTINEL");
+});
