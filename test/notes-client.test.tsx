@@ -40,7 +40,7 @@ describe("F05 / S01 / S02 typed-only intake", () => {
     push.mockClear();
     outbound = vi.fn(async (url: string) => {
       if (url === "/api/sessions") return Response.json({ sessionId: "test" });
-      if (url === "/api/sessions/test/intake") return Response.json({ revision: 1 });
+      if (url === "/api/sessions/test/intake") return Response.json({ revision: 1, profileVersion: 0 });
       if (url === "/api/sessions/test/approve") return Response.json({ status: "approved" });
       throw new Error(`Unexpected request: ${url}`);
     });
@@ -73,9 +73,9 @@ describe("F05 / S01 / S02 typed-only intake", () => {
     await user.click(review);
     await user.click(approve);
     await waitFor(() => expect(push).toHaveBeenCalledWith("/analysis?session=test"));
-    expect(outbound.mock.calls.map(([url]) => url)).toEqual(["/api/sessions", "/api/sessions/test/intake", "/api/sessions/test/intake", "/api/sessions/test/approve"]);
-    const payload = JSON.parse(outbound.mock.calls[3][1].body);
-    expect(payload).toEqual({ notesReviewed: true, counselorNotes: { ...notes, careerGoal: "<p>Undecided</p>", interests: `<p>${scope}; mathematics</p>` }, corrections: [] });
+    expect(outbound.mock.calls.map(([url]) => url)).toEqual(["/api/sessions", "/api/sessions/test/intake", "/api/sessions/test/intake", "/api/sessions/test/intake", "/api/sessions/test/intake", "/api/sessions/test/approve"]);
+    const payload = JSON.parse(outbound.mock.calls.at(-1)![1].body);
+    expect(payload).toEqual({ notesReviewed: true, counselorNotes: { ...notes, careerGoal: "<p>Undecided</p>", interests: `<p>${scope}; mathematics</p>` }, profileVersion: 0, notesRevision: 1, documents: [] });
     expect(JSON.stringify(payload)).not.toContain("PRIVATE-NOTE-ALPHA");
     expect(screen.getByText(/Grade 10 and Senior High School students/)).toBeTruthy();
   });

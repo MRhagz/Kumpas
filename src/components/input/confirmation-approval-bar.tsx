@@ -55,7 +55,7 @@ export default function ConfirmationApprovalBar({
         ) : !notesReviewed ? (
           "Confirm your review of the notes before analysis"
         ) : (
-          <span className="text-sage">All inputs ready. Click above to begin the analysis.</span>
+          <span className="text-sage">Approve these saved values. Later saved changes require approval and analysis again.</span>
         )}
       </p>
     </div>

@@ -155,6 +155,14 @@ export interface CorrectionLog {
 export interface ApprovedProfile {
   sessionId: string;
   sessionTimestamp: string;
+  /** Present on reviewed snapshots; legacy profiles require reconfirmation. */
+  profileVersion?: number;
+  confirmedAt?: string;
+  inputEvidence?: {
+    documents: { documentId: string; documentType: string; revision: number;
+      status: "provided" | "unreadable" | "unsupported"; source: ExtractionProvenance }[];
+    notes: { revision: number; source: Record<string, unknown> | null };
+  };
   counselorNotes: {
     careerGoal: string;
     interests: string;

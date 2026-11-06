@@ -26,7 +26,7 @@ import { imageFixture } from "../tests/upload-fixtures";
 
 const valid = { careerGoal: "<p>Undecided</p>", interests: "<ul><li>Mathematics</li></ul>", financial: "", concerns: "", impression: "" };
 const request = (counselorNotes: unknown, notesReviewed: unknown = true) => approve(
-  new NextRequest("http://localhost/api/sessions/test/approve", { method: "POST", body: JSON.stringify({ counselorNotes, notesReviewed }) }),
+  new NextRequest("http://localhost/api/sessions/test/approve", { method: "POST", body: JSON.stringify({ counselorNotes, notesReviewed, profileVersion: 0, notesRevision: 0, documents: [] }) }),
   { params: Promise.resolve({ sessionId: "test" }) },
 );
 

@@ -21,6 +21,7 @@ type AnalysisPageState =
   | { phase: "error"; message: string };
 
 interface SessionStateResponse {
+  profileVersion: number;
   currentRunId?: string | null;
   analysisRetryRequired?: boolean;
   processingInProgress?: boolean;
@@ -96,7 +97,12 @@ function AnalysisContent() {
       );
     }
 
-    if (!signal.aborted) setState({ phase: "reportReady", report: reportBody });
+    const current = await fetchSessionState(sessionId, signal);
+    if (signal.aborted) return;
+    if (current?.currentRunId !== runId || !current.hasApprovedProfile || current.nextStep !== "report") {
+      throw new Error("Inputs changed. Return to Confirm Information and approve the current values.");
+    }
+    setState({ phase: "reportReady", report: reportBody });
   }, [sessionId]);
 
   const runPipeline = useCallback(async (retry = false) => {
@@ -160,8 +166,8 @@ function AnalysisContent() {
       const res = await fetch(`/api/sessions/${sessionId}/analyze`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(retry && sessionState.analysisRetryRequired
-          ? { retryRunId: sessionState.currentRunId ?? null } : {}),
+        body: JSON.stringify({ runId: sessionState.currentRunId, profileVersion: sessionState.profileVersion,
+          ...(retry && sessionState.analysisRetryRequired ? { retryRunId: sessionState.currentRunId ?? null } : {}) }),
       });
 
       if (!res.ok) {
@@ -217,6 +223,11 @@ function AnalysisContent() {
           fallbackStep={state.phase === "reportReady" ? "report" : "analysis"}
           className="max-w-6xl"
         />
+        {sessionId && <div className="mx-auto max-w-6xl px-4 pt-3 text-sm">
+          <Link className="underline" href={`/input?session=${encodeURIComponent(sessionId)}&edit=1`}>
+            Review or correct inputs
+          </Link>
+        </div>}
       </div>
       {state.phase === "processing" && (
         <LoadingScreen completedStages={state.completedStages} />
@@ -228,7 +239,7 @@ function AnalysisContent() {
             hasRun.current = false;
             runPipeline(true);
           }}
-          onBack={() => router.push(`/input?session=${encodeURIComponent(sessionId ?? "")}`)}
+          onBack={() => router.push(`/input?session=${encodeURIComponent(sessionId ?? "")}&edit=1`)}
         />
       )}
       {state.phase === "unavailable" && (
