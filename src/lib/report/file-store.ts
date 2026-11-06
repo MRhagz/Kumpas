@@ -1,9 +1,8 @@
 import "server-only";
+import { randomUUID } from "node:crypto";
 import { ProviderError } from "@/lib/processing-budget";
 
 import { createClient } from "@supabase/supabase-js";
-
-import type { StoredReportPdf } from "@/lib/report/types";
 
 export const REPORT_PDF_BUCKET = "kumpas-reports";
 export const REPORT_PDF_ACCESS_TTL_SECONDS = 24 * 60 * 60;
@@ -22,8 +21,6 @@ interface StorageError {
 interface StorageObject {
   name: string;
   created_at?: string | null;
-  updated_at?: string | null;
-  last_accessed_at?: string | null;
 }
 
 interface StorageBucketClient {
@@ -54,7 +51,6 @@ interface ReportStorageClient {
 
 export interface PdfFileStoreOptions {
   bucketName?: string;
-  accessTtlSeconds?: number;
   now?: () => Date;
   client?: ReportStorageClient;
   supabaseUrl?: string;
@@ -78,7 +74,6 @@ export interface ReportPdfStorageCheckResult {
 
 export class PdfFileStore {
   private readonly bucketName: string;
-  private readonly accessTtlSeconds: number;
   private readonly now: () => Date;
   private readonly client?: ReportStorageClient;
   private readonly supabaseUrl?: string;
@@ -86,7 +81,6 @@ export class PdfFileStore {
 
   constructor(options: PdfFileStoreOptions = {}) {
     this.bucketName = options.bucketName ?? REPORT_PDF_BUCKET;
-    this.accessTtlSeconds = options.accessTtlSeconds ?? REPORT_PDF_ACCESS_TTL_SECONDS;
     this.now = options.now ?? (() => new Date());
     this.client = options.client;
     this.supabaseUrl = options.supabaseUrl;
@@ -96,9 +90,9 @@ export class PdfFileStore {
   async uploadReportPdf(
     sessionId: string,
     pdfBuffer: Buffer,
-    reportVersion?: number,
+    reportVersion: number,
     signal?: AbortSignal,
-  ): Promise<StoredReportPdf> {
+  ): Promise<{ byteLength: number }> {
     if (!Buffer.isBuffer(pdfBuffer) || pdfBuffer.byteLength === 0) {
       throw new Error("PDF buffer is required to store a report.");
     }
@@ -107,7 +101,7 @@ export class PdfFileStore {
     const bucket = this.getClient(signal).storage.from(this.bucketName);
     const { error: uploadError } = await bucket.upload(objectKey, pdfBuffer, {
       contentType: REPORT_PDF_CONTENT_TYPE,
-      upsert: reportVersion === undefined,
+      upsert: false,
     });
 
     if (uploadError) {
@@ -115,35 +109,21 @@ export class PdfFileStore {
       throw new ProviderError(Number(uploadError.statusCode), null, { message: "Private PDF storage unavailable." });
     }
 
-    const createdAt = this.now();
-
-    return {
-      sessionId: normalizeSessionId(sessionId),
-      downloadUrl: `/api/reports/${encodeURIComponent(normalizeSessionId(sessionId))}?download=1`,
-      createdAt: createdAt.toISOString(),
-      expiresAt: new Date(
-        createdAt.getTime() + this.accessTtlSeconds * 1000,
-      ).toISOString(),
-      byteLength: pdfBuffer.byteLength,
-    };
+    return { byteLength: pdfBuffer.byteLength };
   }
 
   async checkReportPdfStorage(): Promise<ReportPdfStorageCheckResult> {
-    const sessionId = `report-storage-check-${this.now().getTime()}`;
-    const objectKey = getReportPdfObjectKey(sessionId);
+    const sessionId = `report-storage-check-${randomUUID()}`;
+    const objectKey = getReportPdfObjectKey(sessionId, 1);
     const warnings: string[] = [];
     let cleanupCompleted = false;
 
     try {
-      const storedPdf = await this.uploadReportPdf(sessionId, MINIMAL_HEALTHCHECK_PDF);
-
-      if (!storedPdf.downloadUrl || Number.isNaN(Date.parse(storedPdf.expiresAt))) {
-        throw new Error("Report storage check did not return a valid download reference.");
-      }
-      await this.downloadReportPdf(sessionId);
+      await this.uploadReportPdf(sessionId, MINIMAL_HEALTHCHECK_PDF, 1);
+      await this.downloadReportPdf(sessionId, 1);
     } finally {
       try {
-        await this.deleteReportPdf(sessionId);
+        await this.deleteReportPdf(sessionId, 1);
         cleanupCompleted = true;
       } catch (error) {
         const message =
@@ -177,30 +157,19 @@ export class PdfFileStore {
     if (error) throw new Error(`Failed to delete report PDF: ${formatStorageError(error, this.bucketName)}`);
   }
 
-  async downloadReportPdf(sessionId: string, reportVersion?: number): Promise<Blob> {
-    const normalizedSessionId = normalizeSessionId(sessionId);
+  // Callers authorize the exact report against persisted metadata before reading bytes.
+  async downloadReportPdf(sessionId: string, reportVersion: number): Promise<Blob> {
     const bucket = this.getClient().storage.from(this.bucketName);
-    const objects = await listAllStorageObjects(bucket, this.bucketName, normalizedSessionId);
-    const object = objects.find((entry) => entry.name === `${reportVersion ?? normalizedSessionId}.pdf`);
-    const generatedAt = object && getStorageObjectTimestamp(object);
-    if (!generatedAt || generatedAt.getTime() + this.accessTtlSeconds * 1000 <= this.now().getTime()) {
-      throw new Error("Report not found or expired.");
-    }
-    const { data, error } = await bucket.download(getReportPdfObjectKey(normalizedSessionId, reportVersion));
+    const { data, error } = await bucket.download(getReportPdfObjectKey(sessionId, reportVersion));
     if (error || !data) throw new Error("Report not found or expired.");
     return data;
   }
 
   async purgeExpiredReportPdfs(
-    retentionHours = 24,
+    publishedExpiry: (objectKey: string) => Promise<string | null>,
   ): Promise<ReportPdfRetentionResult> {
-    if (!Number.isFinite(retentionHours) || retentionHours <= 0) {
-      throw new Error("Retention hours must be greater than zero.");
-    }
-
-    const cutoff = new Date(
-      this.now().getTime() - retentionHours * 60 * 60 * 1000,
-    );
+    const now = this.now();
+    const cutoff = new Date(now.getTime() - REPORT_PDF_ACCESS_TTL_SECONDS * 1000);
     const bucket = this.getClient().storage.from(this.bucketName);
     const sessionFolders = await listAllStorageObjects(bucket, this.bucketName);
     const warnings: string[] = [];
@@ -229,11 +198,12 @@ export class PdfFileStore {
 
         scannedCount += 1;
 
-        const objectTimestamp = getStorageObjectTimestamp(reportObject);
+        const expiresAt = await publishedExpiry(folder.name + "/" + reportObject.name);
 
-        if (!objectTimestamp || objectTimestamp > cutoff) {
-          continue;
-        }
+        // Only unpublished objects age out by their storage creation time.
+        if (expiresAt === null
+          ? !(Date.parse(reportObject.created_at ?? "") <= cutoff.getTime())
+          : !(Date.parse(expiresAt) <= now.getTime())) continue;
 
         const objectKey = `${folder.name}/${reportObject.name}`;
         const { error } = await bucket.remove([objectKey]);
@@ -320,23 +290,6 @@ async function listAllStorageObjects(
   return objects;
 }
 
-function getStorageObjectTimestamp(object: StorageObject): Date | null {
-  const timestamp =
-    object.updated_at ?? object.created_at ?? object.last_accessed_at ?? null;
-
-  if (!timestamp) {
-    return null;
-  }
-
-  const parsedTimestamp = Date.parse(timestamp);
-
-  if (Number.isNaN(parsedTimestamp)) {
-    return null;
-  }
-
-  return new Date(parsedTimestamp);
-}
-
 function formatStorageError(error: StorageError, bucketName: string): string {
   if (/bucket not found/i.test(error.message)) {
     return `${error.message}. Create the private Supabase Storage bucket "${bucketName}" before generating reports.`;
@@ -345,11 +298,11 @@ function formatStorageError(error: StorageError, bucketName: string): string {
   return error.message;
 }
 
-export function getReportPdfObjectKey(sessionId: string, reportVersion?: number): string {
+export function getReportPdfObjectKey(sessionId: string, reportVersion: number): string {
   const normalizedSessionId = normalizeSessionId(sessionId);
 
-  if (reportVersion !== undefined && (!Number.isSafeInteger(reportVersion) || reportVersion < 1)) throw new Error("Invalid report version.");
-  return `${normalizedSessionId}/${reportVersion ?? normalizedSessionId}.pdf`;
+  if (!Number.isSafeInteger(reportVersion) || reportVersion < 1) throw new Error("Invalid report version.");
+  return `${normalizedSessionId}/${reportVersion}.pdf`;
 }
 
 export function normalizeReportSessionId(sessionId: string): string {

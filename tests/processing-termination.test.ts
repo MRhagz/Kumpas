@@ -8,6 +8,7 @@ vi.mock("@/lib/supabase", () => ({ supabaseAdmin: { from: (table: string) => {
     update: () => { boundary.events.push("revoke"); return query; },
     delete: () => { boundary.events.push(`delete ${table}`); return query; },
     eq: () => query,
+    neq: () => query,
     then: (resolve: (value: unknown) => unknown) => Promise.resolve({ data: [], error: null }).then(resolve),
   };
   return query;
@@ -26,4 +27,10 @@ it("keeps access revoked and reports pending cleanup after an object deletion fa
   const result = await new SessionTerminationHandler(vi.fn()).terminateSession("session");
   expect(boundary.events[0]).toBe("revoke"); expect(result.sessionScrubbed).toBe(true);
   expect(result.reportPdfPurged).toBe(false); expect(result.warnings).toContain("storage unavailable");
+});
+it("expires draft content without deleting an independently retained PDF", async () => {
+  await new SessionTerminationHandler().terminateSession("session", { terminalStatus: "expired" });
+  expect(boundary.events).toContain("delete profile_versions");
+  expect(boundary.events).not.toContain("delete report_versions");
+  expect(boundary.removePdf).not.toHaveBeenCalled();
 });
