@@ -1,3 +1,4 @@
+import { ProcessingBudget, ProcessingError, isTransientFailure } from "@/lib/processing-budget";
 import type { AgentName } from "./types";
 
 export type AgentStage =
@@ -9,10 +10,6 @@ interface ErrorWithStatus {
   status?: unknown;
 }
 
-interface ErrorWithRetryable {
-  retryable?: unknown;
-}
-
 function getHttpStatus(error: unknown): number | undefined {
   if (typeof error !== "object" || error === null) {
     return undefined;
@@ -22,19 +19,12 @@ function getHttpStatus(error: unknown): number | undefined {
   return typeof status === "number" ? status : undefined;
 }
 
-function isTemporaryStatus(status: number | undefined): boolean {
-  if (status === undefined) {
-    return true;
-  }
-
-  return status === 408 || status === 429 || status >= 500;
-}
-
 function getSafeMessage(
   agentName: AgentName,
   stage: AgentStage,
   status: number | undefined,
 ): string {
+  if (stage === "knowledge retrieval") return `${agentName} knowledge retrieval failed. Supabase evidence is unavailable; retry analysis when service is restored.`;
   switch (status) {
     case 401:
       return `${agentName} authentication failed. Check its Gemini API key.`;
@@ -69,32 +59,26 @@ export class AgentOperationError extends Error {
 
     this.name = "AgentOperationError";
     this.status = status;
-    this.retryable = isTemporaryStatus(status);
-    this.cause = cause;
+    this.retryable = isTransientFailure(cause);
   }
 }
 
 export async function runAgentStage<T>(
   agentName: AgentName,
   stage: AgentStage,
-  operation: () => Promise<T>,
+  operation: (signal: AbortSignal) => Promise<T>,
+  budget = new ProcessingBudget(),
 ): Promise<T> {
   try {
-    return await operation();
+    return await budget.run(`${agentName} ${stage}`, operation, stage !== "embedding");
   } catch (error) {
+    if (error instanceof ProcessingError) throw error;
     throw new AgentOperationError(agentName, stage, error);
   }
 }
 
-export function isRetryableError(error: unknown): boolean {
-  if (typeof error !== "object" || error === null) {
-    return true;
-  }
-
-  const retryable = (error as ErrorWithRetryable).retryable;
-  return typeof retryable === "boolean" ? retryable : true;
-}
+export const isRetryableError = isTransientFailure;
 
 export function getPublicErrorMessage(error: unknown): string {
-  return error instanceof Error ? error.message : "Agent execution failed.";
+  return error instanceof AgentOperationError ? error.message : "Agent execution failed. Check server configuration.";
 }

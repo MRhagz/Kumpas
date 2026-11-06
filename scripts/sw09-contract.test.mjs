@@ -13,6 +13,7 @@ function services({ response = { embeddings: [{ values: Array(768).fill(0.5) }] 
   const calls = { embeddings: [], searches: [] };
   const cache = new Map();
   const external = {
+    'server-only': {},
     '@google/genai': { GoogleGenAI: class {
       models = { embedContent: async (request) => {
         calls.embeddings.push(request);
@@ -35,8 +36,9 @@ function services({ response = { embeddings: [{ values: Array(768).fill(0.5) }] 
     const source = ts.transpileModule(fs.readFileSync(file, 'utf8'), {
       compilerOptions: { module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2022 },
     }).outputText;
-    vm.runInNewContext(source, { module: compiledModule, exports: compiledModule.exports, process, require: (name) => {
+    vm.runInNewContext(source, { module: compiledModule, exports: compiledModule.exports, process, setTimeout, clearTimeout, AbortController, Headers, require: (name) => {
       if (external[name]) return external[name];
+      if (name.startsWith('@/')) return load(path.resolve(scriptDirectory, '../src', `${name.slice(2)}.ts`));
       if (name.startsWith('.')) return load(path.resolve(path.dirname(file), `${name}.ts`));
       throw new Error(`Unexpected dependency: ${name}`);
     } }, { filename: file });

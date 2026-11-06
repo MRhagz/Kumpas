@@ -28,6 +28,7 @@ function buildStudentProfile(
   const strengths: string[] = [];
   if (profile.academicData.form137) {
     const topSubjects = [...profile.academicData.form137.subjects]
+      .filter((row): row is typeof row & { grade: number } => typeof row.grade === "number")
       .sort((a, b) => b.grade - a.grade)
       .slice(0, 3)
       .map((s) => s.name);
@@ -35,6 +36,7 @@ function buildStudentProfile(
   }
   if (profile.academicData.ncae) {
     const topStrands = Object.entries(profile.academicData.ncae.strand_scores)
+      .filter((entry): entry is [string, number] => typeof entry[1] === "number")
       .sort(([, a], [, b]) => b - a)
       .slice(0, 2)
       .map(([strand]) => strand);
@@ -157,6 +159,7 @@ async function getRankedRecommendations(
   return {
     sessionId,
     generatedAt: recs[0]?.created_at ?? new Date().toISOString(),
+    scoreContract: "0-100-v1",
     recommendations,
   };
 }
@@ -267,4 +270,17 @@ function normalizePolarity(value: unknown): KeySignalDetail["polarity"] {
   }
 
   return "neutral";
+}
+
+/** A report is assembled only from the immutable profile and outputs of its run. */
+export function runRecommendationProvider(profile: ApprovedProfile, recommendations: RankedRecommendationList): RecommendationProvider {
+  if (recommendations.scoreContract !== "0-100-v1") throw new Error("Legacy scoring contract: regenerate analysis before producing a report.");
+  const availableDocuments = Object.keys(profile.academicData).map((key) => key === "form137" ? "form137" : key) as AcademicDocumentType[];
+  const missingDocuments = ALL_ACADEMIC_TYPES.filter((type) => !availableDocuments.includes(type));
+  return {
+    getApprovedStudentProfile: async (sessionId) => buildStudentProfile(sessionId, profile),
+    getRankedRecommendations: async () => recommendations,
+    getAcademicEvidenceSummary: async () => ({ availableDocuments, missingDocuments,
+      completenessNote: missingDocuments.length ? `Missing: ${missingDocuments.join(", ")}. Recommendations use only approved available inputs.` : "All academic documents are available for analysis." }),
+  };
 }

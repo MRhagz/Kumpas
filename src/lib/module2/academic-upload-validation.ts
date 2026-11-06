@@ -30,7 +30,7 @@ function bodyParseError(error: unknown): UploadValidationError {
   return new UploadValidationError("Could not read the upload. Choose the file again and retry.", 400);
 }
 
-export async function readAcademicUpload(request: Request) {
+export async function readBoundedForm(request: Request) {
   if (Number(request.headers.get("content-length")) > MAX_ACADEMIC_REQUEST_BYTES) {
     throw new UploadValidationError(ACADEMIC_SIZE_ERROR, 413);
   }
@@ -64,6 +64,11 @@ export async function readAcademicUpload(request: Request) {
     reader?.releaseLock();
   }
 
+  return form;
+}
+
+export async function readAcademicUpload(request: Request) {
+  const form = await readBoundedForm(request);
   const file = form.get("file");
   const docType = form.get("docType");
   if (form.getAll("file").length !== 1 || !(file instanceof File) ||

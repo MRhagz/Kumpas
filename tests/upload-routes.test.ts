@@ -6,8 +6,10 @@ import { UploadValidationError } from "@/lib/module2/academic-upload-validation"
 
 const mocks = vi.hoisted(() => ({
   user: vi.fn(), owns: vi.fn(), redact: vi.fn(), store: vi.fn(), delete: vi.fn(), extract: vi.fn(),
-  claim: vi.fn(), release: vi.fn(), remove: vi.fn(), activity: vi.fn(), progress: vi.fn(),
+  cleanup: vi.fn(), claim: vi.fn(), release: vi.fn(), remove: vi.fn(), activity: vi.fn(), progress: vi.fn(),
 }));
+vi.mock("@/lib/module2/extraction-cleanup", () => ({ drainExtractionCleanup: mocks.cleanup }));
+vi.mock("@/lib/module2/intake-draft-store", () => ({ draftHeaders: { "Cache-Control": "private, no-store" } }));
 vi.mock("@/lib/auth/api-auth", () => ({
   requireUser: mocks.user, userOwnsSession: mocks.owns,
   unauthorizedResponse: () => Response.json({ error: "Unauthorized" }, { status: 401 }),
@@ -32,6 +34,7 @@ beforeEach(async () => {
   vi.stubGlobal("fetch", vi.fn().mockResolvedValue(Response.json({ candidates: [{ content: { parts: [{ text: "{}" }] } }] })));
   mocks.user.mockResolvedValue({ id: "owner-a" }); mocks.owns.mockResolvedValue(true);
   mocks.claim.mockResolvedValue({ ...claim }); mocks.release.mockResolvedValue(undefined);
+  mocks.cleanup.mockResolvedValue({ removed: 0, failed: 0 });
   mocks.remove.mockResolvedValue(undefined); mocks.delete.mockResolvedValue(undefined);
   mocks.redact.mockResolvedValue({ redactedBuffer: Buffer.from("redacted"), piiCount: 0 });
   mocks.store.mockResolvedValue("session-a/new.jpg"); mocks.extract.mockResolvedValue({ id: "row-a", structured_data: { type: "nat", data: {} } });
@@ -40,7 +43,7 @@ beforeEach(async () => {
 });
 
 for (const route of ["session", "legacy"] as const) {
-  const post = (request: Request) => route === "session" ? sessionPost(request as NextRequest, context) : legacyPost(request as NextRequest);
+  const post = (request: Request) => route === "session" ? sessionPost(request as NextRequest, context) : legacyPost(new NextRequest(new Request("http://localhost/api/extract-document?sessionId=aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa", request.clone())));
   describe(`${route} route before extraction`, () => {
     for (const size of [MAX_ACADEMIC_FILE_BYTES - 1, MAX_ACADEMIC_FILE_BYTES, MAX_ACADEMIC_FILE_BYTES + 1]) {
       it(`returns ${size > MAX_ACADEMIC_FILE_BYTES ? 413 : 200} for ${size} bytes`, async () => {
@@ -84,34 +87,36 @@ it("rejects duplicates before redaction/extraction", async () => {
   expect((await sessionPost(uploadRequest(pdfFixture()) as NextRequest, context)).status).toBe(409);
   expect(mocks.redact).not.toHaveBeenCalled(); expect(mocks.extract).not.toHaveBeenCalled();
 });
-it("sends detected MIME to redaction, and explicitly replaces the current document", async () => {
+it("sends detected MIME directly to extraction, and explicitly replaces the current document", async () => {
   mocks.claim.mockResolvedValue({ ...claim, previousPath: `session-a/${docId}.jpg` });
   const response = await sessionPost(uploadRequest(await imageFixture("webp"), "image/webp", "nat", docId) as NextRequest, context);
   expect(response.status).toBe(200);
   expect(mocks.claim).toHaveBeenCalledWith("session-a", "owner-a", "nat", docId);
-  expect(mocks.redact.mock.calls[0][1]).toBe("image/webp");
-  expect(mocks.delete).toHaveBeenCalledWith(`session-a/${docId}.jpg`);
+  expect(mocks.extract.mock.calls[0][4]).toBe("image/webp");
+  expect(mocks.redact).not.toHaveBeenCalled();
+  expect(mocks.store).not.toHaveBeenCalled();
+  expect(mocks.cleanup).toHaveBeenCalledWith("session-a");
   expect(mocks.release).not.toHaveBeenCalled();
 });
-it("renders a PDF to a decodable all-page image before the existing redaction pipeline", async () => {
+it("renders a PDF to a decodable all-page image before direct extraction", async () => {
   const response = await sessionPost(uploadRequest(pdfFixture()) as NextRequest, context);
   expect(response.status).toBe(200);
-  expect(mocks.redact.mock.calls[0][1]).toBe("image/jpeg");
+  expect(mocks.extract.mock.calls[0][4]).toBe("image/jpeg");
   const { default: sharp } = await import("sharp");
-  expect((await sharp(mocks.redact.mock.calls[0][0]).metadata()).format).toBe("jpeg");
+  expect((await sharp(mocks.extract.mock.calls[0][0]).metadata()).format).toBe("jpeg");
 });
-it("failed extraction releases the claim, deletes only the new image, and preserves the prior file", async () => {
+it("failed extraction releases the claim without storing any new image and preserves the prior draft", async () => {
   const replacement = { ...claim, previousPath: `session-a/${docId}.jpg` };
   mocks.claim.mockResolvedValue(replacement); mocks.extract.mockRejectedValue(new Error("Extraction unavailable"));
   const response = await sessionPost(uploadRequest(pdfFixture(), "application/pdf", "nat", docId) as NextRequest, context);
   expect(response.status).toBe(500); expect((await response.json()).error).toContain("preserved");
-  expect(mocks.release).toHaveBeenCalledWith(replacement); expect(mocks.delete).toHaveBeenCalledExactlyOnceWith("session-a/new.jpg");
+  expect(mocks.release).toHaveBeenCalledWith(replacement); expect(mocks.store).not.toHaveBeenCalled(); expect(mocks.delete).not.toHaveBeenCalled();
 });
 it("removes the persisted extraction, so approval cannot reload removed values", async () => {
   mocks.claim.mockResolvedValue({ ...claim, previousPath: `session-a/${docId}.jpg` });
   const request = new NextRequest(`http://localhost/upload?docType=nat&documentId=${docId}`, { method: "DELETE" });
   expect((await sessionDelete(request, context)).status).toBe(200);
-  expect(mocks.remove).toHaveBeenCalledOnce(); expect(mocks.delete).toHaveBeenCalledWith(`session-a/${docId}.jpg`);
+  expect(mocks.remove).toHaveBeenCalledOnce(); expect(mocks.cleanup).toHaveBeenCalledWith("session-a");
   expect(mocks.extract).not.toHaveBeenCalled();
 });
 it("denies a foreign session before body parsing or removal", async () => {
@@ -120,4 +125,14 @@ it("denies a foreign session before body parsing or removal", async () => {
   expect((await sessionPost(request as NextRequest, context)).status).toBe(404); expect(request.bodyUsed).toBe(false);
   expect((await sessionDelete(new NextRequest(`http://localhost/upload?docType=nat&documentId=${docId}`, { method: "DELETE" }), context)).status).toBe(404);
   expect(mocks.claim).not.toHaveBeenCalled();
+});
+
+it("returns saved extraction plus pending cleanup when deletion retry is needed, without image URLs", async () => {
+  mocks.cleanup.mockResolvedValue({ removed: 0, failed: 1 });
+  const response = await sessionPost(uploadRequest(pdfFixture()) as NextRequest, context);
+  expect(response.status).toBe(200);
+  const body = await response.json();
+  expect(body.cleanupPending).toBe(true);
+  expect(body).not.toHaveProperty("redactedImageUrl");
+  expect(mocks.release).not.toHaveBeenCalled();
 });

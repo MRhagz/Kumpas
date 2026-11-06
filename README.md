@@ -45,7 +45,7 @@ Counselors upload student academic documents and enter structured session notes 
 - Concerns and Red Flags
 - Counselor's Overall Impression
 
-Uploaded documents pass through server-side PII redaction before downstream AI processing.
+Approved uploads use the configured paid Gemini service directly for extraction. Local masking is waived under SW-05. Counselors review and save editable extraction drafts before approval; processing images are not retained by the new flow.
 
 ### 2. Academic Extraction and Confirmation
 
@@ -88,7 +88,7 @@ Session state, report lifecycle, progress indicators, and retention behavior are
 | Authentication | Supabase Auth |
 | Database and Vector Store | Supabase Postgres with pgvector |
 | AI Processing | Google Gemini API |
-| Document Handling | Tesseract.js, PDF parsing utilities, server-side redaction |
+| Document Handling | Validated image/PDF extraction, editable evidence drafts and retryable artifact cleanup |
 | Report Output | Server-side PDF renderer and Supabase Storage signed URLs |
 | Ingestion | GitHub Actions and curated data pipelines |
 
@@ -102,7 +102,7 @@ Install dependencies:
 npm install
 ```
 
-Create `.env.local` with the required project secrets:
+Copy `.env.example` to `.env.local` and fill the required project keys:
 
 ```bash
 NEXT_PUBLIC_SUPABASE_URL=
@@ -113,6 +113,10 @@ ACADEMIC_AUDITOR_API_KEY=
 INDUSTRY_ANALYST_API_KEY=
 FEASIBILITY_STRATEGIST_API_KEY=
 SYNTHESIS_API_KEY=
+GEMINI_GENERATION_MODEL=gemini-3.8-flash
+GEMINI_API_VERSION=v1beta
+EMBEDDING_MODEL=gemini-embedding-001
+EMBEDDING_DIMENSIONS=768
 REPORT_RETENTION_SECRET=
 ```
 
@@ -123,6 +127,17 @@ npm run dev
 ```
 
 Open [http://localhost:3000](http://localhost:3000).
+
+All five Gemini operation keys are required at server startup. Keep them in the
+same billing-enabled Google Cloud project. Generation and extraction use Gemini
+3.8 Flash; document/query embeddings retain `gemini-embedding-001` at 768 dimensions.
+Missing keys, unsupported model/API settings and insecure service URLs prevent
+startup. Supabase requires HTTPS; development permits HTTP only on loopback.
+Rebuild if changing `NEXT_PUBLIC_SUPABASE_URL`, which Next.js embeds at build time.
+Never prefix Gemini or privileged keys with `NEXT_PUBLIC_`.
+
+Provider settings, permitted data flows and verification limits are recorded in
+[SW-29 provider configuration](docs/sw29-provider-configuration.md).
 
 ---
 
@@ -151,9 +166,9 @@ Kumpas is designed around counselor control and data minimization:
 
 - Authentication is required for in-app workflows.
 - Student records are treated as personal information under R.A. 10173.
-- PII redaction happens before external AI processing.
+- SW-05 waives local masking. Approved extraction images use the configured paid Gemini service; credentials remain server-side.
 - Supabase service-role access is restricted to server-side routes and ingestion workflows.
-- Private report PDFs and redacted images are delivered through authenticated owner-checked routes.
+- Private report PDFs use authenticated owner-checked routes. New intake extraction keeps image/PDF bytes request-local; legacy image cleanup is durable and retryable.
 - Counselor invitation setup, deployment effects and access verification are documented in [SW-01 access](docs/sw-01-access.md).
 
 ---
@@ -167,3 +182,5 @@ Kumpas is designed around counselor control and data minimization:
 ---
 
 *Turning data into direction.*
+
+SW-06 intake contracts, migration order and verification are documented in [SW-06 extraction](docs/sw-06-verification.md).

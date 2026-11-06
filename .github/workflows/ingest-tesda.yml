@@ -1,21 +1,70 @@
 name: Ingest TESDA programs
 
 on:
+  pull_request:
+    paths:
+      - "ingestion/**"
+      - "supabase/**"
+      - ".github/actions/setup-ingestion/**"
+      - ".github/workflows/ingest-tesda.yml"
   push:
     branches:
       - main
     paths:
       - "ingestion/data/tesda/programs.csv"
-      - "ingestion/src/kumpas_ingestion/pipelines/tesda.py"
-      - ".github/workflows/ingest-tesda.yml"
   workflow_dispatch: {}
 
 concurrency:
-  group: ingest-tesda
+  group: ingest-tesda-${{ github.event_name == 'pull_request' && github.ref || 'production' }}
   cancel-in-progress: false
 
+permissions:
+  contents: read
+
 jobs:
+  validate:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - run: pip install -e './ingestion[dev]'
+      - run: python -m unittest discover -s ingestion/tests -p test_tesda.py -v
+      - run: ruff check --config ingestion/pyproject.toml ingestion/src/kumpas_ingestion/pipelines/tesda.py ingestion/tests/test_tesda.py ingestion/tests/test_tesda_database.py ingestion/tests/tesda_fixtures.py
+
+  database-contracts:
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: pgvector/pgvector:pg17
+        env:
+          POSTGRES_PASSWORD: contract-test-only
+          POSTGRES_DB: sw13
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U postgres -d sw13"
+          --health-interval 5s --health-timeout 5s --health-retries 10
+    env:
+      PGHOST: localhost
+      PGPORT: "5432"
+      PGUSER: postgres
+      PGPASSWORD: contract-test-only
+      PGDATABASE: sw13
+      TESDA_TEST_DATABASE_URL: postgresql://postgres:contract-test-only@localhost:5432/sw13
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - run: pip install -e ./ingestion 'psycopg2-binary==2.9.13'
+      - run: psql -v ON_ERROR_STOP=1 -f supabase/tests/sw09_bootstrap.sql
+      - run: python -m unittest discover -s ingestion/tests -p test_tesda_database.py -v
+
   ingest:
+    needs: [validate, database-contracts]
+    if: github.event_name != 'pull_request' && github.ref == 'refs/heads/main'
     runs-on: ubuntu-latest
     env:
       SUPABASE_URL: ${{ secrets.SUPABASE_URL }}

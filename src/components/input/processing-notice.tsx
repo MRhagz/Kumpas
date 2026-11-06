@@ -18,7 +18,7 @@ export default function ProcessingNotice({ confirmed, onConfirm }: ProcessingNot
       </p>
       <p className="mt-2">
         Vercel hosts application processing. Supabase provides authentication and restricted
-        temporary session storage. Gemini processes submitted images for extraction and
+        temporary session storage. The approved paid Gemini service processes submitted images directly for extraction and
         approved inputs for automated career analysis. Typed-only notes skip image extraction;
         they are not automatically redacted. Remove names, birthdates, student IDs and
         confidential details yourself. Do not submit complete confidential counseling records.

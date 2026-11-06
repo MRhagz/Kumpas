@@ -40,6 +40,7 @@ describe("F05 / S01 / S02 typed-only intake", () => {
     push.mockClear();
     outbound = vi.fn(async (url: string) => {
       if (url === "/api/sessions") return Response.json({ sessionId: "test" });
+      if (url === "/api/sessions/test/intake") return Response.json({ revision: 1, profileVersion: 0 });
       if (url === "/api/sessions/test/approve") return Response.json({ status: "approved" });
       throw new Error(`Unexpected request: ${url}`);
     });
@@ -57,20 +58,24 @@ describe("F05 / S01 / S02 typed-only intake", () => {
     const interests = screen.getByRole("textbox", { name: "Personal Interests & Strengths (required)" });
     fireEvent.input(goal, { target: { innerHTML: "<p>Undecided</p>" } });
     fireEvent.input(interests, { target: { innerHTML: `<p>${scope}; mathematics PRIVATE-NOTE-ALPHA</p>` } });
-    const approve = screen.getByRole("button", { name: /Begin Multi Agent Analysis/ });
+    const approve = screen.getByRole("button", { name: /Approve Inputs and Begin Analysis/ });
     expect((approve as HTMLButtonElement).disabled).toBe(true);
     const review = screen.getByRole("checkbox", { name: /I have reviewed these notes/ });
     await user.click(review);
-    expect((approve as HTMLButtonElement).disabled).toBe(false);
+    expect((approve as HTMLButtonElement).disabled).toBe(true);
+    await user.click(screen.getByRole("button", { name: "Save draft" }));
+    await waitFor(() => expect((approve as HTMLButtonElement).disabled).toBe(false));
     // Editing after review revokes that confirmation, including removal of confidential text.
     fireEvent.input(interests, { target: { innerHTML: `<p>${scope}; mathematics</p>` } });
     expect((approve as HTMLButtonElement).disabled).toBe(true);
+    await user.click(screen.getByRole("button", { name: "Save draft" }));
+    await waitFor(() => expect(screen.getByText(/Draft saved/)).toBeTruthy());
     await user.click(review);
     await user.click(approve);
     await waitFor(() => expect(push).toHaveBeenCalledWith("/analysis?session=test"));
-    expect(outbound.mock.calls.map(([url]) => url)).toEqual(["/api/sessions", "/api/sessions/test/approve"]);
-    const payload = JSON.parse(outbound.mock.calls[1][1].body);
-    expect(payload).toEqual({ notesReviewed: true, counselorNotes: { ...notes, careerGoal: "<p>Undecided</p>", interests: `<p>${scope}; mathematics</p>` }, corrections: [] });
+    expect(outbound.mock.calls.map(([url]) => url)).toEqual(["/api/sessions", "/api/sessions/test/intake", "/api/sessions/test/intake", "/api/sessions/test/intake", "/api/sessions/test/intake", "/api/sessions/test/approve"]);
+    const payload = JSON.parse(outbound.mock.calls.at(-1)![1].body);
+    expect(payload).toEqual({ notesReviewed: true, counselorNotes: { ...notes, careerGoal: "<p>Undecided</p>", interests: `<p>${scope}; mathematics</p>` }, profileVersion: 0, notesRevision: 1, documents: [] });
     expect(JSON.stringify(payload)).not.toContain("PRIVATE-NOTE-ALPHA");
     expect(screen.getByText(/Grade 10 and Senior High School students/)).toBeTruthy();
   });

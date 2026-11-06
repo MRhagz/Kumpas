@@ -29,8 +29,20 @@ shared services.
 | `SUPABASE_SERVICE_ROLE_KEY` | repository, logger | Supabase project settings (RLS-bypass key) |
 | `GEMINI_API_KEY` | embedding service | Google AI Studio |
 
-In GitHub Actions these come from repository secrets. Locally, set them in your
-shell or `.env` file (never commit).
+In GitHub Actions these come from repository secrets. Locally, export them in
+your shell using `ingestion/.env.example` as the template. Python does not
+automatically load `.env` files. Never commit actual credentials.
+
+`GEMINI_API_VERSION`, when set, must be `v1beta`. Embedding configuration remains
+`gemini-embedding-001` / 768 dimensions. Missing or whitespace-only keys,
+conflicting `SUPABASE_URL` and `NEXT_PUBLIC_SUPABASE_URL`, and non-HTTPS service
+URLs fail before pipeline work starts. For local Supabase only, `KUMPAS_ENV=development`
+permits HTTP on loopback. Public-source downloads always require HTTPS, including
+redirects; `file://` inputs remain local. Gemini authentication uses headers,
+and provider failure bodies are excluded from embedding exceptions.
+
+See [SW-29 provider configuration](../docs/sw29-provider-configuration.md) for the
+shared billing/account record and approved data boundaries.
 
 ## Adding a new pipeline
 
@@ -91,9 +103,9 @@ pip install -e ".[psa,pdf,tesda,dev]"
   re-embedding and the STD R03 retrieval evaluation.
 - Knowledge-base writes use the service-role key and bypass RLS by design;
   this code never runs inside a counselor session.
-- TESDA records have no real source URL — pipelines synthesize one as
-  `manual_curation://tesda/{qualification_code}/{program_name}` to satisfy
-  the universal `(silo_id, source_url, chunk_index)` primary key.
+- TESDA uses the official citation plus an encoded qualification code and
+  program name as its stable `source_url`.
+  See the [semester CSV contract](data/tesda/README.md).
 
 ## SW-09 rollout and refresh behavior
 
@@ -129,7 +141,7 @@ DOLE sidecars retain `source_url` and `publication_date`. TESDA CSVs may include
 optional `official_source_url` and `publication_date` columns; existing textual
 `source_reference` values remain available when no official URL is known.
 
-The nonempty PSA/TESDA CSV is the authoritative snapshot for its source group:
+The validated PSA/TESDA CSV is the authoritative snapshot for its source group:
 removed records are deleted only when the validated replacement commits. Empty
 input never clears a group. PDF refreshes replace only successfully processed
 publications; absent or failed publications keep their last valid records. Within

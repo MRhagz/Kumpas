@@ -1,10 +1,11 @@
 import "server-only";
 
+import { drainExtractionCleanup } from "@/lib/module2/extraction-cleanup";
+
 import { sessionTerminationHandler } from "@/lib/report/session-termination";
 import { supabaseAdmin } from "@/lib/supabase";
 
 export interface ExpiredSessionCleanupOptions {
-  inactivityHours?: number;
   limit?: number;
   now?: Date;
 }
@@ -21,26 +22,19 @@ interface ExpiredSessionRow {
   id: string;
 }
 
-const DEFAULT_INACTIVITY_HOURS = 24;
 const DEFAULT_LIMIT = 50;
 
 export async function runExpiredSessionCleanup(
   options: ExpiredSessionCleanupOptions = {},
 ): Promise<ExpiredSessionCleanupResult> {
-  const inactivityHours = options.inactivityHours ?? DEFAULT_INACTIVITY_HOURS;
   const limit = options.limit ?? DEFAULT_LIMIT;
-
-  if (!Number.isFinite(inactivityHours) || inactivityHours <= 0) {
-    throw new Error("inactivityHours must be greater than zero.");
-  }
 
   if (!Number.isInteger(limit) || limit <= 0) {
     throw new Error("limit must be a positive integer.");
   }
 
   const now = options.now ?? new Date();
-  const cutoff = new Date(now.getTime() - inactivityHours * 60 * 60 * 1000);
-  const sessions = await getExpiredSessions(cutoff, now, limit);
+  const sessions = await getExpiredSessions(now, limit);
   const warnings: string[] = [];
   let expiredCount = 0;
 
@@ -57,8 +51,14 @@ export async function runExpiredSessionCleanup(
     }
   }
 
+  // Includes cancelled/expired sessions and orphaned legacy artifacts.
+  try {
+    const cleanup = await drainExtractionCleanup(null, Math.min(limit, 100));
+    if (cleanup.failed) warnings.push("Temporary artifact cleanup is pending retry.");
+  } catch { warnings.push("Temporary artifact cleanup is pending retry."); }
+
   return {
-    cutoff: cutoff.toISOString(),
+    cutoff: now.toISOString(),
     scannedCount: sessions.length,
     expiredCount,
     warningCount: warnings.length,
@@ -67,7 +67,6 @@ export async function runExpiredSessionCleanup(
 }
 
 async function getExpiredSessions(
-  inactivityCutoff: Date,
   now: Date,
   limit: number,
 ): Promise<ExpiredSessionRow[]> {
@@ -75,10 +74,8 @@ async function getExpiredSessions(
     .from("sessions")
     .select("id")
     .eq("status", "active")
-    .or(
-      `expires_at.lte.${now.toISOString()},last_activity.lte.${inactivityCutoff.toISOString()}`,
-    )
-    .order("last_activity", { ascending: true })
+    .lte("expires_at", now.toISOString())
+    .order("expires_at", { ascending: true })
     .limit(limit);
 
   if (error) {

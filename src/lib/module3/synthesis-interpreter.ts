@@ -1,4 +1,5 @@
-import { GoogleGenAI } from "@google/genai";
+import { createGeminiClient } from "./gemini-config";
+import { ProcessingBudget } from "@/lib/processing-budget";
 import { isSourceAcquisitionMethod } from "@/lib/report/types";
 import type { ApprovedProfile } from "@/types";
 import { getGeminiGenerationModel, requireApiKey } from "./gemini-config";
@@ -114,13 +115,13 @@ export function parseSynthesis(value: unknown, outputs: AgentOutput[], profile: 
 }
 
 export class SynthesisInterpreter {
-  async synthesize(agentOutputs: AgentOutput[], profile: ApprovedProfile): Promise<IntermediateSynthesis> {
+  async synthesize(agentOutputs: AgentOutput[], profile: ApprovedProfile, budget = new ProcessingBudget()): Promise<IntermediateSynthesis> {
     const apiKey = requireApiKey("SynthesisInterpreter", process.env.SYNTHESIS_API_KEY);
-    const ai = new GoogleGenAI({ apiKey });
-    const result = await ai.models.generateContent({
+    const ai = createGeminiClient(apiKey);
+    const result = await budget.run("synthesis-interpreter", (signal) => ai.models.generateContent({
       model: getGeminiGenerationModel(), contents: buildPrompt(agentOutputs, profile),
-      config: { responseMimeType: "application/json" },
-    });
+      config: { responseMimeType: "application/json", abortSignal: signal },
+    }));
     return parseSynthesis(JSON.parse(result.text ?? ""), agentOutputs, profile);
   }
 }

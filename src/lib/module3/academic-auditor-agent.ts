@@ -1,5 +1,6 @@
+import { createGeminiClient } from "./gemini-config";
+import { ProcessingBudget } from "@/lib/processing-budget";
 import { evidenceContext, unavailableEvidence } from "./specialist-evidence";
-import { GoogleGenAI } from "@google/genai";
 import { AgentOperationError, runAgentStage } from "./agent-errors";
 import {
   getGeminiGenerationModel,
@@ -9,6 +10,7 @@ import { queryEmbeddingService } from "./query-embedding-service";
 import { vectorStoreQueryService } from "./vector-store-query-service";
 import type { AgentOutput, RetrievedChunk } from "./types";
 import type { ApprovedProfile } from "@/types";
+import { selectAcademicData, selectAgentAnalysis } from "./provider-inputs";
 
 const AGENT_NAME = "AcademicAuditor" as const;
 
@@ -17,6 +19,7 @@ function buildQuery(profile: ApprovedProfile): string {
 
   if (profile.academicData.ncae) {
     const strands = Object.entries(profile.academicData.ncae.strand_scores)
+      .filter((entry): entry is [string, number] => typeof entry[1] === "number")
       .sort(([, a], [, b]) => b - a)
       .map(([strand, score]) => `${strand}: ${score}`)
       .join(", ");
@@ -38,6 +41,7 @@ function buildQuery(profile: ApprovedProfile): string {
 
   if (profile.academicData.form137) {
     const topSubjects = [...profile.academicData.form137.subjects]
+      .filter((row): row is typeof row & { grade: number } => typeof row.grade === "number")
       .sort((a, b) => b.grade - a.grade)
       .slice(0, 5)
       .map((s) => `${s.name}: ${s.grade}`)
@@ -63,7 +67,7 @@ function buildPrompt(
 ${context || "No relevant occupational data retrieved."}
 
 ## Student Academic Profile
-${JSON.stringify(profile.academicData, null, 2)}
+${JSON.stringify(selectAcademicData(profile.academicData), null, 2)}
 
 ## Counselor Notes
 Career Goal: ${profile.counselorNotes.careerGoal}
@@ -96,14 +100,17 @@ export class AcademicAuditorAgent {
   async analyze(
     profile: ApprovedProfile,
     apiKey: string,
+    budget = new ProcessingBudget(),
   ): Promise<AgentOutput> {
     const normalizedApiKey = requireApiKey(AGENT_NAME, apiKey);
     const query = buildQuery(profile);
     const embedding = await runAgentStage(AGENT_NAME, "embedding", () =>
-      queryEmbeddingService.embed(query, normalizedApiKey),
+      queryEmbeddingService.embed(query, normalizedApiKey, budget),
+      budget,
     );
-    const chunks = await runAgentStage(AGENT_NAME, "knowledge retrieval", () =>
-      vectorStoreQueryService.query(AGENT_NAME, embedding),
+    const chunks = await runAgentStage(AGENT_NAME, "knowledge retrieval", (signal) =>
+      vectorStoreQueryService.query(AGENT_NAME, embedding, undefined, undefined, signal),
+      budget,
     );
 
     const missing = unavailableEvidence(AGENT_NAME, chunks);
@@ -118,14 +125,15 @@ export class AcademicAuditorAgent {
       };
     }
 
-    const ai = new GoogleGenAI({ apiKey: normalizedApiKey });
+    const ai = createGeminiClient(normalizedApiKey);
 
-    const result = await runAgentStage(AGENT_NAME, "analysis generation", () =>
+    const result = await runAgentStage(AGENT_NAME, "analysis generation", (signal) =>
       ai.models.generateContent({
         model: getGeminiGenerationModel(),
         contents: buildPrompt(profile, chunks),
-        config: { responseMimeType: "application/json" },
+        config: { responseMimeType: "application/json", abortSignal: signal },
       }),
+      budget,
     );
     const text = result.text?.trim();
 
@@ -146,7 +154,7 @@ export class AcademicAuditorAgent {
     return {
       agentName: AGENT_NAME,
       status: "SUCCESS",
-      analysis: text,
+      analysis: selectAgentAnalysis(AGENT_NAME, text),
       retrievedChunks: chunks,
       unavailableEvidence: missing,
     };

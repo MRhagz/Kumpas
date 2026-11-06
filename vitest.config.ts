@@ -8,5 +8,5 @@ export default defineConfig({
       "server-only": fileURLToPath(new URL("./tests/server-only.ts", import.meta.url)),
     },
   },
-  test: { include: ["tests/**/*.test.ts"], testTimeout: 15000 },
+  test: { include: ["tests/**/*.test.{ts,tsx}"], testTimeout: 15000 },
 });

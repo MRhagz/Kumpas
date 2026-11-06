@@ -3,10 +3,11 @@
 const baseUrl = requiredEnv("KUMPAS_BASE_URL").replace(/\/$/, "");
 const sessionId = requiredEnv("KUMPAS_SESSION_ID");
 const authCookie = requiredEnv("KUMPAS_AUTH_COOKIE");
-const shouldMarkComplete = process.env.KUMPAS_MARK_COMPLETE !== "false";
+const runId = requiredEnv("KUMPAS_RUN_ID");
 
 const reportResponse = await postJson(`${baseUrl}/api/reports`, {
   sessionId,
+  runId,
 });
 
 assertEqual(reportResponse.sessionId, sessionId, "report sessionId");
@@ -16,7 +17,7 @@ assertNumberAtLeast(
   1,
   "report recommendationCount",
 );
-assertNonEmptyString(reportResponse.downloadUrl, "report downloadUrl");
+assertNumberAtLeast(reportResponse.reportVersion, 1, "report version");
 assertFutureIsoDate(reportResponse.expiresAt, "report expiresAt");
 assertNonEmptyString(reportResponse.generatedAt, "report generatedAt");
 assertArrayAtLeast(reportResponse.recommendations, 1, "report recommendations");
@@ -34,18 +35,9 @@ for (const recommendation of reportResponse.recommendations) {
   assertArrayAtLeast(recommendation.keySignals, 1, "recommendation keySignals");
 }
 
-await verifySignedUrl(reportResponse.downloadUrl);
-
-let completionResponse = null;
-if (shouldMarkComplete) {
-  completionResponse = await postJson(
-    `${baseUrl}/api/sessions/${encodeURIComponent(sessionId)}/complete`,
-    {},
-  );
-
-  assertEqual(completionResponse.sessionId, sessionId, "completion sessionId");
-  assertEqual(completionResponse.status, "complete", "completion status");
-}
+assertEqual(Date.parse(reportResponse.expiresAt) - Date.parse(reportResponse.generatedAt),
+  24 * 60 * 60 * 1000, "PDF lifetime in milliseconds");
+await verifyPdfAccess(reportResponse);
 
 console.log(
   JSON.stringify(
@@ -57,7 +49,7 @@ console.log(
         recommendationCount: reportResponse.recommendationCount,
         expiresAt: reportResponse.expiresAt,
       },
-      completion: completionResponse,
+      reportVersion: reportResponse.reportVersion,
     },
     null,
     2,
@@ -85,22 +77,30 @@ async function postJson(url, body) {
   return responseBody;
 }
 
-async function verifySignedUrl(url) {
-  const response = await fetch(url, { method: "GET" });
+async function verifyPdfAccess(report) {
+  const path = `/api/reports/${encodeURIComponent(sessionId)}?version=${report.reportVersion}&download=1`;
+  const anonymous = await fetch(baseUrl + path, { redirect: "manual" });
+  assertEqual(anonymous.status, 401, "unauthenticated PDF read");
+  const response = await fetch(baseUrl + path, { headers: { Cookie: authCookie }, redirect: "manual" });
+  if (report.downloadUrl === null) {
+    assertEqual(response.status, 404, "unapproved PDF read");
+    return;
+  }
 
+  assertEqual(report.downloadUrl, path, "approved version URL");
   if (!response.ok) {
-    throw new Error(`Signed URL download failed with ${response.status}.`);
+    throw new Error(`Authorized PDF read failed with ${response.status}.`);
   }
 
   const contentType = response.headers.get("content-type") ?? "";
   if (!contentType.toLowerCase().includes("application/pdf")) {
-    throw new Error(`Signed URL returned unexpected content-type: ${contentType}`);
+    throw new Error(`PDF route returned unexpected content-type: ${contentType}`);
   }
 
   const byteLength = Number(response.headers.get("content-length") ?? "0");
   if (byteLength < 1) {
     const buffer = await response.arrayBuffer();
-    assertNumberAtLeast(buffer.byteLength, 1, "signed URL byteLength");
+    assertNumberAtLeast(buffer.byteLength, 1, "PDF byteLength");
   }
 }
 

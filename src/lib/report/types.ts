@@ -67,6 +67,7 @@ export interface RankedRecommendationList {
   sessionId: string;
   generatedAt: string;
   recommendations: RankedRecommendation[];
+  scoreContract?: "0-100-v1";
   limitation?: string;
 }
 
@@ -91,17 +92,10 @@ export interface ReportPayload {
   generatedAt: string;
 }
 
-export interface StoredReportPdf {
-  sessionId: string;
-  downloadUrl: string;
-  expiresAt: string;
-  createdAt: string;
-  byteLength: number;
-}
-
 export interface ReportGenerationResponse {
   sessionId: string;
-  downloadUrl: string;
+  reportVersion: number;
+  downloadUrl: string | null;
   expiresAt: string;
   generatedAt: string;
   byteLength: number;

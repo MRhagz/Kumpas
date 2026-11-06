@@ -1,0 +1,21 @@
+{
+  "file": "notes-approved.jpg",
+  "mimeType": "image/jpeg",
+  "sha256": "d8810319fc39c63064594655861cdd31b180d9d084f6249ace5da044065bfe0a",
+  "sourceLines": [
+    "SYNTHETIC PREPARED COUNSELOR SUMMARY",
+    "Name: Synthetic Learner - ID: TEST-NOTES-ONLY",
+    "Career goal: Undecided",
+    "Interests: Mathematics and drawing",
+    "Financial: Scholarship needed",
+    "Concerns:",
+    "Impression: Explore engineering"
+  ],
+  "expected": {
+    "careerGoal": "<p>Undecided</p>",
+    "interests": "<p>Mathematics and drawing</p>",
+    "financial": "<p>Scholarship needed</p>",
+    "concerns": "<p></p>",
+    "impression": "<p>Explore engineering</p>"
+  }
+}

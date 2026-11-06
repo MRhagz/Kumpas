@@ -28,7 +28,7 @@ export default function ConfirmationApprovalBar({
       <label className="mb-4 flex items-start gap-2 text-sm text-charcoal-2">
         <input type="checkbox" checked={notesReviewed} disabled={isSubmitting}
           onChange={(event) => onNotesReviewedChange(event.target.checked)} />
-        I have reviewed these notes and confirm that they exclude personal identifiers
+        I have reviewed these notes and the academic values, including missing evidence. My notes exclude personal identifiers
         and confidential details. I am submitting only a prepared career-guidance summary.
       </label>
       <button
@@ -45,7 +45,7 @@ export default function ConfirmationApprovalBar({
             className={canApprove ? "animate-pulse group-hover:animate-spin" : ""}
           />
         )}
-        {isSubmitting ? "Preparing analysis…" : "Begin Multi Agent Analysis"}
+        {isSubmitting ? "Preparing analysis…" : "Approve Inputs and Begin Analysis"}
       </button>
       <p className="mt-3 text-center text-xs font-medium text-muted-text">
         {!documentsReady ? (
@@ -55,7 +55,7 @@ export default function ConfirmationApprovalBar({
         ) : !notesReviewed ? (
           "Confirm your review of the notes before analysis"
         ) : (
-          <span className="text-sage">All inputs ready. Click above to begin the analysis.</span>
+          <span className="text-sage">Approve these saved values. Later saved changes require approval and analysis again.</span>
         )}
       </p>
     </div>
