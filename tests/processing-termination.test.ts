@@ -19,6 +19,7 @@ it("revokes a run before artifact cleanup and removes newly persisted profile/ru
   const result = await new SessionTerminationHandler().terminateSession("session");
   expect(result.sessionScrubbed).toBe(true); expect(result.reportPdfPurged).toBe(true);
   expect(boundary.events[0]).toBe("revoke");
+  expect(boundary.events).not.toContain("delete correction_logs");
   expect(boundary.events).toContain("delete profile_versions"); // analysis_runs cascade with the profile.
   expect(boundary.events).toContain("delete report_versions");
 });
@@ -30,6 +31,7 @@ it("keeps access revoked and reports pending cleanup after an object deletion fa
 });
 it("expires draft content without deleting an independently retained PDF", async () => {
   await new SessionTerminationHandler().terminateSession("session", { terminalStatus: "expired" });
+  expect(boundary.events).not.toContain("delete correction_logs");
   expect(boundary.events).toContain("delete profile_versions");
   expect(boundary.events).not.toContain("delete report_versions");
   expect(boundary.removePdf).not.toHaveBeenCalled();

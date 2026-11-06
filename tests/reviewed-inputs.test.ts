@@ -57,13 +57,18 @@ const migration = (name: string) => readFileSync(new URL(`../supabase/migrations
 beforeAll(async () => {
   m.db = new PGlite();
   await db().exec(`create role anon; create role authenticated; create role service_role bypassrls;
-    create schema auth; create function auth.uid() returns uuid language sql as $$ select null::uuid $$;
+    create schema private; grant usage on schema private to authenticated;
+    create schema auth;
+    create table auth.users(id uuid, raw_app_meta_data jsonb, email_confirmed_at timestamptz, is_anonymous boolean, deleted_at timestamptz, banned_until timestamptz);
+    create table auth.sessions(id uuid, user_id uuid, not_after timestamptz);
+    create function auth.jwt() returns jsonb language sql as $$ select '{}'::jsonb $$;
+    create function auth.uid() returns uuid language sql as $$ select null::uuid $$;
     create schema storage; create table storage.buckets(id text primary key, name text, public boolean, file_size_limit bigint, allowed_mime_types text[]);
     create table storage.objects(bucket_id text);`);
   for (const name of ["20260523000000_module2_sessions", "20260524000002_module5_session_progress",
     "20261104144015_sw03_academic_upload_validation", "20261105030355_sw02_versioned_contracts",
     "20261105081447_sw15_processing_budget", "20261106110326_sw06_extraction_drafts_cleanup",
-    "20261106124126_sw07_reviewed_profile_approval"]) await db().exec(migration(name));
+    "20261106124126_sw07_reviewed_profile_approval", "20261106132602_sw08_restricted_correction_logs"]) await db().exec(migration(name));
   await db().exec("grant select, insert, update, delete on all tables in schema public to service_role");
 }, 30000);
 afterAll(async () => { await db().close(); });
