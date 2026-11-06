@@ -15,6 +15,7 @@ interface SlotState {
 
 interface DocumentUploadPanelProps {
   sessionId: string;
+  disabled?: boolean;
   slots: { 1: SlotState; 2: SlotState; 3: SlotState };
   onSlotFilesAdd: (index: 1 | 2 | 3, files: File[]) => void;
   onSlotFileRemove: (index: 1 | 2 | 3, fileIndex: number) => void;
@@ -25,6 +26,7 @@ interface DocumentUploadPanelProps {
 
 export default function DocumentUploadPanel({
   sessionId,
+  disabled = false,
   slots,
   onSlotFilesAdd,
   onSlotFileRemove,
@@ -49,13 +51,15 @@ export default function DocumentUploadPanel({
           ? "File exceeds 10 MB (10,000,000 bytes). Choose a smaller file." : "Upload failed. Retry or replace the file."));
       }
       const data = await res.json();
+      if (data.cleanupPending) onUploadError(index, file, "Extraction saved. Temporary artifact cleanup is pending retry.");
       onDocumentUploaded(index, file, {
         documentId: data.documentId,
         slotIndex: index,
         docType,
         extractedData: data.structuredData,
-        redactedImageUrl: data.redactedImageUrl,
-        originalExtractedData: structuredClone(data.structuredData),
+        redactedImageUrl: null,
+        originalExtractedData: data.originalData ?? structuredClone(data.structuredData),
+        revision: data.revision, evidenceState: data.evidenceState, provenance: data.provenance,
       });
     } catch (err) {
       onUploadError(index, file, err instanceof Error ? err.message : "Upload failed");
@@ -104,7 +108,7 @@ export default function DocumentUploadPanel({
       .filter(Boolean);
 
   return (
-    <div className="p-6 sm:p-8">
+    <fieldset disabled={disabled} className="min-w-0 p-6 sm:p-8">
       <div className="flex items-start gap-3 mb-4">
         <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-ochre-pale text-ochre">
           <FolderOpen size={20} />
@@ -117,8 +121,8 @@ export default function DocumentUploadPanel({
             </span>
           </h2>
           <p className="mt-1 text-xs text-muted-text leading-relaxed">
-            Upload student records to improve AI accuracy. PII is automatically redacted server-side
-            before analysis.
+            Upload optional student records for extraction with the approved Gemini service.
+            Review and correct the results before analysis.
           </p>
         </div>
       </div>
@@ -144,6 +148,6 @@ export default function DocumentUploadPanel({
           />
         ))}
       </div>
-    </div>
+    </fieldset>
   );
 }

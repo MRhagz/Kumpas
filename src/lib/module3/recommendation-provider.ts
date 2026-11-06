@@ -28,6 +28,7 @@ function buildStudentProfile(
   const strengths: string[] = [];
   if (profile.academicData.form137) {
     const topSubjects = [...profile.academicData.form137.subjects]
+      .filter((row): row is typeof row & { grade: number } => typeof row.grade === "number")
       .sort((a, b) => b.grade - a.grade)
       .slice(0, 3)
       .map((s) => s.name);
@@ -35,6 +36,7 @@ function buildStudentProfile(
   }
   if (profile.academicData.ncae) {
     const topStrands = Object.entries(profile.academicData.ncae.strand_scores)
+      .filter((entry): entry is [string, number] => typeof entry[1] === "number")
       .sort(([, a], [, b]) => b - a)
       .slice(0, 2)
       .map(([strand]) => strand);

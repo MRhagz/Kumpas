@@ -7,13 +7,23 @@ import { ProviderError } from "@/lib/processing-budget";
  *
  * Uses the configured Gemini image endpoint for reading
  * handwritten/typed counselor notes and structuring into 5 sections.
- * Prompt instructions do not replace SW-05 image redaction.
+ * SW-05 waives local masking; results always require counselor review.
  */
 
 import { type NextRequest } from "next/server";
-import { requireUser, unauthorizedResponse } from "@/lib/auth/api-auth";
+import { requireUser, unauthorizedResponse, userOwnsSession, notFoundResponse } from "@/lib/auth/api-auth";
 
 import { getGeminiResponseText, requestGeminiImageJson } from "@/lib/module3/gemini-config";
+
+import { readBoundedForm, validateAcademicContent, UploadValidationError, uploadErrorResponse } from "@/lib/module2/academic-upload-validation";
+import { academicFileSizeError } from "@/lib/academic-upload-policy";
+import { draftHeaders, intakeRpc, readIntakeDraft } from "@/lib/module2/intake-draft-store";
+import { EXTRACTION_PROMPT_VERSION, normalizeNotes, NOTE_KEYS } from "@/lib/module2/extraction-contract";
+import { getGeminiGenerationModel } from "@/lib/module3/gemini-config";
+import { randomUUID } from "node:crypto";
+
+export const runtime = "nodejs";
+export const maxDuration = 300;
 
 const PROMPT = `You are a career counselor's assistant. You are given an image of handwritten or typed interview notes taken during a career counseling session with a student.
 
@@ -44,24 +54,37 @@ export async function POST(request: NextRequest) {
   if (!user) return unauthorizedResponse();
 
   try {
-    const formData = await request.formData();
+    const formData = await readBoundedForm(request);
     if (formData.get("notesReviewed") !== "true") {
       return Response.json({ error: "Confirm that prepared notes exclude personal identifiers and confidential details" }, { status: 400 });
     }
 
-    const file = formData.get("file") as File | null;
+    const sessionId = formData.get("sessionId");
+    const revision = Number(formData.get("revision"));
+    if (typeof sessionId !== "string" || !/^[0-9a-f-]{36}$/i.test(sessionId) ||
+        formData.get("revision") === null || !Number.isInteger(revision) || revision < 0) {
+      return Response.json({ error: "A session and saved notes revision are required." }, { status: 400 });
+    }
+    if (!(await userOwnsSession(sessionId, user.id))) return notFoundResponse();
+    const draft = await readIntakeDraft(sessionId, user.id);
+    if (draft.notes?.revision !== revision) return Response.json({ error: "Notes changed. Reload before extracting." }, { status: 409 });
+    const file = formData.get("file");
 
-    if (!file) {
+    if (!(file instanceof File) || formData.getAll("file").length !== 1) {
       return Response.json(
         { error: "Missing required field: file" },
         { status: 400 }
       );
     }
 
+    const sizeError = academicFileSizeError(file);
+    if (sizeError) throw new UploadValidationError(sizeError, 413);
     // Convert file to base64 for Gemini Vision
     const arrayBuffer = await file.arrayBuffer();
-    const base64Data = Buffer.from(arrayBuffer).toString("base64");
-    const mimeType = file.type || "image/jpeg";
+    const buffer = Buffer.from(arrayBuffer);
+    const mimeType = await validateAcademicContent(buffer, file.type);
+    if (!mimeType.startsWith("image/")) throw new UploadValidationError("Upload a JPEG, PNG or WEBP notes photograph.", 415);
+    const base64Data = buffer.toString("base64");
 
     // Call Gemini Vision API with image + text prompt
     const geminiData = await requestGeminiImageJson({
@@ -101,12 +124,22 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    return Response.json(Object.fromEntries(
-      ["careerGoal", "interests", "financial", "concerns", "impression"].map(
-        (key) => [key, typeof parsed?.[key] === "string" ? parsed[key] : "<p></p>"],
-      ),
-    ));
+    let notes;
+    try { notes = normalizeNotes(parsed); }
+    catch { return Response.json({ error: "Invalid notes extraction. Retry the photograph." }, { status: 422 }); }
+    // Editors render HTML: permit formatting tags only, with no attributes or active content.
+    for (const key of NOTE_KEYS) notes[key] = notes[key].replace(/<[^>]*>/g, (tag) =>
+      /^<\/?(?:p|ul|ol|li|strong|b|em|i|u|br)\s*\/?>$/i.test(tag) ? tag : "");
+    const source = { documentId: randomUUID(), extractedAt: new Date().toISOString(),
+      model: getGeminiGenerationModel(), promptVersion: EXTRACTION_PROMPT_VERSION, page: 1 };
+    const saved = await intakeRpc<{ draft_revision: number }>("save_intake_notes", {
+      p_session_id: sessionId, p_counselor_id: user.id, p_expected_revision: revision,
+      p_notes: notes, p_source: source, p_extracted: true,
+    });
+    return Response.json({ ...notes, revision: saved.draft_revision, source }, { headers: draftHeaders });
   } catch (error) {
+    const validation = uploadErrorResponse(error);
+    if (validation) return validation;
     if (error instanceof ProviderError) return Response.json({ error: "Gemini API request failed" }, { status: 502 });
     console.error("[extract-notes] Request failed");
     return Response.json(

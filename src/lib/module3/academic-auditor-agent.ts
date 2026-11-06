@@ -19,6 +19,7 @@ function buildQuery(profile: ApprovedProfile): string {
 
   if (profile.academicData.ncae) {
     const strands = Object.entries(profile.academicData.ncae.strand_scores)
+      .filter((entry): entry is [string, number] => typeof entry[1] === "number")
       .sort(([, a], [, b]) => b - a)
       .map(([strand, score]) => `${strand}: ${score}`)
       .join(", ");
@@ -40,6 +41,7 @@ function buildQuery(profile: ApprovedProfile): string {
 
   if (profile.academicData.form137) {
     const topSubjects = [...profile.academicData.form137.subjects]
+      .filter((row): row is typeof row & { grade: number } => typeof row.grade === "number")
       .sort((a, b) => b.grade - a.grade)
       .slice(0, 5)
       .map((s) => `${s.name}: ${s.grade}`)
