@@ -65,10 +65,10 @@ function parseRetentionHours(value: unknown): number | undefined | Error {
   }
 
   const retentionHours =
-    typeof value === "number" ? value : Number.parseFloat(String(value));
+    typeof value === "number" ? value : Number(value);
 
-  if (!Number.isFinite(retentionHours) || retentionHours <= 0) {
-    return new Error("retentionHours must be a number greater than zero.");
+  if (retentionHours !== 24) {
+    return new Error("PDF retention is fixed at 24 hours.");
   }
 
   return retentionHours;
