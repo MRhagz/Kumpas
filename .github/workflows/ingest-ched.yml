@@ -25,8 +25,17 @@ concurrency:
   group: ingest-ched
   cancel-in-progress: false
 
+permissions:
+  contents: read
+
 jobs:
+  verify:
+    uses: ./.github/workflows/sw11-contracts.yml
+
   ingest:
+    # PRs test public fixtures only; never expose production credentials or write a silo.
+    if: github.event_name != 'pull_request' && github.ref == 'refs/heads/main'
+    needs: [verify]
     runs-on: ubuntu-latest
     env:
       SUPABASE_URL: ${{ secrets.SUPABASE_URL }}

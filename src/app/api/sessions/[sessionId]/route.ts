@@ -13,7 +13,7 @@ import {
 export const runtime = "nodejs";
 
 const SESSION_RESPONSE_HEADERS = {
-  "Cache-Control": "no-store",
+  "Cache-Control": "private, no-store",
 };
 
 export async function GET(
@@ -42,18 +42,16 @@ export async function GET(
 
   try {
     const sessionState =
-      await sessionStateManager.getSessionState(normalizedSessionId);
+      await sessionStateManager.getSessionState(normalizedSessionId, user.id);
 
     if (!sessionState) {
       return notFoundResponse();
     }
 
     return createSessionJsonResponse(sessionState);
-  } catch (error) {
-    const message =
-      error instanceof Error ? error.message : "Failed to load session state.";
-
-    return createSessionJsonResponse({ error: message }, 500);
+  } catch {
+    console.error("[session-recovery] Failed to load saved session versions.");
+    return createSessionJsonResponse({ error: "Could not load your saved draft. Try again." }, 500);
   }
 }
 

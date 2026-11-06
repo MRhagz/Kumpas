@@ -166,7 +166,14 @@ export default function InputContainer() {
           );
 
           if (!response.ok) {
-            throw new Error("Could not resume this session. Please start a new one.");
+            if (response.status === 401) {
+              const next = `/input?session=${encodeURIComponent(resumableSessionId)}`;
+              window.location.replace(`/login?next=${encodeURIComponent(next)}`);
+              return;
+            }
+            throw new Error(response.status === 404
+              ? "This draft is unavailable. Return to your drafts or start a new session."
+              : "Could not load your saved draft. Refresh to try again.");
           }
 
           const sessionState = (await response.json()) as SessionStateResponse;
@@ -204,6 +211,7 @@ export default function InputContainer() {
 
         if (isMounted) {
           setSessionId(data.sessionId);
+          window.history.replaceState(null, "", `/input?session=${encodeURIComponent(data.sessionId)}`);
         }
       } catch (error) {
         if (isMounted) {
@@ -319,8 +327,6 @@ export default function InputContainer() {
 
   const handleSlotFilesAdd = useCallback(
     (slot: SlotKey, files: File[]) => {
-      const docType = slotTypes[slot];
-      const isMulti = docType === "form_137";
       const newEntries: SlotFileEntry[] = files.map((file) => ({
         file,
         processingState: { step: "ai_structuring", progress: 30 },
@@ -328,10 +334,10 @@ export default function InputContainer() {
       }));
       setSlotEntries((prev) => ({
         ...prev,
-        [slot]: isMulti ? [...prev[slot], ...newEntries] : newEntries,
+        [slot]: newEntries.slice(0, 1).map((entry) => ({ ...entry, uploaded: prev[slot][0]?.uploaded ?? null })),
       }));
     },
-    [slotTypes],
+    [],
   );
 
   const handleSlotFileRemove = useCallback((slot: SlotKey, fileIdx: number) => {
@@ -491,6 +497,7 @@ export default function InputContainer() {
           <AlertTriangle size={18} className="shrink-0" />
           <span className="text-[14px]">{sessionError}</span>
         </div>
+        <a className="mt-4 inline-block underline" href="/input">Return to saved drafts</a>
       </section>
     );
   }
@@ -762,16 +769,19 @@ export default function InputContainer() {
                 files: slotEntries[1].map((e) => e.file),
                 docType: slotTypes[1],
                 perFileProcessing: slotEntries[1].map((e) => e.processingState),
+                uploaded: slotEntries[1][0]?.uploaded ?? null,
               },
               2: {
                 files: slotEntries[2].map((e) => e.file),
                 docType: slotTypes[2],
                 perFileProcessing: slotEntries[2].map((e) => e.processingState),
+                uploaded: slotEntries[2][0]?.uploaded ?? null,
               },
               3: {
                 files: slotEntries[3].map((e) => e.file),
                 docType: slotTypes[3],
                 perFileProcessing: slotEntries[3].map((e) => e.processingState),
+                uploaded: slotEntries[3][0]?.uploaded ?? null,
               },
             }}
             onSlotFilesAdd={handleSlotFilesAdd}
@@ -796,6 +806,7 @@ export default function InputContainer() {
         {/* Part 3: ConfirmationApprovalBar */}
         {sessionId && processingConfirmed && (
           <ConfirmationApprovalBar
+            documentsReady={SLOT_KEYS.every((slot) => slotEntries[slot].every((entry) => entry.processingState.step === "complete"))}
             notes={sectionHtml}
             notesReviewed={notesReviewed}
             onNotesReviewedChange={setNotesReviewed}

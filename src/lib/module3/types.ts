@@ -6,11 +6,17 @@ export type SiloId = "market_analytics" | "live_labor_demand" | "path_feasibilit
 
 export type AgentName = "AcademicAuditor" | "IndustryAnalyst" | "FeasibilityStrategist";
 
-export const AGENT_SILO_MAP: Record<AgentName, SiloId> = {
+export const AGENT_SILO_MAP: Readonly<Record<AgentName, SiloId>> = Object.freeze({
   AcademicAuditor: "market_analytics",
   IndustryAnalyst: "live_labor_demand",
   FeasibilityStrategist: "path_feasibility",
-};
+});
+
+export const AGENT_SOURCE_MAP = Object.freeze({
+  AcademicAuditor: Object.freeze(["psa_openstat_lfs"]),
+  IndustryAnalyst: Object.freeze(["dole_ble_lmi"]),
+  FeasibilityStrategist: Object.freeze(["ched_cmo", "tesda_manual"]),
+});
 
 // ─── Retrieved Context ─────────────────────────────────────────────
 
@@ -39,6 +45,7 @@ export interface AgentOutput {
   status: AgentStatus;
   analysis: string;
   retrievedChunks: RetrievedChunk[];
+  unavailableEvidence?: string[];
   error?: string;
 }
 
@@ -91,3 +98,6 @@ export interface AnalysisInput {
   sessionId: string;
   approvedProfile: ApprovedProfile;
 }
+
+// Versioned workflow contract for downstream integration; legacy DTOs remain unchanged.
+export type { AnalysisRunContract } from "@/lib/module5/versioned-contracts";

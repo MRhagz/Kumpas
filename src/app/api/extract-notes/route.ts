@@ -1,3 +1,4 @@
+import { ProviderError } from "@/lib/processing-budget";
 /**
  * API route: Gemini Vision — extract counselor notes from image.
  *
@@ -12,7 +13,7 @@
 import { type NextRequest } from "next/server";
 import { requireUser, unauthorizedResponse } from "@/lib/auth/api-auth";
 
-import { getGeminiResponseText, requestGeminiImage } from "@/lib/module3/gemini-config";
+import { getGeminiResponseText, requestGeminiImageJson } from "@/lib/module3/gemini-config";
 
 const PROMPT = `You are a career counselor's assistant. You are given an image of handwritten or typed interview notes taken during a career counseling session with a student.
 
@@ -63,7 +64,7 @@ export async function POST(request: NextRequest) {
     const mimeType = file.type || "image/jpeg";
 
     // Call Gemini Vision API with image + text prompt
-    const geminiResponse = await requestGeminiImage({
+    const geminiData = await requestGeminiImageJson({
       contents: [
         {
           parts: [
@@ -83,14 +84,6 @@ export async function POST(request: NextRequest) {
       },
     });
 
-    if (!geminiResponse.ok) {
-      return Response.json(
-        { error: "Gemini API request failed" },
-        { status: 502 }
-      );
-    }
-
-    const geminiData = await geminiResponse.json();
     const rawText = getGeminiResponseText(geminiData);
 
     // Parse the JSON response
@@ -113,7 +106,8 @@ export async function POST(request: NextRequest) {
         (key) => [key, typeof parsed?.[key] === "string" ? parsed[key] : "<p></p>"],
       ),
     ));
-  } catch {
+  } catch (error) {
+    if (error instanceof ProviderError) return Response.json({ error: "Gemini API request failed" }, { status: 502 });
     console.error("[extract-notes] Request failed");
     return Response.json(
       { error: "Internal server error" },

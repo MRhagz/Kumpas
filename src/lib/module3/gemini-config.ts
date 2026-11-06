@@ -1,6 +1,7 @@
 import "server-only";
 
 import { GoogleGenAI, type GenerateContentResponse } from "@google/genai";
+import { ProcessingBudget, ProviderError } from "@/lib/processing-budget";
 import { assertEmbeddingConfiguration } from "./embedding-contract";
 
 const GENERATION_MODEL = "gemini-3.8-flash";
@@ -26,7 +27,7 @@ export function createGeminiClient(apiKey: string): GoogleGenAI {
   return new GoogleGenAI({
     apiKey: requireApiKey("Gemini", apiKey),
     vertexai: false,
-    httpOptions: { baseUrl: GEMINI_ORIGIN, apiVersion: getGeminiApiVersion() },
+    httpOptions: { baseUrl: GEMINI_ORIGIN, apiVersion: getGeminiApiVersion(), retryOptions: { attempts: 1 } },
   });
 }
 
@@ -73,19 +74,34 @@ export function validateProviderConfiguration(): void {
 }
 
 // All image operations share the approved model, endpoint and header authentication.
-export async function requestGeminiImage(body: Record<string, unknown>): Promise<Response> {
+export async function requestGeminiImage(body: Record<string, unknown>, signal?: AbortSignal): Promise<Response> {
   const apiKey = requireApiKey("Document intake", process.env.DOCUMENT_INTAKE_API_KEY);
   const url = `${GEMINI_ORIGIN}/${getGeminiApiVersion()}/models/${getGeminiGenerationModel()}:generateContent`;
   try {
     return await fetch(url, {
       method: "POST",
       redirect: "error",
+      signal,
       headers: { "Content-Type": "application/json", "x-goog-api-key": apiKey },
       body: JSON.stringify(body),
     });
   } catch {
     throw new Error("Gemini image request failed.");
   }
+}
+
+export async function requestGeminiImageJson(
+  body: Record<string, unknown>,
+  budget = new ProcessingBudget(),
+  stage = "extraction",
+): Promise<GenerateContentResponse> {
+  return budget.run(stage, async (signal) => {
+    const response = await requestGeminiImage(body, signal);
+    if (!response.ok) {
+      throw new ProviderError(response.status, response.headers.get("retry-after"), await response.json().catch(() => null));
+    }
+    return response.json();
+  });
 }
 
 export function requireApiKey(

@@ -1,4 +1,5 @@
 import { createGeminiClient } from "./gemini-config";
+import { ProcessingBudget } from "@/lib/processing-budget";
 import {
   getGeminiGenerationModel,
   requireApiKey,
@@ -43,6 +44,7 @@ Respond in JSON with this exact schema:
 export class RankingAgent {
   async generateReasoning(
     scoredPaths: ScoredCareerPath[],
+    budget = new ProcessingBudget(),
   ): Promise<RankedCareerPath[]> {
     const apiKey = requireApiKey(
       "RankingAgent",
@@ -50,11 +52,11 @@ export class RankingAgent {
     );
     const ai = createGeminiClient(apiKey);
 
-    const result = await ai.models.generateContent({
+    const result = await budget.run("ranking-agent", (signal) => ai.models.generateContent({
       model: getGeminiGenerationModel(),
       contents: buildPrompt(scoredPaths),
-      config: { responseMimeType: "application/json" },
-    });
+      config: { responseMimeType: "application/json", abortSignal: signal },
+    }));
     const text = result.text ?? "";
     const parsed = JSON.parse(text) as {
       rankings: Array<{
