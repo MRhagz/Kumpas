@@ -105,6 +105,7 @@ def _list_pdfs(directory: Path) -> list[Path]:
     if not directory.is_dir():
         raise DoleBleIngestionError(f"Expected a directory, got: {directory}")
     try:
+        # Include nested PDFs regardless of file extension casing.
         return sorted(p for p in directory.rglob("*")
                       if p.suffix.lower() == ".pdf" and (p.is_file() or p.is_symlink()))
     except OSError as exc:
