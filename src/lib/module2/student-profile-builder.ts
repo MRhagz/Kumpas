@@ -1,6 +1,6 @@
 import "server-only";
 import { intakeRpc, readIntakeDraft } from "./intake-draft-store";
-import { academicFields } from "./extraction-contract";
+import { academicCorrections } from "./correction-audit";
 import { UploadValidationError } from "./academic-upload-validation";
 import type { ApprovedProfile, CorrectionLog } from "@/types";
 
@@ -37,14 +37,7 @@ export class StudentProfileBuilder {
       if (data.type === "ncae") academicData.ncae = data.data;
       if (data.type === "nat") academicData.nat = data.data;
       if (data.type === "form_137") academicData.form137 = data.data;
-      const original = academicFields(doc.original_data);
-      for (const [field, value] of Object.entries(academicFields(data))) {
-        if (original[field] !== value) corrections.push({
-          session_id: sessionId, field_name: `${doc.document_type}.${field}`,
-          extracted_value: original[field] == null ? null : String(original[field]),
-          corrected_value: value == null ? "" : String(value),
-        });
-      }
+      corrections.push(...academicCorrections(sessionId, doc.original_data, data));
     }
 
     // The database supplies version and confirmation time under the session lock.
