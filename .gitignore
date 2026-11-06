@@ -12,6 +12,7 @@
 
 # testing
 /coverage
+/.private/sw28/
 
 # next.js
 /.next/
