@@ -98,7 +98,8 @@ class TESDADatabaseTests(unittest.TestCase):
                           "scholarship_availability"):
                 self.assertTrue(row["source_metadata"][field])
         self.cursor.execute("""select * from public.match_knowledge_chunks(
-            array_fill(0.25::real, array[768])::vector, 'path_feasibility', 50)""")
+            array_fill(0.25::real, array[768])::vector, 'path_feasibility', 50,
+            request_agent => 'FeasibilityStrategist')""")
         self.assertEqual(len(self.cursor.fetchall()), 31)
         self.assertEqual(self.rows("ingestion_logs")[0]["run_status"], "success")
         self.assertTrue(self.rows("ingestion_metadata")[0]["last_ingestion_timestamp"])
