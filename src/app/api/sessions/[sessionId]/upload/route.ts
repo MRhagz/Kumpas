@@ -1,95 +1,45 @@
 import { type NextRequest } from "next/server";
-import { randomUUID } from "node:crypto";
-import { piiRedactionService } from "@/lib/module2/pii-redaction-service";
-import { documentStorageService } from "@/lib/module2/document-storage-service";
 import { geminiExtractionService } from "@/lib/module2/gemini-extraction-service";
-import { sessionInitializationService } from "@/lib/module2/session-initialization-service";
-import { sessionProgressTracker } from "@/lib/module5/session-progress";
 import { readAcademicUpload, uploadErrorResponse } from "@/lib/module2/academic-upload-validation";
 import { academicDocumentStore, type AcademicUploadClaim } from "@/lib/module2/academic-document-store";
+import { drainExtractionCleanup } from "@/lib/module2/extraction-cleanup";
+import { draftHeaders } from "@/lib/module2/intake-draft-store";
 import { ACADEMIC_DOCUMENT_TYPES } from "@/lib/academic-upload-policy";
 import { renderAcademicPdf } from "@/lib/module2/academic-pdf-renderer";
-import {
-  notFoundResponse,
-  requireUser,
-  unauthorizedResponse,
-  userOwnsSession,
-} from "@/lib/auth/api-auth";
+import { notFoundResponse, requireUser, unauthorizedResponse, userOwnsSession } from "@/lib/auth/api-auth";
 
 export const maxDuration = 300;
+export const runtime = "nodejs";
 
-export async function POST(
-  request: NextRequest,
-  { params }: { params: Promise<{ sessionId: string }> },
-) {
+export async function POST(request: NextRequest, { params }: { params: Promise<{ sessionId: string }> }) {
   const { sessionId } = await params;
-
   const user = await requireUser();
   if (!user) return unauthorizedResponse();
   if (!(await userOwnsSession(sessionId, user.id))) return notFoundResponse();
-
   let claim: AcademicUploadClaim | undefined;
-  let redactedPath: string | undefined;
   let committed = false;
   try {
-    const { buffer: rawBuffer, mimeType, docType, replaceDocumentId } = await readAcademicUpload(request);
+    const { buffer, mimeType, docType, replaceDocumentId } = await readAcademicUpload(request);
     claim = await academicDocumentStore.claim(sessionId, user.id, docType, replaceDocumentId);
-
-    // Raw buffer stays in memory — never written to disk (deviation #3, plan §Stated Deviations)
-    await sessionProgressTracker.markIntakeInProgress(sessionId);
-
-    // PIIRedactionService: Gemini Vision two-pass — see deviation #6 for SRS justification
-    const imageBuffer = mimeType === "application/pdf" ? await renderAcademicPdf(rawBuffer) : rawBuffer;
-    const { redactedBuffer, piiCount } = await piiRedactionService.redact(imageBuffer, mimeType === "application/pdf" ? "image/jpeg" : mimeType);
-
-    // DocumentStorageService: persist redacted image to kumpas-documents bucket
-    const docId = randomUUID();
-    redactedPath = await documentStorageService.storeRedacted(redactedBuffer, sessionId, docId);
-    const redactedImageUrl = `/api/sessions/${encodeURIComponent(sessionId)}/documents/${docId}`;
-    await sessionInitializationService.updateLastActivity(sessionId);
-
-    // GeminiExtractionService: structured extraction from the redacted image
-    const extractionResult = await geminiExtractionService.extract(
-      redactedBuffer,
-      docType,
-      sessionId,
-      user.id,
-      redactedPath,
-      claim,
-    );
+    // SW-05 waiver: approved extraction bytes go directly to the paid provider.
+    // All PDF pages are preserved; no raw files or rendered pages are persisted.
+    const image = mimeType === "application/pdf" ? await renderAcademicPdf(buffer) : buffer;
+    const extraction = await geminiExtractionService.extract(image, docType, sessionId, user.id,
+      mimeType === "application/pdf" ? "image/jpeg" : mimeType, claim);
     committed = true;
-    if (claim.previousPath) {
-      await documentStorageService.deleteRedacted(claim.previousPath).catch(() => {
-        console.error("[upload route] Could not delete replaced redacted image");
-      });
-    }
-
+    const cleanup = await drainExtractionCleanup(sessionId).catch(() => ({ failed: 1 }));
     return Response.json({
-      documentId: docId,
-      extractionResultId: extractionResult.id,
-      docType,
-      structuredData: extractionResult.structured_data,
-      redactedImageUrl,
-      piiCount,
-      status: "complete",
-    });
-  } catch (err) {
-    const validation = uploadErrorResponse(err);
-    if (validation) return validation;
-    console.error("[Upload processing] Request failed");
-    return Response.json(
-      { error: "Upload processing failed. Retry or replace the file; the previous document has been preserved." },
-      { status: 500 },
-    );
+      documentId: extraction.id, extractionResultId: extraction.id, docType,
+      structuredData: extraction.structured_data, originalData: extraction.original_data,
+      revision: extraction.draft_revision, evidenceState: extraction.evidence_state, provenance: extraction.provenance,
+      cleanupPending: cleanup.failed > 0, status: "complete",
+    }, { headers: draftHeaders });
+  } catch (error) {
+    return uploadErrorResponse(error) ?? Response.json({ error: "Extraction failed. Retry or replace the file; the previous saved document is preserved." }, { status: 500, headers: draftHeaders });
   } finally {
-    if (claim && !committed) {
-      if (redactedPath) await documentStorageService.deleteRedacted(redactedPath).catch(() => {
-        console.error("[upload route] Could not delete failed redacted image");
-      });
-      await academicDocumentStore.release(claim).catch(() => {
-        console.error("[upload route] Could not release upload reservation");
-      });
-    }
+    if (claim && !committed) await academicDocumentStore.release(claim).catch(() => {
+      console.error("[extraction] Upload reservation release failed");
+    });
   }
 }
 
@@ -107,10 +57,8 @@ export async function DELETE(request: NextRequest, { params }: { params: Promise
   try {
     claim = await academicDocumentStore.claim(sessionId, user.id, docType, documentId);
     await academicDocumentStore.remove(claim);
-    if (claim.previousPath) await documentStorageService.deleteRedacted(claim.previousPath).catch(() => {
-      console.error("[upload route] Could not delete removed redacted image");
-    });
-    return Response.json({ status: "removed" });
+    const cleanup = await drainExtractionCleanup(sessionId).catch(() => ({ failed: 1 }));
+    return Response.json({ status: "removed", cleanupPending: cleanup.failed > 0 }, { headers: draftHeaders });
   } catch (error) {
     return uploadErrorResponse(error) ?? Response.json({ error: "Could not remove the document. Retry removal." }, { status: 500 });
   } finally {

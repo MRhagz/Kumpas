@@ -1,5 +1,7 @@
 import "server-only";
 
+import { drainExtractionCleanup } from "@/lib/module2/extraction-cleanup";
+
 import { sessionTerminationHandler } from "@/lib/report/session-termination";
 import { supabaseAdmin } from "@/lib/supabase";
 
@@ -48,6 +50,12 @@ export async function runExpiredSessionCleanup(
       expiredCount += 1;
     }
   }
+
+  // Includes cancelled/expired sessions and orphaned legacy artifacts.
+  try {
+    const cleanup = await drainExtractionCleanup(null, Math.min(limit, 100));
+    if (cleanup.failed) warnings.push("Temporary artifact cleanup is pending retry.");
+  } catch { warnings.push("Temporary artifact cleanup is pending retry."); }
 
   return {
     cutoff: now.toISOString(),
