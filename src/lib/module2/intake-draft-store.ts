@@ -6,6 +6,7 @@ import type { ExtractedNotes } from "@/lib/analysis-types";
 import { normalizeAcademicData } from "./extraction-contract";
 
 export interface IntakeDraft {
+  profileVersion: number;
   documents: ExtractionDraft[];
   notes: (ExtractedNotes & { revision: number; source: Record<string, unknown> | null; original: ExtractedNotes | null }) | null;
   uploadPending: boolean;
