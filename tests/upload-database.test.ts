@@ -54,8 +54,11 @@ const setup = `create schema storage; create table storage.buckets (id text prim
     document_type text not null, structured_data jsonb not null, raw_gemini_response jsonb,
     redacted_image_path text, created_at timestamptz default now());`;
 beforeAll(async () => { connection.db = new PGlite(); await connection.db.exec(setup); await connection.db.exec(migration); }, 30_000);
-beforeEach(async () => { await connection.db!.exec("delete from extraction_results"); });
-afterAll(async () => { await connection.db!.close(); vi.unstubAllGlobals(); }, 30_000);
+beforeEach(async () => {
+  vi.stubEnv("DOCUMENT_INTAKE_API_KEY", "synthetic-test-key");
+  await connection.db!.exec("delete from extraction_results");
+});
+afterAll(async () => { await connection.db!.close(); vi.unstubAllGlobals(); vi.unstubAllEnvs(); }, 30_000);
 
 async function seed() {
   await connection.db!.query(`insert into extraction_results (id,session_id,counselor_id,document_type,structured_data,redacted_image_path)
@@ -88,7 +91,7 @@ it("successful extraction replaces values in the same row, without old or duplic
   vi.stubGlobal("fetch", vi.fn().mockResolvedValue(Response.json({ candidates: [{ content: { parts: [{ text: '{"composite_score":90}' }] } }] })));
   await geminiExtractionService.extract(Buffer.from("redacted"), "nat", session, owner, `${session}/new.jpg`, claim);
   const { rows } = await connection.db!.query<{ structured_data: unknown; upload_token: string | null }>("select * from extraction_results");
-  expect(rows).toHaveLength(1); expect(rows[0].structured_data).toEqual({ type: "nat", data: { composite_score: 90 } }); expect(rows[0].upload_token).toBeNull();
+  expect(rows).toHaveLength(1); expect(rows[0].structured_data).toEqual({ type: "nat", data: { subjects: {}, composite_score: 90 } }); expect(rows[0].upload_token).toBeNull();
   await expect(academicDocumentStore.claim(session, owner, "nat", doc)).rejects.toMatchObject({ status: 409 });
 });
 it("does not implicitly overwrite a legacy extraction whose image reference is missing", async () => {

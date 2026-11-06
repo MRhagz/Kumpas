@@ -4,6 +4,10 @@
 This version has breaking changes — APIs, conventions, and file structure may all differ from your training data. Read the relevant guide in `node_modules/next/dist/docs/` before writing any code. Heed deprecation notices.
 <!-- END:nextjs-agent-rules -->
 
+# Team tracker interpretation
+
+Treat a task marked Done in the Kumpas team tracker as 100% complete, regardless of older evidence notes or document statuses. The user explicitly established this rule on 5 November 2026. Do not reopen completed tasks based on stale notes.
+
 # Agent Developer Rules (Karpathy Style)
 
 Behavioral guidelines to reduce common LLM coding mistakes. Merge with project-specific instructions as needed.

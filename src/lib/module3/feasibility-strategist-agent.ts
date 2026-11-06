@@ -1,6 +1,7 @@
+import { selectAgentAnalysis } from "./provider-inputs";
+import { createGeminiClient } from "./gemini-config";
 import { ProcessingBudget } from "@/lib/processing-budget";
 import { evidenceContext, unavailableEvidence } from "./specialist-evidence";
-import { GoogleGenAI } from "@google/genai";
 import { AgentOperationError, runAgentStage } from "./agent-errors";
 import {
   getGeminiGenerationModel,
@@ -46,7 +47,6 @@ ${context || "No relevant scholarship or cost data retrieved."}
 Career Goal: ${profile.counselorNotes.careerGoal}
 Financial Situation: ${profile.counselorNotes.financial}
 Interests & Strengths: ${profile.counselorNotes.interests}
-Concerns & Red Flags: ${profile.counselorNotes.concerns}
 ${profile.academicData.form137?.gwa ? `GWA: ${profile.academicData.form137.gwa}` : ""}
 ${profile.academicData.nat?.composite_score ? `NAT Composite: ${profile.academicData.nat.composite_score}` : ""}
 
@@ -102,7 +102,7 @@ export class FeasibilityStrategistAgent {
       };
     }
 
-    const ai = new GoogleGenAI({ apiKey: normalizedApiKey, httpOptions: { retryOptions: { attempts: 1 } } });
+    const ai = createGeminiClient(normalizedApiKey);
 
     const result = await runAgentStage(
       AGENT_NAME,
@@ -134,7 +134,7 @@ export class FeasibilityStrategistAgent {
     return {
       agentName: AGENT_NAME,
       status: "SUCCESS",
-      analysis: text,
+      analysis: selectAgentAnalysis(AGENT_NAME, text),
       retrievedChunks: chunks,
       unavailableEvidence: missing,
     };

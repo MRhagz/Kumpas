@@ -39,7 +39,7 @@ import pandas as pd
 from pydantic import BaseModel, Field, ValidationError, field_validator
 from supabase import create_client
 
-from ..config import IngestionConfig
+from ..config import IngestionConfig, require_https
 from ..embedding_service import EmbeddingService
 from ..ingestion_logger import IngestionLogger
 from ..models import ChunkInput
@@ -124,7 +124,9 @@ def download_csv(url: str) -> bytes:
         path = url.removeprefix("file://")
         with open(path, "rb") as fh:
             return fh.read()
-    response = httpx.get(url, timeout=60.0, follow_redirects=True)
+    with httpx.Client(timeout=60.0, follow_redirects=True,
+                      event_hooks={"request": [require_https]}) as client:
+        response = client.get(url)
     if response.status_code != 200:
         raise IngestionFailure(
             f"PSA download returned HTTP {response.status_code} for {url}"

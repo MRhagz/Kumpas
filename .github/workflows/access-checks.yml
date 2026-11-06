@@ -15,6 +15,11 @@ jobs:
       NEXT_PUBLIC_SUPABASE_URL: https://example.supabase.co
       NEXT_PUBLIC_SUPABASE_ANON_KEY: sw01-public-test-key
       SUPABASE_SERVICE_ROLE_KEY: SW01_SERVER_SECRET_SENTINEL_DO_NOT_EXPOSE
+      DOCUMENT_INTAKE_API_KEY: SW01_SERVER_SECRET_SENTINEL_DO_NOT_EXPOSE
+      ACADEMIC_AUDITOR_API_KEY: SW01_SERVER_SECRET_SENTINEL_DO_NOT_EXPOSE
+      INDUSTRY_ANALYST_API_KEY: SW01_SERVER_SECRET_SENTINEL_DO_NOT_EXPOSE
+      FEASIBILITY_STRATEGIST_API_KEY: SW01_SERVER_SECRET_SENTINEL_DO_NOT_EXPOSE
+      SYNTHESIS_API_KEY: SW01_SERVER_SECRET_SENTINEL_DO_NOT_EXPOSE
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
@@ -37,8 +42,16 @@ jobs:
         shell: bash
         run: |
           node node_modules/next/dist/bin/next start --hostname 127.0.0.1 --port 3117 > "$RUNNER_TEMP/kumpas-server.log" 2>&1 &
+          server_pid=$!
+          trap 'kill "$server_pid" 2>/dev/null || true' EXIT
+          ready=false
           for attempt in {1..30}; do
-            if curl --fail --silent http://127.0.0.1:3117/login > /dev/null; then break; fi
+            if curl --fail --silent http://127.0.0.1:3117/login > /dev/null; then ready=true; break; fi
+            if ! kill -0 "$server_pid" 2>/dev/null; then break; fi
             sleep 1
           done
+          if [ "$ready" != true ]; then
+            cat "$RUNNER_TEMP/kumpas-server.log"
+            exit 1
+          fi
           npm run smoke:access

@@ -76,7 +76,7 @@ export async function POST(
   } catch (err) {
     const validation = uploadErrorResponse(err);
     if (validation) return validation;
-    console.error(`[upload route] sessionId=${sessionId}`, err);
+    console.error("[Upload processing] Request failed");
     return Response.json(
       { error: "Upload processing failed. Retry or replace the file; the previous document has been preserved." },
       { status: 500 },

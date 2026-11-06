@@ -28,7 +28,7 @@ export class MetaAgentSynthesizer {
       return await rankingAgent.generateReasoning(scoredPaths, budget);
     } catch (error) {
       if (error instanceof ProcessingError) throw error;
-      console.warn("[MetaAgentSynthesizer] RankingAgent failed, proceeding with placeholder reasoning", error);
+      console.warn("[MetaAgentSynthesizer] RankingAgent failed, proceeding with placeholder reasoning");
       return scoredPaths.map((path) => ({
         ...path,
         reasoningSummary: "",

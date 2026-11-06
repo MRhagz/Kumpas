@@ -60,7 +60,6 @@ export class AgentOperationError extends Error {
     this.name = "AgentOperationError";
     this.status = status;
     this.retryable = isTransientFailure(cause);
-    this.cause = cause;
   }
 }
 
@@ -81,5 +80,5 @@ export async function runAgentStage<T>(
 export const isRetryableError = isTransientFailure;
 
 export function getPublicErrorMessage(error: unknown): string {
-  return error instanceof Error ? error.message : "Agent execution failed.";
+  return error instanceof AgentOperationError ? error.message : "Agent execution failed. Check server configuration.";
 }
