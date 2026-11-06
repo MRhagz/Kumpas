@@ -96,7 +96,8 @@ class DoleDatabaseTests(unittest.TestCase):
             self.assertEqual(row["publication_date"], "2026-10-01")
             self.assertTrue(row["ingestion_timestamp"])
         self.cursor.execute("""select * from public.match_knowledge_chunks(
-            array_fill(0.25::real, array[768])::vector, 'live_labor_demand', 20)""")
+            array_fill(0.25::real, array[768])::vector, 'live_labor_demand', 20,
+            request_agent => 'IndustryAnalyst')""")
         self.assertEqual(len(self.cursor.fetchall()), len(records))
         self.assertEqual(self.rows("publication_index_cache"), [])  # DOLE has no CHED success cache.
 

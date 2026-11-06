@@ -64,9 +64,9 @@ class PipelineRefreshTests(unittest.TestCase):
     def test_tesda_bad_provenance_reports_row_and_field_before_embedding(self):
         with tempfile.TemporaryDirectory() as directory:
             file = Path(directory) / "tesda.csv"
-            file.write_text("program_name,tesda_qualification_code,program_cost_php,"
+            file.write_text("program_name,tesda_qualification_code,provider_name,location,program_cost_php,"
                             "tuition_benchmark_php,source_reference,publication_date\n"
-                            "Cookery,NC2,100,100,TESDA,invalid-date\n")
+                            "Cookery,NC2,Fixture provider,Fixture location,100,100,TESDA,invalid-date\n")
             with self.assertRaises(self.tesda.ValidationFailure) as error:
                 self.tesda.load_and_validate(file)
             self.assertIn("row 2: publication_date", error.exception.errors[0])

@@ -1,3 +1,4 @@
+import { ProcessingBudget } from "@/lib/processing-budget";
 import { GoogleGenAI } from "@google/genai";
 import { isSourceAcquisitionMethod } from "@/lib/report/types";
 import {
@@ -21,6 +22,9 @@ function buildPrompt(agentOutputs: AgentOutput[]): string {
     return `### ${o.agentName} (Status: ${o.status})
 Analysis:
 ${o.analysis}
+
+Unavailable Evidence:
+${o.unavailableEvidence?.join("\n") || "None reported"}
 
 Retrieved Sources:
 ${chunkSources.length > 0 ? chunkSources.join("\n") : "None"}`;
@@ -164,18 +168,18 @@ function normalizeSourceReferences(
 }
 
 export class SynthesisInterpreter {
-  async synthesize(agentOutputs: AgentOutput[]): Promise<IntermediateSynthesis> {
+  async synthesize(agentOutputs: AgentOutput[], budget = new ProcessingBudget()): Promise<IntermediateSynthesis> {
     const apiKey = requireApiKey(
       "SynthesisInterpreter",
       process.env.SYNTHESIS_API_KEY,
     );
-    const ai = new GoogleGenAI({ apiKey });
+    const ai = new GoogleGenAI({ apiKey, httpOptions: { retryOptions: { attempts: 1 } } });
 
-    const result = await ai.models.generateContent({
+    const result = await budget.run("synthesis-interpreter", (signal) => ai.models.generateContent({
       model: getGeminiGenerationModel(),
       contents: buildPrompt(agentOutputs),
-      config: { responseMimeType: "application/json" },
-    });
+      config: { responseMimeType: "application/json", abortSignal: signal },
+    }));
     const text = result.text ?? "";
     const parsed = JSON.parse(text) as {
       candidates: Array<{

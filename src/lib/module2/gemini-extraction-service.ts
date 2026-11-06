@@ -1,5 +1,7 @@
+import { ProcessingBudget, requestProviderJson } from "@/lib/processing-budget";
 import { supabaseAdmin } from "@/lib/supabase";
 import type { ExtractedAcademicData, ExtractionResult } from "@/types";
+import type { AcademicUploadClaim } from "./academic-document-store";
 
 const GEMINI_API_KEY = process.env.DOCUMENT_INTAKE_API_KEY!;
 const GEMINI_MODEL = "gemini-2.5-flash";
@@ -42,13 +44,15 @@ export class GeminiExtractionService {
     sessionId: string,
     counselorId: string,
     redactedImagePath: string | null,
+    claim: AcademicUploadClaim,
   ): Promise<ExtractionResult> {
     const prompt = PROMPTS[docType];
     if (!prompt) throw new Error(`Unsupported document type: ${docType}`);
 
     const base64 = imageBuffer.toString("base64");
 
-    const response = await fetch(GEMINI_URL, {
+    const budget = new ProcessingBudget();
+    const geminiData = await requestProviderJson(GEMINI_URL, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
@@ -67,14 +71,8 @@ export class GeminiExtractionService {
           responseMimeType: "application/json",
         },
       }),
-    });
+    }, budget, "document extraction");
 
-    if (!response.ok) {
-      const detail = await response.text();
-      throw new Error(`Gemini extraction failed: ${detail}`);
-    }
-
-    const geminiData = await response.json();
     const rawText = geminiData?.candidates?.[0]?.content?.parts?.[0]?.text ?? "";
 
     let parsed: unknown;
@@ -85,8 +83,7 @@ export class GeminiExtractionService {
         .trim();
       parsed = JSON.parse(cleaned);
     } catch {
-      console.error(`[gemini-extraction-service] parse failed for ${docType}. rawText:`, rawText);
-      throw new Error(`Failed to parse Gemini extraction response: ${rawText.slice(0, 200)}`);
+      throw new Error("The extraction response was unreadable. Retry or replace the document.");
     }
 
     // Defense: Form 137 occasionally comes back as an array of per-grade-level objects
@@ -106,16 +103,21 @@ export class GeminiExtractionService {
       data: parsed,
     } as unknown as ExtractedAcademicData;
 
+    budget.assert("document extraction");
     const { data: saved, error } = await supabaseAdmin
       .from("extraction_results")
-      .insert({
+      .update({
         session_id: sessionId,
         counselor_id: counselorId,
         document_type: docType,
         raw_gemini_response: geminiData,
         structured_data: structuredData,
         redacted_image_path: redactedImagePath,
+        upload_token: null,
+        upload_expires_at: null,
       })
+      .eq("id", claim.id)
+      .eq("upload_token", claim.token)
       .select()
       .single();
 

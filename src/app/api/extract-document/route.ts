@@ -1,3 +1,4 @@
+import { requestProviderJson } from "@/lib/processing-budget";
 /**
  * API route: Gemini Vision — extract structured data from document images.
  *
@@ -10,6 +11,7 @@
 
 import { type NextRequest } from "next/server";
 import { requireUser, unauthorizedResponse } from "@/lib/auth/api-auth";
+import { readAcademicUpload, uploadErrorResponse } from "@/lib/module2/academic-upload-validation";
 
 const GEMINI_API_KEY = process.env.DOCUMENT_INTAKE_API_KEY;
 const GEMINI_MODEL = "gemini-2.5-flash";
@@ -84,21 +86,11 @@ export async function POST(request: NextRequest) {
   if (!user) return unauthorizedResponse();
 
   try {
+    const { buffer, mimeType, docType } = await readAcademicUpload(request);
     if (!GEMINI_API_KEY) {
       return Response.json(
         { error: "DOCUMENT_INTAKE_API_KEY not configured" },
         { status: 500 }
-      );
-    }
-
-    const formData = await request.formData();
-    const file = formData.get("file") as File | null;
-    const docType = formData.get("docType") as string | null;
-
-    if (!file || !docType) {
-      return Response.json(
-        { error: "Missing required fields: file, docType" },
-        { status: 400 }
       );
     }
 
@@ -111,12 +103,10 @@ export async function POST(request: NextRequest) {
     }
 
     // Convert file to base64 for Gemini Vision
-    const arrayBuffer = await file.arrayBuffer();
-    const base64Data = Buffer.from(arrayBuffer).toString("base64");
-    const mimeType = file.type || "image/jpeg";
+    const base64Data = buffer.toString("base64");
 
     // Call Gemini Vision API with image + text prompt
-    const geminiResponse = await fetch(GEMINI_URL, {
+    const geminiData = await requestProviderJson(GEMINI_URL, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
@@ -141,16 +131,6 @@ export async function POST(request: NextRequest) {
       }),
     });
 
-    if (!geminiResponse.ok) {
-      const errorText = await geminiResponse.text();
-      console.error("[extract-document] Gemini API error:", errorText);
-      return Response.json(
-        { error: "Gemini API request failed", details: errorText },
-        { status: 502 }
-      );
-    }
-
-    const geminiData = await geminiResponse.json();
     const rawText =
       geminiData?.candidates?.[0]?.content?.parts?.[0]?.text ?? "";
 
@@ -175,6 +155,8 @@ export async function POST(request: NextRequest) {
 
     return Response.json(result);
   } catch (err) {
+    const validation = uploadErrorResponse(err);
+    if (validation) return validation;
     console.error("[extract-document] Unexpected error:", err);
     return Response.json(
       { error: "Internal server error" },

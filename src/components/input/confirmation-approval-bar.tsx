@@ -9,6 +9,7 @@ interface ConfirmationApprovalBarProps {
   notesReviewed: boolean;
   onNotesReviewedChange: (reviewed: boolean) => void;
   isSubmitting: boolean;
+  documentsReady?: boolean;
   onApprove: () => void;
 }
 
@@ -17,10 +18,11 @@ export default function ConfirmationApprovalBar({
   notesReviewed,
   onNotesReviewedChange,
   isSubmitting,
+  documentsReady = true,
   onApprove,
 }: ConfirmationApprovalBarProps) {
   const filled = requiredNotesFilled(notes);
-  const canApprove = filled && notesReviewed && !isSubmitting;
+  const canApprove = filled && notesReviewed && documentsReady && !isSubmitting;
   return (
     <div className="px-6 pb-6 sm:px-8 sm:pb-8">
       <label className="mb-4 flex items-start gap-2 text-sm text-charcoal-2">
@@ -43,10 +45,12 @@ export default function ConfirmationApprovalBar({
             className={canApprove ? "animate-pulse group-hover:animate-spin" : ""}
           />
         )}
-        {isSubmitting ? "Preparing analysis…" : "Begin Multi Agent Analysis"}
+        {isSubmitting ? "Preparing analysis…" : "Approve Inputs and Begin Analysis"}
       </button>
       <p className="mt-3 text-center text-xs font-medium text-muted-text">
-        {!filled ? (
+        {!documentsReady ? (
+          "Wait for selected documents to finish, or replace or remove failed uploads."
+        ) : !filled ? (
           "Enter Career Goal (Undecided is valid) and Personal Interests and Strengths to enable analysis"
         ) : !notesReviewed ? (
           "Confirm your review of the notes before analysis"
