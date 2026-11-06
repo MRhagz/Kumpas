@@ -1,5 +1,5 @@
+import { createGeminiClient } from "./gemini-config";
 import { ProcessingBudget } from "@/lib/processing-budget";
-import { GoogleGenAI } from "@google/genai";
 import {
   getGeminiGenerationModel,
   requireApiKey,
@@ -50,7 +50,7 @@ export class RankingAgent {
       "RankingAgent",
       process.env.SYNTHESIS_API_KEY,
     );
-    const ai = new GoogleGenAI({ apiKey, httpOptions: { retryOptions: { attempts: 1 } } });
+    const ai = createGeminiClient(apiKey);
 
     const result = await budget.run("ranking-agent", (signal) => ai.models.generateContent({
       model: getGeminiGenerationModel(),

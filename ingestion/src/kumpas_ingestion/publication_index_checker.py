@@ -33,6 +33,7 @@ from urllib.parse import urldefrag, urljoin, urlsplit
 import httpx
 from bs4 import BeautifulSoup
 
+from .config import require_https
 from .pdf_downloader import is_allowed_https_url
 
 CHED_LEGACY_BASE = "https://legacy.ched.gov.ph"
@@ -77,6 +78,7 @@ class PublicationIndexChecker:
         self._client = client or httpx.Client(
             timeout=timeout,
             follow_redirects=True,
+            event_hooks={"request": [require_https]},
             headers={"User-Agent": "Kumpas-Ingestion/0.1 (+github-actions)"},
         )
 

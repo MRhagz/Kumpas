@@ -1,11 +1,10 @@
-import { ProcessingBudget, requestProviderJson } from "@/lib/processing-budget";
+import { ProcessingBudget } from "@/lib/processing-budget";
 import { supabaseAdmin } from "@/lib/supabase";
-import type { ExtractedAcademicData, ExtractionResult } from "@/types";
+import type { ExtractionResult } from "@/types";
+import { selectExtractionData } from "@/lib/module3/provider-inputs";
 import type { AcademicUploadClaim } from "./academic-document-store";
 
-const GEMINI_API_KEY = process.env.DOCUMENT_INTAKE_API_KEY!;
-const GEMINI_MODEL = "gemini-2.5-flash";
-const GEMINI_URL = `https://generativelanguage.googleapis.com/v1beta/models/${GEMINI_MODEL}:generateContent?key=${GEMINI_API_KEY}`;
+import { getGeminiResponseText, requestGeminiImageJson } from "@/lib/module3/gemini-config";
 
 const PROMPTS: Record<string, string> = {
   ncae: `You are a data extraction specialist for Philippine NCAE result sheets. Extract and return only this JSON:
@@ -52,28 +51,22 @@ export class GeminiExtractionService {
     const base64 = imageBuffer.toString("base64");
 
     const budget = new ProcessingBudget();
-    const geminiData = await requestProviderJson(GEMINI_URL, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        contents: [
-          {
-            parts: [
-              { text: prompt },
-              { inlineData: { mimeType: "image/jpeg", data: base64 } },
-            ],
-          },
-        ],
-        generationConfig: {
-          temperature: 0.1,
-          // 4096 truncates dense Form 137s (6 grade levels × ~7 subjects each) mid-stream.
-          maxOutputTokens: 8192,
-          responseMimeType: "application/json",
+    const geminiData = await requestGeminiImageJson({
+      contents: [
+        {
+          parts: [
+            { text: prompt },
+            { inlineData: { mimeType: "image/jpeg", data: base64 } },
+          ],
         },
-      }),
+      ],
+      generationConfig: {
+        // 4096 truncates dense Form 137s (6 grade levels × ~7 subjects each) mid-stream.
+        maxOutputTokens: 8192,
+        responseMimeType: "application/json",
+      },
     }, budget, "document extraction");
-
-    const rawText = geminiData?.candidates?.[0]?.content?.parts?.[0]?.text ?? "";
+    const rawText = getGeminiResponseText(geminiData);
 
     let parsed: unknown;
     try {
@@ -98,10 +91,7 @@ export class GeminiExtractionService {
       };
     }
 
-    const structuredData = {
-      type: docType as ExtractedAcademicData["type"],
-      data: parsed,
-    } as unknown as ExtractedAcademicData;
+    const structuredData = selectExtractionData(docType, parsed);
 
     budget.assert("document extraction");
     const { data: saved, error } = await supabaseAdmin
@@ -110,7 +100,6 @@ export class GeminiExtractionService {
         session_id: sessionId,
         counselor_id: counselorId,
         document_type: docType,
-        raw_gemini_response: geminiData,
         structured_data: structuredData,
         redacted_image_path: redactedImagePath,
         upload_token: null,

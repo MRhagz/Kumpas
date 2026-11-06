@@ -1,6 +1,7 @@
+import { selectAgentAnalysis } from "./provider-inputs";
+import { createGeminiClient } from "./gemini-config";
 import { ProcessingBudget } from "@/lib/processing-budget";
 import { evidenceContext, unavailableEvidence } from "./specialist-evidence";
-import { GoogleGenAI } from "@google/genai";
 import { AgentOperationError, runAgentStage } from "./agent-errors";
 import {
   getGeminiGenerationModel,
@@ -45,7 +46,6 @@ ${context || "No relevant labor market data retrieved."}
 ## Student Profile Summary
 Career Goal: ${profile.counselorNotes.careerGoal}
 Interests & Strengths: ${profile.counselorNotes.interests}
-Financial Situation: ${profile.counselorNotes.financial}
 ${profile.academicData.ncae?.recommended_strand ? `Recommended Strand: ${profile.academicData.ncae.recommended_strand}` : ""}
 
 ## Evidence limits
@@ -100,7 +100,7 @@ export class IndustryAnalystAgent {
       };
     }
 
-    const ai = new GoogleGenAI({ apiKey: normalizedApiKey, httpOptions: { retryOptions: { attempts: 1 } } });
+    const ai = createGeminiClient(normalizedApiKey);
 
     const result = await runAgentStage(AGENT_NAME, "analysis generation", (signal) =>
       ai.models.generateContent({
@@ -129,7 +129,7 @@ export class IndustryAnalystAgent {
     return {
       agentName: AGENT_NAME,
       status: "SUCCESS",
-      analysis: text,
+      analysis: selectAgentAnalysis(AGENT_NAME, text),
       retrievedChunks: chunks,
       unavailableEvidence: missing,
     };

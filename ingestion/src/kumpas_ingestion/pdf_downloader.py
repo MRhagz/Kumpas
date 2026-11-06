@@ -14,6 +14,8 @@ from urllib.request import url2pathname
 
 import httpx
 
+from .config import require_https
+
 
 class PDFDownloadError(RuntimeError):
     pass
@@ -41,7 +43,9 @@ class PDFDownloader:
         self, client: httpx.Client | None = None, timeout: float = 60.0,
         allowed_hosts: frozenset[str] | None = None,
     ) -> None:
-        self._client = client or httpx.Client(timeout=timeout, follow_redirects=True)
+        self._client = client or httpx.Client(
+            timeout=timeout, follow_redirects=True, event_hooks={"request": [require_https]}
+        )
         self._allowed_hosts = allowed_hosts
 
     def download(self, url: str) -> bytes:
@@ -62,6 +66,7 @@ class PDFDownloader:
             raise PDFDownloadError(f"Cannot read local PDF {location}: {exc}") from exc
 
     def _read_http(self, url: str) -> bytes:
+        require_https(httpx.Request("GET", url))
         try:
             if self._allowed_hosts is None:
                 response = self._client.get(url)

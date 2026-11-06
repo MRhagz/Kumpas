@@ -13,6 +13,7 @@ function services({ response = { embeddings: [{ values: Array(768).fill(0.5) }] 
   const calls = { embeddings: [], searches: [] };
   const cache = new Map();
   const external = {
+    'server-only': {},
     '@google/genai': { GoogleGenAI: class {
       models = { embedContent: async (request) => {
         calls.embeddings.push(request);

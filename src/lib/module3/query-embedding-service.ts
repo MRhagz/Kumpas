@@ -1,5 +1,5 @@
+import { createGeminiClient } from "./gemini-config";
 import { ProcessingBudget } from "@/lib/processing-budget";
-import { GoogleGenAI } from "@google/genai";
 
 import {
   EMBEDDING_MODEL,
@@ -11,7 +11,7 @@ import {
 export class QueryEmbeddingService {
   async embed(query: string, apiKey: string, budget = new ProcessingBudget()): Promise<number[]> {
     assertEmbeddingConfiguration();
-    const ai = new GoogleGenAI({ apiKey, httpOptions: { retryOptions: { attempts: 1 } } });
+    const ai = createGeminiClient(apiKey);
 
     const result = await budget.run("query embedding", (signal) => ai.models.embedContent({
       model: EMBEDDING_MODEL,

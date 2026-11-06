@@ -1,6 +1,6 @@
+import { createGeminiClient } from "./gemini-config";
 import { ProcessingBudget } from "@/lib/processing-budget";
 import { evidenceContext, unavailableEvidence } from "./specialist-evidence";
-import { GoogleGenAI } from "@google/genai";
 import { AgentOperationError, runAgentStage } from "./agent-errors";
 import {
   getGeminiGenerationModel,
@@ -10,6 +10,7 @@ import { queryEmbeddingService } from "./query-embedding-service";
 import { vectorStoreQueryService } from "./vector-store-query-service";
 import type { AgentOutput, RetrievedChunk } from "./types";
 import type { ApprovedProfile } from "@/types";
+import { selectAcademicData, selectAgentAnalysis } from "./provider-inputs";
 
 const AGENT_NAME = "AcademicAuditor" as const;
 
@@ -64,7 +65,7 @@ function buildPrompt(
 ${context || "No relevant occupational data retrieved."}
 
 ## Student Academic Profile
-${JSON.stringify(profile.academicData, null, 2)}
+${JSON.stringify(selectAcademicData(profile.academicData), null, 2)}
 
 ## Counselor Notes
 Career Goal: ${profile.counselorNotes.careerGoal}
@@ -122,7 +123,7 @@ export class AcademicAuditorAgent {
       };
     }
 
-    const ai = new GoogleGenAI({ apiKey: normalizedApiKey, httpOptions: { retryOptions: { attempts: 1 } } });
+    const ai = createGeminiClient(normalizedApiKey);
 
     const result = await runAgentStage(AGENT_NAME, "analysis generation", (signal) =>
       ai.models.generateContent({
@@ -151,7 +152,7 @@ export class AcademicAuditorAgent {
     return {
       agentName: AGENT_NAME,
       status: "SUCCESS",
-      analysis: text,
+      analysis: selectAgentAnalysis(AGENT_NAME, text),
       retrievedChunks: chunks,
       unavailableEvidence: missing,
     };
