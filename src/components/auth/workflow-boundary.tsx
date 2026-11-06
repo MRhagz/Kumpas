@@ -6,6 +6,15 @@ import { safeReturnPath } from "@/lib/auth/counselor";
 
 export default function WorkflowBoundary({ userId, children }: { userId: string; children: ReactNode }) {
   useEffect(() => {
+    // Remove draft data left by older releases in this browser tab.
+    try {
+      for (let index = sessionStorage.length - 1; index >= 0; index--) {
+        const key = sessionStorage.key(index);
+        if (key && /^kumpas-(session|structured)-/.test(key)) sessionStorage.removeItem(key);
+      }
+    } catch {
+      // Browser storage can be disabled. Recovery is server-side.
+    }
     const hide = () => { document.documentElement.style.visibility = "hidden"; };
     const restore = (event: PageTransitionEvent) => {
       if (event.persisted) window.location.reload();

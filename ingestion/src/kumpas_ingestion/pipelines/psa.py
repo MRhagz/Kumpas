@@ -27,11 +27,12 @@ A fully validated CSV replaces this source group atomically, including removed r
 
 from __future__ import annotations
 
+import argparse
+import csv
 import io
 import os
 import sys
 from decimal import Decimal, InvalidOperation
-from typing import Iterable
 
 import httpx
 import pandas as pd
@@ -47,6 +48,7 @@ from ..vector_store_repository import VectorStoreRepository
 
 WORKFLOW_NAME = "psa_openstat_lfs"
 SOURCE_TYPE = "psa_openstat_lfs"
+MIN_RECORDS = 10
 REQUIRED_COLUMNS = [
     "period",
     "occupation_major_group",
@@ -57,13 +59,13 @@ REQUIRED_COLUMNS = [
 
 
 class OccupationRecord(BaseModel):
-    period: str = Field(min_length=1)
+    period: str = Field(pattern=r"^[0-9]{4}-?Q[1-4]$")
     occupation_major_group: str = Field(min_length=1)
     sector: str = Field(min_length=1)
     region: str = Field(min_length=1)
     employed_thousands: Decimal = Field(gt=0)
 
-    @field_validator("period", "occupation_major_group", "sector", "region")
+    @field_validator("period", "occupation_major_group", "sector", "region", mode="before")
     @classmethod
     def _strip_and_require(cls, value: str) -> str:
         cleaned = value.strip()
@@ -134,9 +136,24 @@ def download_csv(url: str) -> bytes:
 
 def parse_csv(raw_bytes: bytes) -> pd.DataFrame:
     try:
-        df = pd.read_csv(io.BytesIO(raw_bytes), encoding="utf-8")
+        text = raw_bytes.decode("utf-8-sig")
     except UnicodeDecodeError:
-        df = pd.read_csv(io.BytesIO(raw_bytes), encoding="latin-1")
+        text = raw_bytes.decode("latin-1")
+    # pandas can silently infer an index from an over-wide first row or rename
+    # duplicate headers. Reject both before allowing it to interpret the CSV.
+    reader = csv.reader(io.StringIO(text, newline=""), strict=True)
+    try:
+        headers = [c.strip() for c in next(reader)]
+        if len(headers) != len(set(headers)):
+            raise IngestionFailure("PSA CSV row 1: duplicate column names")
+        for row in reader:
+            if len(row) != len(headers):
+                raise IngestionFailure(
+                    f"PSA CSV row {reader.line_num}: expected {len(headers)} fields, saw {len(row)}"
+                )
+        df = pd.read_csv(io.StringIO(text), dtype=str, keep_default_na=False)
+    except (StopIteration, csv.Error, pd.errors.ParserError, pd.errors.EmptyDataError) as exc:
+        raise IngestionFailure(f"PSA CSV row {reader.line_num}: unreadable CSV ({exc})") from exc
     df.columns = [c.strip() for c in df.columns]
     missing = [c for c in REQUIRED_COLUMNS if c not in df.columns]
     if missing:
@@ -162,8 +179,11 @@ def extract_records(df: pd.DataFrame) -> tuple[list[OccupationRecord], list[str]
         except InvalidOperation as exc:
             skipped.append(f"row {line_number}: employed_thousands: {exc}")
             continue
-        except (ValidationError, ValueError, TypeError) as exc:
-            skipped.append(f"row {line_number}: {exc}")
+        except ValidationError as exc:
+            skipped.extend(
+                f"row {line_number}: {'.'.join(map(str, error['loc']))}: {error['msg']}"
+                for error in exc.errors(include_input=False)
+            )
             continue
 
         key = (record.period, record.occupation_major_group, record.sector, record.region)
@@ -176,52 +196,55 @@ def extract_records(df: pd.DataFrame) -> tuple[list[OccupationRecord], list[str]
     return records, skipped
 
 
-def _print_skip_report(skipped: Iterable[str]) -> None:
-    print("PSA CSV validation errors (batch rejected):")
-    for line in skipped:
-        print(f"  - {line}")
-
-
-def run() -> int:
-    cfg = IngestionConfig.from_env()
-    dataset_url = _require_env("PSA_OPENSTAT_URL")
-    # Acquisition location is not provenance: runner paths change between executions.
-    official_url = os.environ.get("PSA_SOURCE_URL") or (
-        dataset_url if dataset_url.startswith("https://") else _require_env("PSA_SOURCE_URL")
-    )
-
-    supabase = create_client(cfg.supabase_url, cfg.supabase_service_role_key)
-    logger = IngestionLogger(supabase, workflow_name=WORKFLOW_NAME)
-    logger.start(silo_id=SiloId.MARKET_ANALYTICS)
-
-    try:
-        raw_bytes = download_csv(dataset_url)
-        df = parse_csv(raw_bytes)
-        records, skipped = extract_records(df)
-    except (IngestionFailure, FileNotFoundError) as exc:
-        logger.record(run_status="failure", error_message=str(exc))
-        print(str(exc))
-        return 1
-
-    if skipped:
-        _print_skip_report(skipped)
-    if skipped or not records:
-        logger.record(
-            run_status="failure",
-            error_message="PSA CSV validation failed; no partial batch accepted",
-            run_metadata={"skipped": skipped[:50], "dataset_url": dataset_url},
+def validate_batch(raw_bytes: bytes, official_url: str,
+                   publication_date: str | None = None) -> list[ChunkInput]:
+    records, errors = extract_records(parse_csv(raw_bytes))
+    if errors:
+        raise IngestionFailure("PSA CSV validation failed; batch rejected:\n" + "\n".join(errors))
+    if len(records) < MIN_RECORDS:
+        raise IngestionFailure(
+            f"PSA CSV requires at least {MIN_RECORDS} unique records; saw {len(records)}"
         )
-        print("PSA batch rejected — check the CSV validation report.")
+    # Validate provenance for the entire batch before constructing the embedder.
+    return [r.to_chunk_input(official_url, publication_date) for r in records]
+
+
+def run(*, validate_only: bool = False) -> int:
+    logger = None
+    if not validate_only:
+        cfg = IngestionConfig.from_env()
+        supabase = create_client(cfg.supabase_url, cfg.supabase_service_role_key)
+        logger = IngestionLogger(supabase, workflow_name=WORKFLOW_NAME)
+        logger.start(silo_id=SiloId.MARKET_ANALYTICS)
+
+    dataset_url = os.environ.get("PSA_OPENSTAT_URL", "(unset)")
+    try:
+        dataset_url = _require_env("PSA_OPENSTAT_URL")
+        # Acquisition location is not provenance: runner paths change between executions.
+        official_url = os.environ.get("PSA_SOURCE_URL") or (
+            dataset_url if dataset_url.startswith("https://") else _require_env("PSA_SOURCE_URL")
+        )
+        chunk_inputs = validate_batch(
+            download_csv(dataset_url), official_url, os.environ.get("PSA_PUBLICATION_DATE") or None
+        )
+    except (IngestionFailure, OSError, httpx.HTTPError, ValidationError) as exc:
+        message = f"PSA batch {dataset_url}: {exc}"
+        print(message)
+        if logger is not None:
+            logger.record(run_status="failure", error_message=message,
+                          run_metadata={"dataset_url": dataset_url})
         return 1
+
+    if validate_only:
+        print(f"PSA batch {dataset_url}: validated {len(chunk_inputs)} records (no writes)")
+        return 0
 
     repository = VectorStoreRepository(supabase)
     embedding_service = EmbeddingService(cfg)
     try:
-        chunk_inputs = [r.to_chunk_input(official_url, os.environ.get("PSA_PUBLICATION_DATE") or None)
-                        for r in records]
         repository.refresh(
             chunk_inputs, SOURCE_TYPE, embedding_service,
-            logger.prepare(run_metadata={"total_records": len(records), "dataset_url": dataset_url}),
+            logger.prepare(run_metadata={"total_records": len(chunk_inputs), "dataset_url": dataset_url}),
             replace_all=True
         )
     except Exception as exc:
@@ -234,4 +257,7 @@ def run() -> int:
 
 
 if __name__ == "__main__":
-    sys.exit(run())
+    parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument("--validate-only", action="store_true",
+                        help="Validate CSV and provenance without credentials, embeddings, or writes")
+    sys.exit(run(validate_only=parser.parse_args().validate_only))

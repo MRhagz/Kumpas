@@ -1,9 +1,9 @@
+import { ProcessingBudget, ProcessingError } from "@/lib/processing-budget";
 import { academicAuditorAgent } from "./academic-auditor-agent";
 import { industryAnalystAgent } from "./industry-analyst-agent";
 import { feasibilityStrategistAgent } from "./feasibility-strategist-agent";
 import {
   getPublicErrorMessage,
-  isRetryableError,
 } from "./agent-errors";
 import type { AgentOutput, AnalysisInput } from "./types";
 
@@ -20,30 +20,9 @@ function createFailedOutput(
   };
 }
 
-async function runWithRetry(
-  fn: () => Promise<AgentOutput>,
-  agentName: AgentOutput["agentName"],
-): Promise<AgentOutput> {
-  try {
-    return await fn();
-  } catch (firstError) {
-    if (!isRetryableError(firstError)) {
-      console.error(`[${agentName}] Non-retryable failure`);
-      return createFailedOutput(agentName, firstError);
-    }
-
-    console.warn(`[${agentName}] First attempt failed, retrying...`);
-    try {
-      return await fn();
-    } catch (retryError) {
-      console.error(`[${agentName}] Retry failed`);
-      return createFailedOutput(agentName, retryError);
-    }
-  }
-}
 
 export class AgentDispatcher {
-  async dispatch(input: AnalysisInput): Promise<AgentOutput[]> {
+  async dispatch(input: AnalysisInput, budget = new ProcessingBudget()): Promise<AgentOutput[]> {
     const { approvedProfile } = input;
 
     const academicAuditorKey =
@@ -53,21 +32,28 @@ export class AgentDispatcher {
     const feasibilityStrategistKey =
       process.env.FEASIBILITY_STRATEGIST_API_KEY?.trim() ?? "";
 
+    const runSpecialist = async (fn: () => Promise<AgentOutput>, name: AgentOutput["agentName"]) => {
+      try { return await fn(); } catch (error) {
+        if (error instanceof ProcessingError && error.code === "deadline") throw error;
+        return createFailedOutput(name, error);
+      }
+    };
     const outputs = await Promise.all([
-      runWithRetry(
-        () => academicAuditorAgent.analyze(approvedProfile, academicAuditorKey),
+      runSpecialist(
+        () => academicAuditorAgent.analyze(approvedProfile, academicAuditorKey, budget),
         "AcademicAuditor",
       ),
-      runWithRetry(
-        () => industryAnalystAgent.analyze(approvedProfile, industryAnalystKey),
+      runSpecialist(
+        () => industryAnalystAgent.analyze(approvedProfile, industryAnalystKey, budget),
         "IndustryAnalyst",
       ),
-      runWithRetry(
-        () => feasibilityStrategistAgent.analyze(approvedProfile, feasibilityStrategistKey),
+      runSpecialist(
+        () => feasibilityStrategistAgent.analyze(approvedProfile, feasibilityStrategistKey, budget),
         "FeasibilityStrategist",
       ),
     ]);
 
+    budget.assert("specialist analysis");
     return outputs;
   }
 }

@@ -103,9 +103,9 @@ pip install -e ".[psa,pdf,tesda,dev]"
   re-embedding and the STD R03 retrieval evaluation.
 - Knowledge-base writes use the service-role key and bypass RLS by design;
   this code never runs inside a counselor session.
-- TESDA records have no real source URL — pipelines synthesize one as
-  `manual_curation://tesda/{qualification_code}/{program_name}` to satisfy
-  the universal `(silo_id, source_url, chunk_index)` primary key.
+- TESDA uses the official citation plus an encoded qualification code and
+  program name as its stable `source_url`.
+  See the [semester CSV contract](data/tesda/README.md).
 
 ## SW-09 rollout and refresh behavior
 
@@ -141,7 +141,7 @@ DOLE sidecars retain `source_url` and `publication_date`. TESDA CSVs may include
 optional `official_source_url` and `publication_date` columns; existing textual
 `source_reference` values remain available when no official URL is known.
 
-The nonempty PSA/TESDA CSV is the authoritative snapshot for its source group:
+The validated PSA/TESDA CSV is the authoritative snapshot for its source group:
 removed records are deleted only when the validated replacement commits. Empty
 input never clears a group. PDF refreshes replace only successfully processed
 publications; absent or failed publications keep their last valid records. Within

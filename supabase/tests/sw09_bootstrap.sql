@@ -15,3 +15,4 @@ create role service_role bypassrls;
 create table public.ranked_recommendations (key_signals text[]);
 \ir ../migrations/20260524000003_module3_match_function_and_signals_jsonb.sql
 \ir ../migrations/20261104000000_sw09_embedding_contract.sql
+\ir ../migrations/20261105070028_sw14_specialist_evidence_silos.sql

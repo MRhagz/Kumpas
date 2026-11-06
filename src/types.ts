@@ -11,13 +11,13 @@ export interface WysiwygFieldProps {
 
 export interface FileSlotProps {
   index: number;
-  /** All files attached to this slot. One entry for NCAE/NAT; one-or-more for Form 137. */
+  /** Zero or one file per academic document type. */
   files: File[];
   /** Per-file processing state, same length as `files`. */
   perFileProcessing: DocumentProcessingState[];
   docType: string;
   excludeTypes?: string[];
-  /** Append the given files to this slot and start uploads. */
+  /** Select or explicitly replace this slot's file and start its upload. */
   onFilesAdd: (files: File[]) => void;
   /** Remove the file at the given index in `files`. */
   onFileRemove: (fileIndex: number) => void;

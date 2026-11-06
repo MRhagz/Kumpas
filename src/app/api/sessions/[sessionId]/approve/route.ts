@@ -57,6 +57,7 @@ export async function POST(
 
     const approvedProfile = await studentProfileBuilder.buildAndSave({
       sessionId,
+      counselorId: user.id,
       counselorNotes,
       corrections,
     });
