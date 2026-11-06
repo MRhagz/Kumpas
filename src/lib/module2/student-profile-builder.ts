@@ -1,5 +1,4 @@
 import { supabaseAdmin } from "@/lib/supabase";
-import { sessionProgressTracker } from "@/lib/module5/session-progress";
 import type {
   ApprovedProfile,
   CorrectionLog,
@@ -11,22 +10,29 @@ import type {
 
 interface ApproveInput {
   sessionId: string;
+  counselorId: string;
   counselorNotes: ApprovedProfile["counselorNotes"];
   corrections: CorrectionLog[];
 }
 
 export class StudentProfileBuilder {
   async buildAndSave(input: ApproveInput): Promise<ApprovedProfile> {
-    const { sessionId, counselorNotes, corrections } = input;
-
+    const { sessionId, counselorId, counselorNotes, corrections } = input;
     const { data: extractions, error: fetchErr } = await supabaseAdmin
       .from("extraction_results")
-      .select("document_type, structured_data")
+      .select("document_type, structured_data, upload_token, upload_expires_at")
       .eq("session_id", sessionId);
     if (fetchErr) throw new Error(`Failed to fetch extraction results: ${fetchErr.message}`);
+    if (extractions?.some((entry) => entry.upload_token && Date.parse(entry.upload_expires_at) > Date.now())) {
+      throw new Error("A document upload or removal is still in progress. Wait for it to finish and retry approval.");
+    }
+
+    const { data: session, error: sessionError } = await supabaseAdmin.from("sessions")
+      .select("current_profile_version").eq("id", sessionId).eq("counselor_id", counselorId).single();
+    if (sessionError || !session) throw new Error("Session unavailable. Return to Confirm Information.");
 
     const academicData: ApprovedProfile["academicData"] = {};
-    // Form 137 may be uploaded once per school — concatenate subjects across all uploads.
+    // The upload store enforces at most one current record of each academic type.
     const form137Subjects: Form137Data["subjects"] = [];
     let form137SchoolYear: string | undefined;
     let form137Gwa: number | undefined;
@@ -63,12 +69,6 @@ export class StudentProfileBuilder {
       academicData,
     };
 
-    const { error: updateErr } = await supabaseAdmin
-      .from("sessions")
-      .update({ approved_profile: profile, last_activity: new Date().toISOString() })
-      .eq("id", sessionId);
-    if (updateErr) throw new Error(`Failed to save profile: ${updateErr.message}`);
-
     const { error: notesErr } = await supabaseAdmin
       .from("session_notes")
       .update({
@@ -94,10 +94,17 @@ export class StudentProfileBuilder {
       if (corrErr) throw new Error(`Failed to log corrections: ${corrErr.message}`);
     }
 
-    await sessionProgressTracker.markProfileApproved(sessionId);
+    const { error: approvalError } = await supabaseAdmin.rpc("approve_and_start_analysis", {
+      p_session_id: sessionId, p_counselor_id: counselorId,
+      p_expected_version: session.current_profile_version, p_profile: profile,
+    });
+    if (approvalError) throw new Error("Approval changed or session expired. Review inputs and retry approval.");
 
     return profile;
   }
 }
 
 export const studentProfileBuilder = new StudentProfileBuilder();
+
+// Versioned workflow contract for downstream integration; legacy DTOs remain unchanged.
+export type { ProfileVersionContract } from "@/lib/module5/versioned-contracts";

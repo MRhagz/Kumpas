@@ -10,6 +10,7 @@ from __future__ import annotations
 
 from pathlib import Path
 from urllib.parse import urljoin, urlsplit
+from urllib.request import url2pathname
 
 import httpx
 
@@ -47,14 +48,18 @@ class PDFDownloader:
         if self._allowed_hosts is not None and not is_allowed_https_url(url, self._allowed_hosts):
             raise PDFDownloadError(f"Publication is not on an allowed public HTTPS host: {url}")
         if url.startswith("file://"):
-            return self._read_file(url.removeprefix("file://"))
+            parts = urlsplit(url)
+            if parts.netloc not in ("", "localhost") or parts.query or parts.fragment:
+                raise PDFDownloadError("Expected a local file URI without query or fragment")
+            return self._read_file(url2pathname(parts.path))
         return self._read_http(url)
 
     def _read_file(self, path: str) -> bytes:
         location = Path(path)
-        if not location.exists():
-            raise PDFDownloadError(f"Local PDF not found at {location}")
-        return location.read_bytes()
+        try:
+            return location.read_bytes()
+        except OSError as exc:
+            raise PDFDownloadError(f"Cannot read local PDF {location}: {exc}") from exc
 
     def _read_http(self, url: str) -> bytes:
         try:

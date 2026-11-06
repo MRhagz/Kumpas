@@ -7,6 +7,7 @@ export class RankedRecommendationBuilder {
     sessionId: string,
     rankedPaths: RankedCareerPath[],
     agentOutputs: AgentOutput[],
+    persist = true,
   ): Promise<RankedRecommendationList> {
     const failedAgents = agentOutputs
       .filter((o) => o.status === "FAILED")
@@ -62,6 +63,9 @@ export class RankedRecommendationBuilder {
         `At least 3 recommendations required, got ${recommendations.length}`,
       );
     }
+
+    const result = { sessionId, generatedAt: new Date().toISOString(), recommendations };
+    if (!persist) return result;
 
     const recRows = recommendations.map((r) => ({
       id: r.id,
