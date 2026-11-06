@@ -1,0 +1,1077 @@
+{
+  "version": "sw28-v1",
+  "synthetic": true,
+  "independentGroundTruthReview": "pending",
+  "fixtures": [
+    {
+      "id": "form_137-clean-1",
+      "category": "form_137",
+      "condition": "clean",
+      "format": "png",
+      "mimeType": "image/png",
+      "file": "form_137-clean-1.png",
+      "sha256": "4e9a4db7122f2942cceaac2d5f767a36df93d90829d5bf914d75afd3b8cb629b",
+      "pages": 1,
+      "sourceLines": [
+        "FORM 137 - Learner Permanent Record",
+        "SYNTHETIC TEST RECORD - NOT A REAL STUDENT",
+        "Name: Synthetic Learner 1",
+        "Birthdate: 2010-01-01",
+        "ID: TEST-ONLY-001",
+        "School year: 2024-2025",
+        "Level: Grade 10",
+        "Subject | Quarter 1 | Quarter 2 | FINAL RATING",
+        "Mathematics | 70 | 75 | 80",
+        "Science | 71 | 76 | 84",
+        "Printed overall GWA: 82"
+      ],
+      "expected": {
+        "type": "form_137",
+        "data": {
+          "subjects": [
+            {
+              "name": "Mathematics",
+              "grade": 80,
+              "year": "2024-2025",
+              "grade_level": "Grade 10"
+            },
+            {
+              "name": "Science",
+              "grade": 84,
+              "year": "2024-2025",
+              "grade_level": "Grade 10"
+            }
+          ],
+          "gwa": 82,
+          "school_year": "2024-2025"
+        }
+      }
+    },
+    {
+      "id": "form_137-clean-2",
+      "category": "form_137",
+      "condition": "clean",
+      "format": "jpeg",
+      "mimeType": "image/jpeg",
+      "file": "form_137-clean-2.jpg",
+      "sha256": "ce58d732c04be9d1af6a419d57559dfb33c2351f50e98be202eb234270fe7193",
+      "pages": 1,
+      "sourceLines": [
+        "FORM 137 - Learner Permanent Record",
+        "SYNTHETIC TEST RECORD - NOT A REAL STUDENT",
+        "Name: Synthetic Learner 2",
+        "Birthdate: 2010-01-01",
+        "ID: TEST-ONLY-002",
+        "School year: 2025-2026",
+        "Level: Grade 11",
+        "Subject | Quarter 1 | Quarter 2 | FINAL RATING",
+        "Mathematics | 70 | 75 | 81",
+        "Science | 71 | 76 | 85",
+        "Printed overall GWA: 83"
+      ],
+      "expected": {
+        "type": "form_137",
+        "data": {
+          "subjects": [
+            {
+              "name": "Mathematics",
+              "grade": 81,
+              "year": "2025-2026",
+              "grade_level": "Grade 11"
+            },
+            {
+              "name": "Science",
+              "grade": 85,
+              "year": "2025-2026",
+              "grade_level": "Grade 11"
+            }
+          ],
+          "gwa": 83,
+          "school_year": "2025-2026"
+        }
+      }
+    },
+    {
+      "id": "form_137-low-quality-1",
+      "category": "form_137",
+      "condition": "low-quality",
+      "format": "pdf",
+      "mimeType": "application/pdf",
+      "file": "form_137-low-quality-1.pdf",
+      "sha256": "7adef91a717adc8eee2f15d2114f58b2616a6fae4da66b4435718659b302556d",
+      "pages": 1,
+      "sourceLines": [
+        "FORM 137 - Learner Permanent Record",
+        "SYNTHETIC TEST RECORD - NOT A REAL STUDENT",
+        "Name: Synthetic Learner 3",
+        "Birthdate: 2010-01-01",
+        "ID: TEST-ONLY-003",
+        "School year: 2024-2025",
+        "Level: Grade 10",
+        "Subject | Quarter 1 | Quarter 2 | FINAL RATING",
+        "Mathematics | 70 | 75 | 81",
+        "Science | 71 | 76 | 85",
+        "Printed overall GWA: 83"
+      ],
+      "expected": {
+        "type": "form_137",
+        "data": {
+          "subjects": [
+            {
+              "name": "Mathematics",
+              "grade": 81,
+              "year": "2024-2025",
+              "grade_level": "Grade 10"
+            },
+            {
+              "name": "Science",
+              "grade": 85,
+              "year": "2024-2025",
+              "grade_level": "Grade 10"
+            }
+          ],
+          "gwa": 83,
+          "school_year": "2024-2025"
+        }
+      }
+    },
+    {
+      "id": "form_137-low-quality-2",
+      "category": "form_137",
+      "condition": "low-quality",
+      "format": "webp",
+      "mimeType": "image/webp",
+      "file": "form_137-low-quality-2.webp",
+      "sha256": "529adc63aeb671c1a17869d73b638d01d87e58be19447ca98be665899936de21",
+      "pages": 1,
+      "sourceLines": [
+        "FORM 137 - Learner Permanent Record",
+        "SYNTHETIC TEST RECORD - NOT A REAL STUDENT",
+        "Name: Synthetic Learner 4",
+        "Birthdate: 2010-01-01",
+        "ID: TEST-ONLY-004",
+        "School year: 2025-2026",
+        "Level: Grade 11",
+        "Subject | Quarter 1 | Quarter 2 | FINAL RATING",
+        "Mathematics | 70 | 75 | 82",
+        "Science | 71 | 76 | 86",
+        "Printed overall GWA: 84"
+      ],
+      "expected": {
+        "type": "form_137",
+        "data": {
+          "subjects": [
+            {
+              "name": "Mathematics",
+              "grade": 82,
+              "year": "2025-2026",
+              "grade_level": "Grade 11"
+            },
+            {
+              "name": "Science",
+              "grade": 86,
+              "year": "2025-2026",
+              "grade_level": "Grade 11"
+            }
+          ],
+          "gwa": 84,
+          "school_year": "2025-2026"
+        }
+      }
+    },
+    {
+      "id": "form_137-missing-field-1",
+      "category": "form_137",
+      "condition": "missing-field",
+      "format": "png",
+      "mimeType": "image/png",
+      "file": "form_137-missing-field-1.png",
+      "sha256": "65e543a724b92be3ad6d45a123a8806728813099b8fad76346f306a7cec57812",
+      "pages": 1,
+      "sourceLines": [
+        "FORM 137 - Learner Permanent Record",
+        "SYNTHETIC TEST RECORD - NOT A REAL STUDENT",
+        "Name: Synthetic Learner 5",
+        "Birthdate: 2010-01-01",
+        "ID: TEST-ONLY-005",
+        "School year: 2024-2025",
+        "Level: Grade 10",
+        "Subject | Quarter 1 | Quarter 2 | FINAL RATING",
+        "Mathematics | 70 | 75 | 82",
+        "Science | 71 | 76 | "
+      ],
+      "expected": {
+        "type": "form_137",
+        "data": {
+          "subjects": [
+            {
+              "name": "Mathematics",
+              "grade": 82,
+              "year": "2024-2025",
+              "grade_level": "Grade 10"
+            },
+            {
+              "name": "Science",
+              "grade": null,
+              "year": "2024-2025",
+              "grade_level": "Grade 10"
+            }
+          ],
+          "gwa": null,
+          "school_year": "2024-2025"
+        }
+      }
+    },
+    {
+      "id": "form_137-missing-field-2",
+      "category": "form_137",
+      "condition": "missing-field",
+      "format": "jpeg",
+      "mimeType": "image/jpeg",
+      "file": "form_137-missing-field-2.jpg",
+      "sha256": "2e46e351857255911c8261c1e549c9ea8f7a76dae613a76d5ef670caed5ba6c6",
+      "pages": 1,
+      "sourceLines": [
+        "FORM 137 - Learner Permanent Record",
+        "SYNTHETIC TEST RECORD - NOT A REAL STUDENT",
+        "Name: Synthetic Learner 6",
+        "Birthdate: 2010-01-01",
+        "ID: TEST-ONLY-006",
+        "School year: 2025-2026",
+        "Level: Grade 11",
+        "Subject | Quarter 1 | Quarter 2 | FINAL RATING",
+        "Mathematics | 70 | 75 | 83",
+        "Science | 71 | 76 | "
+      ],
+      "expected": {
+        "type": "form_137",
+        "data": {
+          "subjects": [
+            {
+              "name": "Mathematics",
+              "grade": 83,
+              "year": "2025-2026",
+              "grade_level": "Grade 11"
+            },
+            {
+              "name": "Science",
+              "grade": null,
+              "year": "2025-2026",
+              "grade_level": "Grade 11"
+            }
+          ],
+          "gwa": null,
+          "school_year": "2025-2026"
+        }
+      }
+    },
+    {
+      "id": "form_137-non-standard-1",
+      "category": "form_137",
+      "condition": "non-standard",
+      "format": "pdf",
+      "mimeType": "application/pdf",
+      "file": "form_137-non-standard-1.pdf",
+      "sha256": "a220ac7b121de85c43362951d360e5fa9937de1896ba8ed9878402f8edca4942",
+      "pages": 1,
+      "sourceLines": [
+        "FORM 137 - Learner Permanent Record",
+        "SYNTHETIC TEST RECORD - NOT A REAL STUDENT",
+        "Name: Synthetic Learner 7",
+        "Birthdate: 2010-01-01",
+        "ID: TEST-ONLY-007",
+        "Printed overall GWA: 85",
+        "Science | 71 | 76 | 87",
+        "Mathematics | 70 | 75 | 83",
+        "Subject | Quarter 1 | Quarter 2 | FINAL RATING",
+        "Level: Grade 10",
+        "School year: 2024-2025"
+      ],
+      "expected": {
+        "type": "form_137",
+        "data": {
+          "subjects": [
+            {
+              "name": "Mathematics",
+              "grade": 83,
+              "year": "2024-2025",
+              "grade_level": "Grade 10"
+            },
+            {
+              "name": "Science",
+              "grade": 87,
+              "year": "2024-2025",
+              "grade_level": "Grade 10"
+            }
+          ],
+          "gwa": 85,
+          "school_year": "2024-2025"
+        }
+      }
+    },
+    {
+      "id": "form_137-non-standard-2",
+      "category": "form_137",
+      "condition": "non-standard",
+      "format": "webp",
+      "mimeType": "image/webp",
+      "file": "form_137-non-standard-2.webp",
+      "sha256": "31008b220cf9f4e33709b56e4ae78d1e0b4eb6ec9b29baec1c00593baa42b77e",
+      "pages": 1,
+      "sourceLines": [
+        "FORM 137 - Learner Permanent Record",
+        "SYNTHETIC TEST RECORD - NOT A REAL STUDENT",
+        "Name: Synthetic Learner 8",
+        "Birthdate: 2010-01-01",
+        "ID: TEST-ONLY-008",
+        "Printed overall GWA: 86",
+        "Science | 71 | 76 | 88",
+        "Mathematics | 70 | 75 | 84",
+        "Subject | Quarter 1 | Quarter 2 | FINAL RATING",
+        "Level: Grade 11",
+        "School year: 2025-2026"
+      ],
+      "expected": {
+        "type": "form_137",
+        "data": {
+          "subjects": [
+            {
+              "name": "Mathematics",
+              "grade": 84,
+              "year": "2025-2026",
+              "grade_level": "Grade 11"
+            },
+            {
+              "name": "Science",
+              "grade": 88,
+              "year": "2025-2026",
+              "grade_level": "Grade 11"
+            }
+          ],
+          "gwa": 86,
+          "school_year": "2025-2026"
+        }
+      }
+    },
+    {
+      "id": "form_137-mixed-quality-1",
+      "category": "form_137",
+      "condition": "mixed-quality",
+      "format": "png",
+      "mimeType": "image/png",
+      "file": "form_137-mixed-quality-1.png",
+      "sha256": "aa9ef6fe98ad7905a901bea1d651dacefdb02ed214a992e5e6348809e178b7bc",
+      "pages": 1,
+      "sourceLines": [
+        "FORM 137 - Learner Permanent Record",
+        "SYNTHETIC TEST RECORD - NOT A REAL STUDENT",
+        "Name: Synthetic Learner 9",
+        "Birthdate: 2010-01-01",
+        "ID: TEST-ONLY-009",
+        "School year: 2024-2025",
+        "Level: Grade 10",
+        "Subject | Quarter 1 | Quarter 2 | FINAL RATING",
+        "Mathematics | 70 | 75 | 84",
+        "Science | 71 | 76 | 88",
+        "Printed overall GWA: 86"
+      ],
+      "expected": {
+        "type": "form_137",
+        "data": {
+          "subjects": [
+            {
+              "name": "Mathematics",
+              "grade": 84,
+              "year": "2024-2025",
+              "grade_level": "Grade 10"
+            },
+            {
+              "name": "Science",
+              "grade": 88,
+              "year": "2024-2025",
+              "grade_level": "Grade 10"
+            }
+          ],
+          "gwa": 86,
+          "school_year": "2024-2025"
+        }
+      }
+    },
+    {
+      "id": "form_137-mixed-quality-2",
+      "category": "form_137",
+      "condition": "mixed-quality",
+      "format": "jpeg",
+      "mimeType": "image/jpeg",
+      "file": "form_137-mixed-quality-2.jpg",
+      "sha256": "d0ad938d42770d809b44e6cd5130257c078b8313e4dc56ae0d799bb9a5351164",
+      "pages": 1,
+      "sourceLines": [
+        "FORM 137 - Learner Permanent Record",
+        "SYNTHETIC TEST RECORD - NOT A REAL STUDENT",
+        "Name: Synthetic Learner 10",
+        "Birthdate: 2010-01-01",
+        "ID: TEST-ONLY-010",
+        "School year: 2025-2026",
+        "Level: Grade 11",
+        "Subject | Quarter 1 | Quarter 2 | FINAL RATING",
+        "Mathematics | 70 | 75 | 85",
+        "Science | 71 | 76 | 89",
+        "Printed overall GWA: 87"
+      ],
+      "expected": {
+        "type": "form_137",
+        "data": {
+          "subjects": [
+            {
+              "name": "Mathematics",
+              "grade": 85,
+              "year": "2025-2026",
+              "grade_level": "Grade 11"
+            },
+            {
+              "name": "Science",
+              "grade": 89,
+              "year": "2025-2026",
+              "grade_level": "Grade 11"
+            }
+          ],
+          "gwa": 87,
+          "school_year": "2025-2026"
+        }
+      }
+    },
+    {
+      "id": "ncae-clean-1",
+      "category": "ncae",
+      "condition": "clean",
+      "format": "pdf",
+      "mimeType": "application/pdf",
+      "file": "ncae-clean-1.pdf",
+      "sha256": "53c27066f905c11c293903c3ffdb13573333bfd10f2ec7c5cb5fd7212334ad48",
+      "pages": 1,
+      "sourceLines": [
+        "NATIONAL CAREER ASSESSMENT EXAMINATION (NCAE)",
+        "SYNTHETIC TEST RECORD - NOT A REAL STUDENT",
+        "Name: Synthetic Learner 11",
+        "Birthdate: 2010-01-01",
+        "ID: TEST-ONLY-011",
+        "Scientific Ability: 0",
+        "Mathematical Ability: 8",
+        "Overall percentile: 4",
+        "Printed recommended strand: STEM"
+      ],
+      "expected": {
+        "type": "ncae",
+        "data": {
+          "strand_scores": {
+            "Scientific Ability": 0,
+            "Mathematical Ability": 8
+          },
+          "overall_percentile": 4,
+          "recommended_strand": "STEM"
+        }
+      }
+    },
+    {
+      "id": "ncae-clean-2",
+      "category": "ncae",
+      "condition": "clean",
+      "format": "webp",
+      "mimeType": "image/webp",
+      "file": "ncae-clean-2.webp",
+      "sha256": "198db85e44603e94c2c05e1994b653b4eb898954572f233bbe44d3e85f6b821c",
+      "pages": 1,
+      "sourceLines": [
+        "NATIONAL CAREER ASSESSMENT EXAMINATION (NCAE)",
+        "SYNTHETIC TEST RECORD - NOT A REAL STUDENT",
+        "Name: Synthetic Learner 12",
+        "Birthdate: 2010-01-01",
+        "ID: TEST-ONLY-012",
+        "Scientific Ability: 61",
+        "Mathematical Ability: 69",
+        "Overall percentile: 65",
+        "Printed recommended strand: STEM"
+      ],
+      "expected": {
+        "type": "ncae",
+        "data": {
+          "strand_scores": {
+            "Scientific Ability": 61,
+            "Mathematical Ability": 69
+          },
+          "overall_percentile": 65,
+          "recommended_strand": "STEM"
+        }
+      }
+    },
+    {
+      "id": "ncae-low-quality-1",
+      "category": "ncae",
+      "condition": "low-quality",
+      "format": "png",
+      "mimeType": "image/png",
+      "file": "ncae-low-quality-1.png",
+      "sha256": "8fbafa9620c4fb574ff49e481f5339121111038aa8562e667b581ff2f7aa516e",
+      "pages": 1,
+      "sourceLines": [
+        "NATIONAL CAREER ASSESSMENT EXAMINATION (NCAE)",
+        "SYNTHETIC TEST RECORD - NOT A REAL STUDENT",
+        "Name: Synthetic Learner 13",
+        "Birthdate: 2010-01-01",
+        "ID: TEST-ONLY-013",
+        "Scientific Ability: 63",
+        "Mathematical Ability: 71",
+        "Overall percentile: 67",
+        "Printed recommended strand: STEM"
+      ],
+      "expected": {
+        "type": "ncae",
+        "data": {
+          "strand_scores": {
+            "Scientific Ability": 63,
+            "Mathematical Ability": 71
+          },
+          "overall_percentile": 67,
+          "recommended_strand": "STEM"
+        }
+      }
+    },
+    {
+      "id": "ncae-low-quality-2",
+      "category": "ncae",
+      "condition": "low-quality",
+      "format": "jpeg",
+      "mimeType": "image/jpeg",
+      "file": "ncae-low-quality-2.jpg",
+      "sha256": "29552b99fe6a8856c66b869c3c5600f5cea5ddffff58692c43e51b1b33f2e8f1",
+      "pages": 1,
+      "sourceLines": [
+        "NATIONAL CAREER ASSESSMENT EXAMINATION (NCAE)",
+        "SYNTHETIC TEST RECORD - NOT A REAL STUDENT",
+        "Name: Synthetic Learner 14",
+        "Birthdate: 2010-01-01",
+        "ID: TEST-ONLY-014",
+        "Scientific Ability: 64",
+        "Mathematical Ability: 72",
+        "Overall percentile: 68",
+        "Printed recommended strand: STEM"
+      ],
+      "expected": {
+        "type": "ncae",
+        "data": {
+          "strand_scores": {
+            "Scientific Ability": 64,
+            "Mathematical Ability": 72
+          },
+          "overall_percentile": 68,
+          "recommended_strand": "STEM"
+        }
+      }
+    },
+    {
+      "id": "ncae-missing-field-1",
+      "category": "ncae",
+      "condition": "missing-field",
+      "format": "pdf",
+      "mimeType": "application/pdf",
+      "file": "ncae-missing-field-1.pdf",
+      "sha256": "b798c18ff5f9f65a101a643754f9150ae4fdf19dedf21e50998a62a6aee7284d",
+      "pages": 1,
+      "sourceLines": [
+        "NATIONAL CAREER ASSESSMENT EXAMINATION (NCAE)",
+        "SYNTHETIC TEST RECORD - NOT A REAL STUDENT",
+        "Name: Synthetic Learner 15",
+        "Birthdate: 2010-01-01",
+        "ID: TEST-ONLY-015",
+        "Scientific Ability: 66",
+        "Mathematical Ability: "
+      ],
+      "expected": {
+        "type": "ncae",
+        "data": {
+          "strand_scores": {
+            "Scientific Ability": 66,
+            "Mathematical Ability": null
+          },
+          "overall_percentile": null,
+          "recommended_strand": null
+        }
+      }
+    },
+    {
+      "id": "ncae-missing-field-2",
+      "category": "ncae",
+      "condition": "missing-field",
+      "format": "webp",
+      "mimeType": "image/webp",
+      "file": "ncae-missing-field-2.webp",
+      "sha256": "bb9dcf92079f813962626d0b1acbd6d020c8770f8de8b353c6cb7adce0d1bc54",
+      "pages": 1,
+      "sourceLines": [
+        "NATIONAL CAREER ASSESSMENT EXAMINATION (NCAE)",
+        "SYNTHETIC TEST RECORD - NOT A REAL STUDENT",
+        "Name: Synthetic Learner 16",
+        "Birthdate: 2010-01-01",
+        "ID: TEST-ONLY-016",
+        "Scientific Ability: 67",
+        "Mathematical Ability: "
+      ],
+      "expected": {
+        "type": "ncae",
+        "data": {
+          "strand_scores": {
+            "Scientific Ability": 67,
+            "Mathematical Ability": null
+          },
+          "overall_percentile": null,
+          "recommended_strand": null
+        }
+      }
+    },
+    {
+      "id": "ncae-non-standard-1",
+      "category": "ncae",
+      "condition": "non-standard",
+      "format": "png",
+      "mimeType": "image/png",
+      "file": "ncae-non-standard-1.png",
+      "sha256": "ba8f8c2b67b2055328660bb3ab92fb8eb1371a8db24a0514473ddcf0172f9a3f",
+      "pages": 1,
+      "sourceLines": [
+        "NATIONAL CAREER ASSESSMENT EXAMINATION (NCAE)",
+        "SYNTHETIC TEST RECORD - NOT A REAL STUDENT",
+        "Name: Synthetic Learner 17",
+        "Birthdate: 2010-01-01",
+        "ID: TEST-ONLY-017",
+        "Printed recommended strand: STEM",
+        "Overall percentile: 73",
+        "Mathematical Ability: 77",
+        "Scientific Ability: 69"
+      ],
+      "expected": {
+        "type": "ncae",
+        "data": {
+          "strand_scores": {
+            "Scientific Ability": 69,
+            "Mathematical Ability": 77
+          },
+          "overall_percentile": 73,
+          "recommended_strand": "STEM"
+        }
+      }
+    },
+    {
+      "id": "ncae-non-standard-2",
+      "category": "ncae",
+      "condition": "non-standard",
+      "format": "jpeg",
+      "mimeType": "image/jpeg",
+      "file": "ncae-non-standard-2.jpg",
+      "sha256": "f3c17998278be7b58da0c466f620f3bb6d68f700a110f11f9389e6a4488bbecb",
+      "pages": 1,
+      "sourceLines": [
+        "NATIONAL CAREER ASSESSMENT EXAMINATION (NCAE)",
+        "SYNTHETIC TEST RECORD - NOT A REAL STUDENT",
+        "Name: Synthetic Learner 18",
+        "Birthdate: 2010-01-01",
+        "ID: TEST-ONLY-018",
+        "Printed recommended strand: STEM",
+        "Overall percentile: 74",
+        "Mathematical Ability: 78",
+        "Scientific Ability: 70"
+      ],
+      "expected": {
+        "type": "ncae",
+        "data": {
+          "strand_scores": {
+            "Scientific Ability": 70,
+            "Mathematical Ability": 78
+          },
+          "overall_percentile": 74,
+          "recommended_strand": "STEM"
+        }
+      }
+    },
+    {
+      "id": "ncae-mixed-quality-1",
+      "category": "ncae",
+      "condition": "mixed-quality",
+      "format": "pdf",
+      "mimeType": "application/pdf",
+      "file": "ncae-mixed-quality-1.pdf",
+      "sha256": "a4525419b86289b68e024ea38bec3328ef12d5c5f81bd3f28c39a19c8f33b10b",
+      "pages": 2,
+      "sourceLines": [
+        "NATIONAL CAREER ASSESSMENT EXAMINATION (NCAE)",
+        "SYNTHETIC TEST RECORD - NOT A REAL STUDENT",
+        "Name: Synthetic Learner 19",
+        "Birthdate: 2010-01-01",
+        "ID: TEST-ONLY-019",
+        "Scientific Ability: 72",
+        "Mathematical Ability: 80",
+        "Overall percentile: 76",
+        "Printed recommended strand: STEM"
+      ],
+      "expected": {
+        "type": "ncae",
+        "data": {
+          "strand_scores": {
+            "Scientific Ability": 72,
+            "Mathematical Ability": 80
+          },
+          "overall_percentile": 76,
+          "recommended_strand": "STEM"
+        }
+      }
+    },
+    {
+      "id": "ncae-mixed-quality-2",
+      "category": "ncae",
+      "condition": "mixed-quality",
+      "format": "webp",
+      "mimeType": "image/webp",
+      "file": "ncae-mixed-quality-2.webp",
+      "sha256": "eaa3132d73a9b89968511d1c94cac625a34c357051df75fa8aeffea354cbeedc",
+      "pages": 1,
+      "sourceLines": [
+        "NATIONAL CAREER ASSESSMENT EXAMINATION (NCAE)",
+        "SYNTHETIC TEST RECORD - NOT A REAL STUDENT",
+        "Name: Synthetic Learner 20",
+        "Birthdate: 2010-01-01",
+        "ID: TEST-ONLY-020",
+        "Scientific Ability: 73",
+        "Mathematical Ability: 81",
+        "Overall percentile: 77",
+        "Printed recommended strand: STEM"
+      ],
+      "expected": {
+        "type": "ncae",
+        "data": {
+          "strand_scores": {
+            "Scientific Ability": 73,
+            "Mathematical Ability": 81
+          },
+          "overall_percentile": 77,
+          "recommended_strand": "STEM"
+        }
+      }
+    },
+    {
+      "id": "nat-clean-1",
+      "category": "nat",
+      "condition": "clean",
+      "format": "png",
+      "mimeType": "image/png",
+      "file": "nat-clean-1.png",
+      "sha256": "4146e5ca785b3eede1e846ec7e858fdb1a325df10cb778bab22eb803ca7f1c48",
+      "pages": 1,
+      "sourceLines": [
+        "NATIONAL ACHIEVEMENT TEST (NAT)",
+        "SYNTHETIC TEST RECORD - NOT A REAL STUDENT",
+        "Name: Synthetic Learner 21",
+        "Birthdate: 2010-01-01",
+        "ID: TEST-ONLY-021",
+        "Mathematics: 0",
+        "Science: 8",
+        "Printed composite score: 4",
+        "Mastery level: Average Mastery"
+      ],
+      "expected": {
+        "type": "nat",
+        "data": {
+          "subjects": {
+            "Mathematics": 0,
+            "Science": 8
+          },
+          "composite_score": 4,
+          "mastery_level": "Average Mastery"
+        }
+      }
+    },
+    {
+      "id": "nat-clean-2",
+      "category": "nat",
+      "condition": "clean",
+      "format": "jpeg",
+      "mimeType": "image/jpeg",
+      "file": "nat-clean-2.jpg",
+      "sha256": "6f0c061a903888cd4e9170f9b5e2de8312071959b626d75c894350a438fdb30e",
+      "pages": 1,
+      "sourceLines": [
+        "NATIONAL ACHIEVEMENT TEST (NAT)",
+        "SYNTHETIC TEST RECORD - NOT A REAL STUDENT",
+        "Name: Synthetic Learner 22",
+        "Birthdate: 2010-01-01",
+        "ID: TEST-ONLY-022",
+        "Mathematics: 61",
+        "Science: 69",
+        "Printed composite score: 65",
+        "Mastery level: Average Mastery"
+      ],
+      "expected": {
+        "type": "nat",
+        "data": {
+          "subjects": {
+            "Mathematics": 61,
+            "Science": 69
+          },
+          "composite_score": 65,
+          "mastery_level": "Average Mastery"
+        }
+      }
+    },
+    {
+      "id": "nat-low-quality-1",
+      "category": "nat",
+      "condition": "low-quality",
+      "format": "pdf",
+      "mimeType": "application/pdf",
+      "file": "nat-low-quality-1.pdf",
+      "sha256": "61ba22630953ff4c880532e66c53e7ecb884f9e94e8c9945c12fc9527638e859",
+      "pages": 1,
+      "sourceLines": [
+        "NATIONAL ACHIEVEMENT TEST (NAT)",
+        "SYNTHETIC TEST RECORD - NOT A REAL STUDENT",
+        "Name: Synthetic Learner 23",
+        "Birthdate: 2010-01-01",
+        "ID: TEST-ONLY-023",
+        "Mathematics: 63",
+        "Science: 71",
+        "Printed composite score: 67",
+        "Mastery level: Average Mastery"
+      ],
+      "expected": {
+        "type": "nat",
+        "data": {
+          "subjects": {
+            "Mathematics": 63,
+            "Science": 71
+          },
+          "composite_score": 67,
+          "mastery_level": "Average Mastery"
+        }
+      }
+    },
+    {
+      "id": "nat-low-quality-2",
+      "category": "nat",
+      "condition": "low-quality",
+      "format": "webp",
+      "mimeType": "image/webp",
+      "file": "nat-low-quality-2.webp",
+      "sha256": "58482a1d1adffcc75bb5f7d0959a320583966d099178222cb450edd4e1c1db84",
+      "pages": 1,
+      "sourceLines": [
+        "NATIONAL ACHIEVEMENT TEST (NAT)",
+        "SYNTHETIC TEST RECORD - NOT A REAL STUDENT",
+        "Name: Synthetic Learner 24",
+        "Birthdate: 2010-01-01",
+        "ID: TEST-ONLY-024",
+        "Mathematics: 64",
+        "Science: 72",
+        "Printed composite score: 68",
+        "Mastery level: Average Mastery"
+      ],
+      "expected": {
+        "type": "nat",
+        "data": {
+          "subjects": {
+            "Mathematics": 64,
+            "Science": 72
+          },
+          "composite_score": 68,
+          "mastery_level": "Average Mastery"
+        }
+      }
+    },
+    {
+      "id": "nat-missing-field-1",
+      "category": "nat",
+      "condition": "missing-field",
+      "format": "png",
+      "mimeType": "image/png",
+      "file": "nat-missing-field-1.png",
+      "sha256": "48d6f8911aab16f79167ec5b300abfbcc309c45d2704db99908caa2c0b8aa59f",
+      "pages": 1,
+      "sourceLines": [
+        "NATIONAL ACHIEVEMENT TEST (NAT)",
+        "SYNTHETIC TEST RECORD - NOT A REAL STUDENT",
+        "Name: Synthetic Learner 25",
+        "Birthdate: 2010-01-01",
+        "ID: TEST-ONLY-025",
+        "Mathematics: 66",
+        "Science: "
+      ],
+      "expected": {
+        "type": "nat",
+        "data": {
+          "subjects": {
+            "Mathematics": 66,
+            "Science": null
+          },
+          "composite_score": null,
+          "mastery_level": null
+        }
+      }
+    },
+    {
+      "id": "nat-missing-field-2",
+      "category": "nat",
+      "condition": "missing-field",
+      "format": "jpeg",
+      "mimeType": "image/jpeg",
+      "file": "nat-missing-field-2.jpg",
+      "sha256": "0a22b3fb7778c31b93376c2e4750a574f422f28873dc07c2a674de7904264555",
+      "pages": 1,
+      "sourceLines": [
+        "NATIONAL ACHIEVEMENT TEST (NAT)",
+        "SYNTHETIC TEST RECORD - NOT A REAL STUDENT",
+        "Name: Synthetic Learner 26",
+        "Birthdate: 2010-01-01",
+        "ID: TEST-ONLY-026",
+        "Mathematics: 67",
+        "Science: "
+      ],
+      "expected": {
+        "type": "nat",
+        "data": {
+          "subjects": {
+            "Mathematics": 67,
+            "Science": null
+          },
+          "composite_score": null,
+          "mastery_level": null
+        }
+      }
+    },
+    {
+      "id": "nat-non-standard-1",
+      "category": "nat",
+      "condition": "non-standard",
+      "format": "pdf",
+      "mimeType": "application/pdf",
+      "file": "nat-non-standard-1.pdf",
+      "sha256": "871a01f6b36c8d84307bcd6fd74dc23f5a661de9fd01085cbb07f9135ac39e03",
+      "pages": 1,
+      "sourceLines": [
+        "NATIONAL ACHIEVEMENT TEST (NAT)",
+        "SYNTHETIC TEST RECORD - NOT A REAL STUDENT",
+        "Name: Synthetic Learner 27",
+        "Birthdate: 2010-01-01",
+        "ID: TEST-ONLY-027",
+        "Mastery level: Average Mastery",
+        "Printed composite score: 73",
+        "Science: 77",
+        "Mathematics: 69"
+      ],
+      "expected": {
+        "type": "nat",
+        "data": {
+          "subjects": {
+            "Mathematics": 69,
+            "Science": 77
+          },
+          "composite_score": 73,
+          "mastery_level": "Average Mastery"
+        }
+      }
+    },
+    {
+      "id": "nat-non-standard-2",
+      "category": "nat",
+      "condition": "non-standard",
+      "format": "webp",
+      "mimeType": "image/webp",
+      "file": "nat-non-standard-2.webp",
+      "sha256": "70d6dd9c3818e63c34e661275e2aaaf8903101d1f6783cdfd9e303252553a857",
+      "pages": 1,
+      "sourceLines": [
+        "NATIONAL ACHIEVEMENT TEST (NAT)",
+        "SYNTHETIC TEST RECORD - NOT A REAL STUDENT",
+        "Name: Synthetic Learner 28",
+        "Birthdate: 2010-01-01",
+        "ID: TEST-ONLY-028",
+        "Mastery level: Average Mastery",
+        "Printed composite score: 74",
+        "Science: 78",
+        "Mathematics: 70"
+      ],
+      "expected": {
+        "type": "nat",
+        "data": {
+          "subjects": {
+            "Mathematics": 70,
+            "Science": 78
+          },
+          "composite_score": 74,
+          "mastery_level": "Average Mastery"
+        }
+      }
+    },
+    {
+      "id": "nat-mixed-quality-1",
+      "category": "nat",
+      "condition": "mixed-quality",
+      "format": "png",
+      "mimeType": "image/png",
+      "file": "nat-mixed-quality-1.png",
+      "sha256": "925ea60eb0307bf3a6168456026d67903c15738399786c68efc1d3778d451bed",
+      "pages": 1,
+      "sourceLines": [
+        "NATIONAL ACHIEVEMENT TEST (NAT)",
+        "SYNTHETIC TEST RECORD - NOT A REAL STUDENT",
+        "Name: Synthetic Learner 29",
+        "Birthdate: 2010-01-01",
+        "ID: TEST-ONLY-029",
+        "Mathematics: 72",
+        "Science: 80",
+        "Printed composite score: 76",
+        "Mastery level: Average Mastery"
+      ],
+      "expected": {
+        "type": "nat",
+        "data": {
+          "subjects": {
+            "Mathematics": 72,
+            "Science": 80
+          },
+          "composite_score": 76,
+          "mastery_level": "Average Mastery"
+        }
+      }
+    },
+    {
+      "id": "nat-mixed-quality-2",
+      "category": "nat",
+      "condition": "mixed-quality",
+      "format": "jpeg",
+      "mimeType": "image/jpeg",
+      "file": "nat-mixed-quality-2.jpg",
+      "sha256": "f78e1e2010736c0edd65a7a90be4d934d54fc711b19325d9f77ffc1ea1ae7fe3",
+      "pages": 1,
+      "sourceLines": [
+        "NATIONAL ACHIEVEMENT TEST (NAT)",
+        "SYNTHETIC TEST RECORD - NOT A REAL STUDENT",
+        "Name: Synthetic Learner 30",
+        "Birthdate: 2010-01-01",
+        "ID: TEST-ONLY-030",
+        "Mathematics: 73",
+        "Science: 81",
+        "Printed composite score: 77",
+        "Mastery level: Average Mastery"
+      ],
+      "expected": {
+        "type": "nat",
+        "data": {
+          "subjects": {
+            "Mathematics": 73,
+            "Science": 81
+          },
+          "composite_score": 77,
+          "mastery_level": "Average Mastery"
+        }
+      }
+    }
+  ]
+}

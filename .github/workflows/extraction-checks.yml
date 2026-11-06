@@ -1,0 +1,21 @@
+name: Extraction regression contracts
+on:
+  pull_request:
+  push:
+    branches: [main]
+permissions:
+  contents: read
+jobs:
+  contracts:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - run: npm run test:extraction
+      - run: npx tsc --noEmit --pretty false
+      - run: npx eslint scripts/extraction tests/extraction-*.test.ts vitest.extraction-live.config.mts
+      # No provider keys, paid calls, generated accuracy scores or private reports in CI.
