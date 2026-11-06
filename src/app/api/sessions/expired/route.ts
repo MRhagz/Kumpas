@@ -3,7 +3,6 @@ import { runExpiredSessionCleanup } from "@/lib/module5/expired-session-cleanup"
 export const runtime = "nodejs";
 
 interface ExpiredSessionCleanupBody {
-  inactivityHours?: unknown;
   limit?: unknown;
 }
 
@@ -19,7 +18,6 @@ export async function GET(request: Request): Promise<Response> {
   const searchParams = new URL(request.url).searchParams;
 
   return runCleanup({
-    inactivityHours: searchParams.get("inactivityHours"),
     limit: searchParams.get("limit"),
   });
 }
@@ -47,15 +45,7 @@ export async function POST(request: Request): Promise<Response> {
 async function runCleanup(
   body: ExpiredSessionCleanupBody,
 ): Promise<Response> {
-  const inactivityHours = parsePositiveNumber(
-    body.inactivityHours,
-    "inactivityHours",
-  );
   const limit = parsePositiveInteger(body.limit, "limit");
-
-  if (inactivityHours instanceof Error) {
-    return sessionCleanupJsonResponse({ error: inactivityHours.message }, 400);
-  }
 
   if (limit instanceof Error) {
     return sessionCleanupJsonResponse({ error: limit.message }, 400);
@@ -63,7 +53,6 @@ async function runCleanup(
 
   try {
     const result = await runExpiredSessionCleanup({
-      inactivityHours,
       limit,
     });
 

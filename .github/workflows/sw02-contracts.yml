@@ -1,0 +1,37 @@
+name: Versioned session contracts
+on:
+  pull_request:
+  push:
+    branches: [main]
+permissions:
+  contents: read
+jobs:
+  contracts:
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:17
+        env:
+          POSTGRES_PASSWORD: contract-test
+          POSTGRES_DB: sw02
+        ports: ['5432:5432']
+        options: >-
+          --health-cmd pg_isready --health-interval 5s
+          --health-timeout 5s --health-retries 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci --ignore-scripts --no-audit --no-fund
+      - run: node_modules/.bin/vitest run --config vitest.config.ts tests/versioned-contracts.test.ts
+      - run: node_modules/.bin/tsc --noEmit --pretty false
+      - run: node_modules/.bin/eslint src/lib/module5/versioned-contracts.ts tests/versioned-contracts.test.ts
+      - run: python3 scripts/sw02-concurrency.py
+        env:
+          PGHOST: localhost
+          PGPORT: 5432
+          PGUSER: postgres
+          PGDATABASE: sw02
+          PGPASSWORD: contract-test

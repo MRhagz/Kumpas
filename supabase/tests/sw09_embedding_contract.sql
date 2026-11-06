@@ -44,7 +44,7 @@ begin
     if has_function_privilege('anon',
         'public.refresh_knowledge_chunks(text,text[],jsonb,jsonb,jsonb)', 'execute')
        or has_function_privilege('authenticated',
-        'public.match_knowledge_chunks(vector,text,integer,double precision,text,integer)', 'execute')
+        'public.match_knowledge_chunks(vector,text,integer,double precision,text,integer,text)', 'execute')
     then raise exception 'Privileged knowledge RPC exposed to a counselor/public role'; end if;
     inputs := jsonb_build_array(
         pg_temp.sw09_chunk(source, 0, 'unchanged', vector_json),
@@ -109,21 +109,21 @@ begin
     if not failed then raise exception 'I13 stale snapshot accepted'; end if;
 
     if not exists (
-        select 1 from public.match_knowledge_chunks(vector_json::text::vector, 'live_labor_demand') r
+        select 1 from public.match_knowledge_chunks(vector_json::text::vector, 'live_labor_demand', request_agent => 'IndustryAnalyst') r
         where r.source_url = source and r.official_source_url = source and r.publication_date is null
     ) then raise exception 'I14 valid retrieval or provenance contract failed'; end if;
-    if exists (select 1 from public.match_knowledge_chunks(vector_json::text::vector, 'path_feasibility'))
+    if exists (select 1 from public.match_knowledge_chunks(vector_json::text::vector, 'path_feasibility', request_agent => 'FeasibilityStrategist'))
     then raise exception 'I14 cross-silo retrieval'; end if;
     failed := false;
     begin
-        perform public.match_knowledge_chunks('[1,2,3]'::vector, 'live_labor_demand');
+        perform public.match_knowledge_chunks('[1,2,3]'::vector, 'live_labor_demand', request_agent => 'IndustryAnalyst');
     exception when raise_exception then failed := true;
     end;
     if not failed then raise exception 'I14 incompatible dimensions accepted'; end if;
     failed := false;
     begin
         perform public.match_knowledge_chunks(vector_json::text::vector, 'live_labor_demand', 5, 0.3,
-            'text-embedding-004', 768);
+            'text-embedding-004', 768, 'IndustryAnalyst');
     exception when raise_exception then failed := true;
     end;
     if not failed then raise exception 'I14 incompatible model accepted'; end if;
@@ -131,7 +131,7 @@ begin
         where source_url = source;
     failed := false;
     begin
-        perform public.match_knowledge_chunks(vector_json::text::vector, 'live_labor_demand');
+        perform public.match_knowledge_chunks(vector_json::text::vector, 'live_labor_demand', request_agent => 'IndustryAnalyst');
     exception when raise_exception then failed := true;
     end;
     if not failed then raise exception 'I14 unverified legacy vectors accepted'; end if;

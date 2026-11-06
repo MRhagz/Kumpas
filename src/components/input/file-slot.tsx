@@ -1,8 +1,9 @@
 "use client";
 
-import { useRef } from "react";
-import { Upload, Check, X, FileText, Loader2, ShieldCheck, AlertTriangle, Plus } from "lucide-react";
+import { useRef, useState } from "react";
+import { Upload, Check, X, FileText, Loader2, ShieldCheck, AlertTriangle } from "lucide-react";
 import { FileSlotProps } from "@/types";
+import { ACADEMIC_FILE_ACCEPT, ACADEMIC_MIME_TYPES, academicFileSizeError } from "@/lib/academic-upload-policy";
 
 const ALL_TYPES = [
   { value: "ncae", label: "NCAE Result" },
@@ -33,7 +34,7 @@ const STEP_LABELS: Record<string, string> = {
 };
 
 const fmtSize = (b: number) =>
-  b < 1024 ? `${b} B` : b < 1048576 ? `${(b / 1024).toFixed(1)} KB` : `${(b / 1048576).toFixed(1)} MB`;
+  b < 1000 ? `${b} B` : b < 1_000_000 ? `${(b / 1000).toFixed(1)} KB` : `${(b / 1_000_000).toFixed(1)} MB`;
 
 export default function FileSlot({
   index,
@@ -46,16 +47,19 @@ export default function FileSlot({
   onTypeChange,
 }: FileSlotProps) {
   const inputRef = useRef<HTMLInputElement>(null);
-  const isMultiFile = docType === "form_137";
+  const [validationError, setValidationError] = useState<string | null>(null);
   const hasFiles = files.length > 0;
 
   const handleFiles = (selected: FileList | null) => {
     if (!selected || selected.length === 0) return;
-    const accepted = Array.from(selected).filter(
-      (f) => f.type.startsWith("image/") || f.type === "application/pdf",
-    );
-    if (accepted.length === 0) return;
-    onFilesAdd(accepted);
+    const file = selected[0];
+    const error = selected.length !== 1
+      ? "Choose one file per document type. Use Replace to change the current file."
+      : academicFileSizeError(file) ??
+        (file.type && file.type !== "application/octet-stream" && !ACADEMIC_MIME_TYPES.includes(file.type)
+          ? "Choose a JPEG, PNG, WEBP or PDF document." : null);
+    setValidationError(error);
+    if (!error) onFilesAdd([file]);
     if (inputRef.current) inputRef.current.value = "";
   };
 
@@ -113,6 +117,7 @@ export default function FileSlot({
           <select
             className="flex-1 w-0 min-w-0 rounded-md border border-black/[0.1] bg-white px-2.5 py-1.5 text-[13px] text-charcoal-2 outline-none focus:border-sage"
             value={docType}
+            disabled={hasFiles || anyProcessing}
             onChange={(e) => onTypeChange(e.target.value)}
           >
             <option value="">Select type…</option>
@@ -123,37 +128,26 @@ export default function FileSlot({
             ))}
           </select>
 
-          {/* Upload button: shown when no files yet, OR for form_137 to add another */}
-          {(!hasFiles || isMultiFile) && (
-            <button
+          <button
               type="button"
               className="shrink-0 inline-flex items-center gap-1.5 rounded-md border border-black/[0.1] bg-white px-3 py-1.5 text-xs font-medium text-charcoal-2 transition-colors hover:bg-black/[0.02] cursor-pointer"
               onClick={() => inputRef.current?.click()}
-              disabled={!docType}
+              disabled={!docType || anyProcessing}
               title={!docType ? "Pick a document type first" : undefined}
             >
-              {hasFiles && isMultiFile ? (
-                <>
-                  <Plus size={14} /> Add file
-                </>
-              ) : (
-                <>
-                  <Upload size={14} /> Upload
-                </>
-              )}
-            </button>
-          )}
+              <Upload size={14} /> {hasFiles ? "Replace" : "Upload"}
+          </button>
         </div>
       </div>
 
       <input
         ref={inputRef}
         type="file"
-        accept="image/*,.pdf"
-        multiple={isMultiFile}
+        accept={ACADEMIC_FILE_ACCEPT}
         className="hidden"
         onChange={(e) => handleFiles(e.target.files)}
       />
+      {validationError && <p role="alert" className="px-3 py-2 text-xs text-red-soft">{validationError}</p>}
 
       {/* File rows */}
       {files.map((file, fileIdx) => {
@@ -179,13 +173,14 @@ export default function FileSlot({
                     color: TYPE_COLOR[docType]?.fg,
                   }}
                 >
-                  {isMultiFile ? `${TYPE_LABEL[docType]} #${fileIdx + 1}` : TYPE_LABEL[docType]}
+                  {TYPE_LABEL[docType]}
                 </span>
               )}
               <button
                 type="button"
                 className="flex h-6 w-6 items-center justify-center rounded-full text-black/30 hover:bg-black/5 hover:text-charcoal-2 cursor-pointer"
                 onClick={() => onFileRemove(fileIdx)}
+                disabled={anyProcessing}
                 aria-label="Remove file"
               >
                 <X size={14} />
