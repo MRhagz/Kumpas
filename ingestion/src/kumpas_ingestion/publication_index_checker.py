@@ -28,11 +28,15 @@ from __future__ import annotations
 
 import re
 from dataclasses import dataclass
+from urllib.parse import urldefrag, urljoin, urlsplit
 
 import httpx
 from bs4 import BeautifulSoup
 
+from .pdf_downloader import is_allowed_https_url
+
 CHED_LEGACY_BASE = "https://legacy.ched.gov.ph"
+CHED_PUBLIC_HOSTS = frozenset({"legacy.ched.gov.ph", "ched.gov.ph", "www.ched.gov.ph"})
 CHED_YEAR_INDEX_TEMPLATE = CHED_LEGACY_BASE + "/{year}-ched-memorandum-orders/"
 
 _CMO_ANCHOR_RE = re.compile(
@@ -78,44 +82,55 @@ class PublicationIndexChecker:
 
     def list_year(self, year: int, limit: int | None = None) -> list[PublicationEntry]:
         url = CHED_YEAR_INDEX_TEMPLATE.format(year=year)
-        html = self._fetch_html(url)
-        entries = self._parse_entries(html)
+        html, final_url = self._fetch_html(url)
+        entries = [entry for entry in self._parse_entries(html, final_url) if entry.year == year]
         entries.sort(key=lambda e: e.cmo_number, reverse=True)
         if limit is not None:
             entries = entries[:limit]
         return entries
 
-    def _fetch_html(self, url: str) -> str:
+    def _fetch_html(self, url: str) -> tuple[str, str]:
         try:
-            response = self._client.get(url)
+            for _ in range(11):
+                if not is_allowed_https_url(url, CHED_PUBLIC_HOSTS):
+                    raise IndexCheckError(f"CHED index redirects outside official HTTPS hosts: {url}")
+                response = self._client.get(url, follow_redirects=False)
+                if not response.has_redirect_location:
+                    break
+                url = urljoin(url, response.headers["location"])
+            else:
+                raise IndexCheckError("Too many CHED index redirects")
         except httpx.HTTPError as exc:
             raise IndexCheckError(f"HTTP error fetching {url}: {exc}") from exc
-        if response.status_code == 404:
-            return ""
         if response.status_code != 200:
             raise IndexCheckError(
                 f"CHED index returned HTTP {response.status_code} for {url}"
             )
-        return response.text
+        return response.text, str(response.url)
 
-    def _parse_entries(self, html: str) -> list[PublicationEntry]:
-        if not html:
-            return []
+    def _parse_entries(
+        self, html: str, base_url: str = CHED_LEGACY_BASE,
+    ) -> list[PublicationEntry]:
         soup = BeautifulSoup(html, "html.parser")
         content = soup.find("div", class_="entry-content")
         if content is None:
-            return []
+            raise IndexCheckError("CHED index is missing its publication listing (.entry-content)")
         seen: set[str] = set()
         entries: list[PublicationEntry] = []
         for anchor in content.find_all("a"):
             href = (anchor.get("href") or "").strip()
-            if not href.lower().endswith(".pdf"):
+            try:
+                absolute_href = urldefrag(urljoin(base_url, href))[0]
+            except ValueError:
+                continue
+            if not is_allowed_https_url(absolute_href, CHED_PUBLIC_HOSTS):
+                continue
+            if not urlsplit(absolute_href).path.lower().endswith(".pdf"):
                 continue
             text = " ".join(anchor.get_text(" ", strip=True).split())
             match = _CMO_ANCHOR_RE.match(text)
             if not match:
                 continue
-            absolute_href = href if href.startswith("http") else CHED_LEGACY_BASE + href
             if absolute_href in seen:
                 continue
             seen.add(absolute_href)

@@ -25,12 +25,15 @@ a CDN that blocks non-browser clients (same root cause as PSA OpenSTAT).
 
 from __future__ import annotations
 
+import logging
 import os
 import sys
-from datetime import datetime, timezone
-from typing import Iterable
+from collections.abc import Iterable
+from contextlib import closing
+from datetime import UTC, datetime
 
 from pydantic import ValidationError
+
 from supabase import create_client
 
 from ..config import IngestionConfig
@@ -40,7 +43,7 @@ from ..models import ChunkInput
 from ..pdf_downloader import PDFDownloader, PDFDownloadError
 from ..pdf_text_extractor import PDFTextExtractionError, PDFTextExtractor
 from ..publication_index_checker import (
-    IndexCheckError,
+    CHED_PUBLIC_HOSTS,
     PublicationEntry,
     PublicationIndexChecker,
 )
@@ -52,13 +55,14 @@ from ..vector_store_repository import VectorStoreRepository
 WORKFLOW_NAME = "ched_cmo_pdf"
 SOURCE_TYPE = "ched_cmo"
 DEFAULT_FIRST_RUN_LIMIT = 10
+_logger = logging.getLogger("kumpas.ingestion.ched")
 
 
 def _resolve_target_year() -> int:
     raw = os.environ.get("CHED_TARGET_YEAR")
     if raw:
         return int(raw)
-    return datetime.now(timezone.utc).year
+    return datetime.now(UTC).year
 
 
 def _resolve_first_run_limit() -> int:
@@ -140,91 +144,60 @@ def run() -> int:
     logger = IngestionLogger(supabase, workflow_name=WORKFLOW_NAME)
     logger.start(silo_id=SiloId.PATH_FEASIBILITY)
 
-    checker = PublicationIndexChecker()
     repository = VectorStoreRepository(supabase)
-
-    try:
-        all_entries = checker.list_year(target_year)
-    except IndexCheckError as exc:
-        logger.record(run_status="failure", error_message=str(exc))
-        print(str(exc))
-        checker.close()
-        return 1
-    finally:
-        pass
-
-    known = repository.known_publication_urls(SOURCE_TYPE)
-    new_entries = [e for e in all_entries if e.publication_url not in known]
-    capped = new_entries[:first_run_limit] if known == set() else new_entries
-
-    print(
-        f"CHED CMO {target_year}: index={len(all_entries)} "
-        f"already_ingested={len(known)} new={len(new_entries)} processing={len(capped)}"
-    )
-
-    if not capped:
-        logger.record(
-            run_status="no_op",
-            run_metadata={
-                "target_year": target_year,
-                "index_size": len(all_entries),
-                "already_ingested": len(known),
-            },
-        )
-        checker.close()
-        return 0
-
-    downloader = PDFDownloader()
-    extractor = PDFTextExtractor()
-    cleaner = TextCleaner(profile=CHED_PROFILE)
-
-    aggregated: list[ChunkInput] = []
-    processed: list[PublicationEntry] = []
     failures: list[tuple[str, str]] = []
-    for entry in capped:
-        try:
-            chunks = _process_publication(entry, downloader, extractor, cleaner)
-        except (PDFDownloadError, PDFTextExtractionError, ValidationError) as exc:
-            failures.append((entry.publication_url, str(exc)))
-            continue
-        aggregated.extend(chunks)
-        processed.append(entry)
-
-    downloader.close()
-    checker.close()
-
-    if failures:
-        _print_failure_report(failures)
-
-    if not processed:
-        logger.record(
-            run_status="failure",
-            error_message="All CHED CMO publications failed to ingest",
-            run_metadata={
-                "target_year": target_year,
-                "failures": [{"url": u, "error": e} for u, e in failures[:50]],
-            },
-        )
-        return 1
-
     try:
+        with closing(PublicationIndexChecker()) as checker:
+            all_entries = checker.list_year(target_year)
+        known = repository.known_publication_urls(SOURCE_TYPE)
+        new_entries = [e for e in all_entries if e.publication_url not in known]
+        capped = new_entries[:first_run_limit] if not known else new_entries
+
+        print(
+            f"CHED CMO {target_year}: index={len(all_entries)} "
+            f"already_ingested={len(known)} new={len(new_entries)} processing={len(capped)}"
+        )
+        if not capped:
+            logger.record(run_status="no_op", run_metadata={
+                "target_year": target_year, "index_size": len(all_entries),
+                "already_ingested": len(known),
+            })
+            return 0
+
+        extractor = PDFTextExtractor()
+        cleaner = TextCleaner(profile=CHED_PROFILE)
+        aggregated: list[ChunkInput] = []
+        processed: list[PublicationEntry] = []
+        with closing(PDFDownloader(allowed_hosts=CHED_PUBLIC_HOSTS)) as downloader:
+            for entry in capped:
+                try:
+                    chunks = _process_publication(entry, downloader, extractor, cleaner)
+                except (PDFDownloadError, PDFTextExtractionError, ValidationError) as exc:
+                    failures.append((entry.publication_url, str(exc)))
+                    logger.record(run_status="failure", error_message=str(exc), run_metadata={
+                        "target_year": target_year, "publication_url": entry.publication_url,
+                    })
+                    continue
+                aggregated.extend(chunks)
+                processed.append(entry)
+
+        if failures:
+            _print_failure_report(failures)
+        if not processed:
+            raise PDFTextExtractionError("All CHED CMO publications failed to ingest")
+
         _embed_and_write(cfg, repository, aggregated, logger.prepare(run_metadata={
             "target_year": target_year, "publications_processed": len(processed),
             "publications_failed": len(failures),
         }))
+        return 0
     except Exception as exc:
-        logger.record(
-            run_status="failure",
-            error_message=f"embedding or write failed: {exc}",
-            run_metadata={
-                "target_year": target_year,
-                "processed_publications": len(processed),
-            },
-        )
-        print(f"Embedding/write failed: {exc}")
+        _logger.exception("CHED CMO ingestion failed")
+        logger.record(run_status="failure", error_message=str(exc), run_metadata={
+            "target_year": target_year,
+            "failures": [{"url": url, "error": error} for url, error in failures],
+        })
         return 1
-
-    return 0
 
 
 if __name__ == "__main__":
