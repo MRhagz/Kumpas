@@ -52,10 +52,17 @@ describe("SW-15 PDF-ready budget boundary", () => {
     expect((await request("old-run")).status).toBe(409);
     expect(mocks.render).not.toHaveBeenCalled(); expect(mocks.transition).not.toHaveBeenCalled(); expect(mocks.fail).not.toHaveBeenCalled();
   });
+  it("leaves a failed object upload unpublished and cleans only its reserved version", async () => {
+    mocks.upload.mockRejectedValueOnce(new ProviderError(403, null, null));
+    expect((await request()).status).toBe(502);
+    expect(mocks.transition.mock.calls.map(([, action]) => action)).toEqual(["claim_report"]);
+    expect(mocks.fail).toHaveBeenCalledOnce();
+    expect(mocks.remove).toHaveBeenCalledWith("session", 1);
+  });
   it("serves an already-ready draft without restarting generation or its expired processing timer", async () => {
     mocks.load.mockResolvedValue({ run: { ...run(), phase: "ready", status: "completed", deadline_at: "2026-11-04T00:00:00Z" }, reportVersion: 1 });
     const response = await request(); expect(response.status).toBe(200);
-    expect((await response.json()).generatedAt).toBe("2026-11-05T00:01:00Z");
+    expect(await response.json()).toMatchObject({ generatedAt: "2026-11-05T00:01:00Z", reportVersion: 1, downloadUrl: null });
     expect(mocks.render).not.toHaveBeenCalled(); expect(mocks.upload).not.toHaveBeenCalled(); expect(mocks.transition).not.toHaveBeenCalled();
   });
   it("does not open a ready run's missing or stale report version", async () => {
@@ -64,5 +71,13 @@ describe("SW-15 PDF-ready budget boundary", () => {
     expect((await request()).status).toBe(409);
     expect(mocks.assemble).not.toHaveBeenCalled();
     expect(mocks.download).not.toHaveBeenCalled();
+  });
+  it("returns a version-bound application URL for an approved report", async () => {
+    mocks.load.mockResolvedValue({ run: { ...run(), phase: "ready", status: "completed" }, reportVersion: 2 });
+    mocks.single.mockResolvedValue({ data: { status: "approved", generated_at: "2026-11-05T00:01:00Z",
+      expires_at: "2026-11-06T00:01:00Z" }, error: null });
+    expect(await (await request()).json()).toMatchObject({
+      reportVersion: 2, downloadUrl: "/api/reports/session?version=2&download=1",
+    });
   });
 });

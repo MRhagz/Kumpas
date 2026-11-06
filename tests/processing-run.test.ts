@@ -102,6 +102,12 @@ describe("SW-15 durable deadline and stale completion guards", () => {
     await transition(id, next, "report_ready");
     expect((await db.query("select report_version,object_key from public.report_versions where session_id=$1", [id])).rows[0])
       .toEqual({ report_version: 2, object_key: `${id}/2.pdf` });
+    expect((await db.query(`select v.generated_at <= r.deadline_at as within_run,
+      v.expires_at = v.generated_at + interval '24 hours' as fixed_pdf_expiry,
+      v.expires_at > s.expires_at as independent_draft_expiry
+      from public.report_versions v join public.analysis_runs r on r.run_id = v.run_id
+      join public.sessions s on s.id = v.session_id where v.session_id = $1`, [id])).rows[0])
+      .toEqual({ within_run: true, fixed_pdf_expiry: true, independent_draft_expiry: true });
   });
   it("rejects wrong owners, cancellation and a newer approval", async () => {
     const { id, run } = await setup();

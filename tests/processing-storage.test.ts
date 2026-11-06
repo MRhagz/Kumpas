@@ -10,7 +10,7 @@ it("preserves Storage Retry-After and passes abort through the installed SDK", a
   const store = new PdfFileStore({ supabaseUrl: "https://example.supabase.co", serviceRoleKey: "test" });
   const pending = new ProcessingBudget().run("PDF storage", (signal) => store.uploadReportPdf("session", Buffer.from("%PDF synthetic"), 1, signal));
   await vi.advanceTimersByTimeAsync(4999); expect(outbound).toHaveBeenCalledTimes(1);
-  await vi.advanceTimersByTimeAsync(1); await expect(pending).resolves.toMatchObject({ sessionId: "session" });
+  await vi.advanceTimersByTimeAsync(1); await expect(pending).resolves.toEqual({ byteLength: 14 });
   expect(outbound).toHaveBeenCalledTimes(2);
   expect(outbound.mock.calls[0][1].signal).toBeInstanceOf(AbortSignal);
 });
