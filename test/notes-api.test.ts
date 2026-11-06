@@ -17,6 +17,13 @@ vi.mock("@/lib/auth/api-auth", () => ({
 import { POST as approve } from "@/app/api/sessions/[sessionId]/approve/route";
 import { POST as extract } from "@/app/api/extract-notes/route";
 
+vi.mock("@/lib/module2/intake-draft-store", () => ({
+  draftHeaders: { "Cache-Control": "private, no-store" },
+  readIntakeDraft: vi.fn(async () => ({ documents: [], notes: { revision: 0 } })),
+  intakeRpc: vi.fn(async () => ({ draft_revision: 1 })),
+}));
+import { imageFixture } from "../tests/upload-fixtures";
+
 const valid = { careerGoal: "<p>Undecided</p>", interests: "<ul><li>Mathematics</li></ul>", financial: "", concerns: "", impression: "" };
 const request = (counselorNotes: unknown, notesReviewed: unknown = true) => approve(
   new NextRequest("http://localhost/api/sessions/test/approve", { method: "POST", body: JSON.stringify({ counselorNotes, notesReviewed }) }),
@@ -76,12 +83,14 @@ describe("F05 photographed-note review", () => {
       candidates: [{ content: { parts: [{ text: JSON.stringify(valid) }] } }],
     }));
     const form = new FormData();
-    form.append("file", new File(["synthetic safe summary"], "notes.png", { type: "image/png" }));
+    form.append("file", new File([new Uint8Array(await imageFixture("png"))], "notes.png", { type: "image/png" }));
     form.append("notesReviewed", "true");
+    form.append("sessionId", "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa");
+    form.append("revision", "0");
     try {
       const result = await extract(new NextRequest("http://localhost/api/extract-notes", { method: "POST", body: form }));
       expect(result.status).toBe(200);
-      expect(await result.json()).toEqual(valid);
+      expect(await result.json()).toMatchObject({ ...valid, revision: 1, source: { page: 1 } });
       expect(outbound).toHaveBeenCalledTimes(1);
     } finally { outbound.mockRestore(); }
   });

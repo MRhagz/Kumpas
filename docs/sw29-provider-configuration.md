@@ -3,6 +3,8 @@
 Record date: 5 November 2026. Requirements: KMP-NFR-002/003/016; provider-related
 portions of STD S07, S11 and A01. This is the implementation/setup record, not a plan.
 
+> Current intake flow: SW-05 now waives local masking. SW-06 sends approved academic uploads and prepared note photographs directly through the existing paid-provider configuration, saves editable drafts and cleans up temporary artifacts. The redaction-specific statements below describe the historical SW-29 implementation; see [SW-06 verification](sw-06-verification.md) for current behavior. Completed SW-29 work is not reopened.
+
 ## Approved settings and evidence
 
 | Setting | Value / evidence |

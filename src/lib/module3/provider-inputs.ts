@@ -5,10 +5,10 @@ import type { AgentName } from "./types";
 
 // Copy documented academic fields, never an entire persisted profile/model object.
 export function selectAcademicData(data: ApprovedProfile["academicData"]): ApprovedProfile["academicData"] {
-  const number = (value: number | undefined) => value == null ? value : typeof value === "number" && Number.isFinite(value) ? value : undefined;
-  const text = (value: string | undefined) => value == null ? value : typeof value === "string" ? value : undefined;
-  const numbers = (values: Record<string, number> | undefined) =>
-    Object.fromEntries(Object.entries(values ?? {}).filter(([, v]) => typeof v === "number" && Number.isFinite(v)));
+  const number = (value: number | null | undefined) => value == null ? value : typeof value === "number" && Number.isFinite(value) ? value : undefined;
+  const text = (value: string | null | undefined) => value == null ? value : typeof value === "string" ? value : undefined;
+  const numbers = (values: Record<string, number | null> | undefined) =>
+    Object.fromEntries(Object.entries(values ?? {}).filter(([, v]) => v === null || (typeof v === "number" && Number.isFinite(v))));
   return {
     ...(data.ncae && { ncae: {
       strand_scores: numbers(data.ncae.strand_scores),
@@ -17,7 +17,7 @@ export function selectAcademicData(data: ApprovedProfile["academicData"]): Appro
     } }),
     ...(data.form137 && { form137: {
       subjects: (data.form137.subjects ?? []).map(({ name, grade, year }) => ({
-        name: text(name) ?? "", grade: number(grade)!, year: text(year) ?? "",
+        name: text(name) ?? "", grade: number(grade) ?? null, year: text(year) ?? "",
       })),
       gwa: number(data.form137.gwa),
       school_year: text(data.form137.school_year),

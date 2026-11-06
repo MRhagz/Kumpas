@@ -33,6 +33,7 @@ vi.mock("@/lib/module2/document-storage-service", () => ({ documentStorageServic
 vi.mock("@/lib/module5/expired-session-cleanup", () => ({ runExpiredSessionCleanup: m.cleanup }));
 vi.mock("@/lib/report/retention-cleanup", () => ({ runReportRetentionCleanup: m.retention }));
 
+import * as intake from "@/app/api/sessions/[sessionId]/intake/route";
 import * as sessions from "@/app/api/sessions/route";
 import * as session from "@/app/api/sessions/[sessionId]/route";
 import * as analyze from "@/app/api/sessions/[sessionId]/analyze/route";
@@ -55,6 +56,7 @@ const owner = { id: ownerId, email: "a@example.test", invited_at: "2026-01-01", 
   app_metadata: { role: "counselor", counselor_activated: true }, user_metadata: {} };
 const context = { params: Promise.resolve({ sessionId, documentId }) };
 const ownedRoutes = [
+  ["GET", "/api/sessions/id/intake", intake.GET], ["PATCH", "/api/sessions/id/intake", intake.PATCH],
   ["GET", "/api/sessions/id", session.GET], ["DELETE", "/api/sessions/id", session.DELETE],
   ["POST", "/api/sessions/id/analyze", analyze.POST], ["POST", "/api/sessions/id/approve", approve.POST],
   ["POST", "/api/sessions/id/complete", complete.POST], ["POST", "/api/sessions/id/upload", upload.POST],

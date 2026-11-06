@@ -23,6 +23,7 @@ function buildQuery(profile: ApprovedProfile): string {
 
   if (profile.academicData.ncae) {
     const topStrands = Object.entries(profile.academicData.ncae.strand_scores)
+      .filter((entry): entry is [string, number] => typeof entry[1] === "number")
       .sort(([, a], [, b]) => b - a)
       .slice(0, 3)
       .map(([strand]) => strand);

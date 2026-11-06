@@ -28,7 +28,7 @@ export default function ConfirmationApprovalBar({
       <label className="mb-4 flex items-start gap-2 text-sm text-charcoal-2">
         <input type="checkbox" checked={notesReviewed} disabled={isSubmitting}
           onChange={(event) => onNotesReviewedChange(event.target.checked)} />
-        I have reviewed these notes and confirm that they exclude personal identifiers
+        I have reviewed these notes and the academic values, including missing evidence. My notes exclude personal identifiers
         and confidential details. I am submitting only a prepared career-guidance summary.
       </label>
       <button
