@@ -9,10 +9,11 @@ import type { ScoredCareerPath, RankedCareerPath } from "./types";
 function buildPrompt(scoredPaths: ScoredCareerPath[]): string {
   const pathDescriptions = scoredPaths.map((p, i) => {
     return `${i + 1}. ${p.careerPath}
-   Alignment Score: ${p.alignmentScore}
+   Alignment Score: ${p.alignmentScore ?? "Unscored partial comparison"}
    Aptitude Fit: ${p.aptitudeScore}
    Market Demand: ${p.demandScore}
    Financial Feasibility: ${p.feasibilityScore}
+   Missing dimensions: ${[p.aptitudeScore === null ? "aptitude" : "", p.demandScore === null ? "demand" : "", p.feasibilityScore === null ? "feasibility" : ""].filter(Boolean).join(", ") || "none"}
    Key Signals: ${p.signals.join("; ")}`;
   });
 
@@ -58,16 +59,13 @@ export class RankingAgent {
       config: { responseMimeType: "application/json", abortSignal: signal },
     }));
     const text = result.text ?? "";
-    const parsed = JSON.parse(text) as {
-      rankings: Array<{
-        careerPath: string;
-        reasoningSummary: string;
-      }>;
-    };
-
-    const reasoningMap = new Map(
-      parsed.rankings.map((r) => [r.careerPath, r.reasoningSummary]),
-    );
+    const parsed: unknown = JSON.parse(text);
+    if (typeof parsed !== "object" || parsed === null || !("rankings" in parsed) || !Array.isArray(parsed.rankings)) throw new Error("Invalid reasoning response.");
+    const reasoningMap = new Map<string, string>();
+    for (const row of parsed.rankings) {
+      if (typeof row !== "object" || row === null || typeof row.careerPath !== "string" || typeof row.reasoningSummary !== "string") throw new Error("Invalid reasoning row.");
+      reasoningMap.set(row.careerPath, row.reasoningSummary);
+    }
 
     return scoredPaths.map((path) => ({
       ...path,

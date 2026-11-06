@@ -1,4 +1,5 @@
 import { type NextRequest } from "next/server";
+import { InsufficientEvidenceError } from "@/lib/module3/alignment-score-calculator";
 import { agentDispatcher } from "@/lib/module3/agent-dispatcher";
 import { metaAgentSynthesizer } from "@/lib/module3/meta-agent-synthesizer";
 import { approvedRunProfile, failRun, loadProcessingRun, runBudget, transitionRun, type ProcessingRun } from "@/lib/module5/processing-run";
@@ -66,16 +67,16 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
       throw new Error("Specialist analysis unavailable. Check provider or Supabase availability and retry analysis. Approved inputs are saved.");
     }
     stage = "synthesis and explanation";
-    const rankedRecommendations = await metaAgentSynthesizer.synthesize(sessionId, agentOutputs, budget, false);
+    const rankedRecommendations = await metaAgentSynthesizer.synthesize(sessionId, agentOutputs, approvedProfile, run.approved_profile_version, budget, false);
     budget.assert(stage);
     await transitionRun(run, "analysis_ready", rankedRecommendations);
     return json({ rankedRecommendations, runId: run.run_id, profileVersion: run.approved_profile_version, agentStatuses: agentOutputs.map(({ agentName, status, error }) => ({ agent: agentName, status, error })) });
   } catch (error) {
     if (run && claimed) await failRun(run, error instanceof ProcessingError ? error.stage : stage);
     return json({
-      error: error instanceof ProcessingError ? error.message : `${stage} failed. Your approved inputs are saved. Check Gemini configuration/quota and Supabase availability, then Retry analysis or return to Confirm Information.`,
+      error: error instanceof ProcessingError || error instanceof InsufficientEvidenceError ? error.message : `${stage} failed. Your approved inputs are saved. Check Gemini configuration/quota and Supabase availability, then Retry analysis or return to Confirm Information.`,
       failedStage: error instanceof ProcessingError ? error.stage : stage,
       retryRunId: run?.run_id,
-    }, error instanceof ProcessingError ? 409 : 502);
+    }, error instanceof InsufficientEvidenceError ? 422 : error instanceof ProcessingError ? 409 : 502);
   }
 }

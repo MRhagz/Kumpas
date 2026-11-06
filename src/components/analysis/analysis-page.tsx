@@ -239,7 +239,10 @@ function AnalysisContent() {
             hasRun.current = false;
             runPipeline(true);
           }}
-          onBack={() => router.push(`/input?session=${encodeURIComponent(sessionId ?? "")}&edit=1`)}
+          onBack={() => {
+            if (state.message.startsWith("Insufficient evidence")) void onNewSession();
+            else router.push(`/input?session=${encodeURIComponent(sessionId ?? "")}&edit=1`);
+          }}
         />
       )}
       {state.phase === "unavailable" && (

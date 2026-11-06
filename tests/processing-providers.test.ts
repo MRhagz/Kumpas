@@ -57,7 +57,7 @@ describe("SW-15 production operation wiring", () => {
     const budget = new ProcessingBudget();
     const pending = stage === "embedding" ? queryEmbeddingService.embed("query", "test", budget) :
       stage === "specialist" ? academicAuditorAgent.analyze(profile, "test", budget) :
-      stage === "synthesis" ? synthesisInterpreter.synthesize([], budget) : rankingAgent.generateReasoning([], budget);
+      stage === "synthesis" ? synthesisInterpreter.synthesize([], profile, budget) : rankingAgent.generateReasoning([], budget);
     await vi.advanceTimersByTimeAsync(4999); expect(target).toHaveBeenCalledTimes(1);
     await vi.advanceTimersByTimeAsync(1); await pending;
     expect(target).toHaveBeenCalledTimes(2);

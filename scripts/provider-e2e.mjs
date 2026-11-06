@@ -84,7 +84,7 @@ function dispatch(request) {
     if (url.pathname.endsWith("/rpc/match_knowledge_chunks")) return json([{
       content: "Synthetic public government evidence", source_url: "https://example.gov.ph/evidence",
       acquisition_method: "operator_curated_csv", ingestion_timestamp: "2026-11-01T00:00:00Z",
-      silo_id: body.target_silo_id, chunk_index: 0,
+      silo_id: body.target_silo_id, chunk_index: 0, source_metadata: { title: "Synthetic public government evidence" },
       source_type: { AcademicAuditor: "psa_openstat_lfs", IndustryAnalyst: "dole_ble_lmi", FeasibilityStrategist: "ched_cmo" }[body.request_agent],
       embedding_model: "gemini-embedding-001", embedding_dimensions: 768,
     }]);
@@ -116,11 +116,16 @@ function dispatch(request) {
     careerGoal: "<p>Engineering</p>", interests: "<p>Math</p>", financial: "", concerns: "", impression: "", studentName: forbidden,
   }));
   if (prompt.includes("pii_regions")) return gemini(JSON.stringify({ pii_regions: [] }));
-  if (prompt.includes("academic evidence")) return gemini(JSON.stringify({ evidence_state: "provided", data: {
+  if (prompt.includes("academic evidence") && !prompt.includes("Synthesis Interpreter")) return gemini(JSON.stringify({ evidence_state: "provided", data: {
     strand_scores: { "Scientific Ability": 90 }, overall_percentile: null, studentName: forbidden,
   } }));
   if (prompt.includes("Synthesis Interpreter")) return gemini(JSON.stringify({ candidates: ["Engineer", "Technician", "Analyst"].map(careerPath => ({
-    careerPath, aptitudeScore: 0.8, demandScore: 0.7, feasibilityScore: 0.6, signals: ["Synthetic supported signal"],
+    careerPath, aptitudeScore: 80, demandScore: 70, feasibilityScore: 60,
+    componentEvidence: {
+      aptitude: { inputReferences: ["academicData.nat.subjects.Mathematics"], sourceReferences: [], explanation: "Synthetic academic evidence" },
+      demand: { inputReferences: [], sourceReferences: [{ reference: "https://example.gov.ph/evidence", chunkIndex: 0 }], explanation: "Synthetic demand evidence" },
+      feasibility: { inputReferences: ["counselorNotes.financial"], sourceReferences: [{ reference: "https://example.gov.ph/evidence", chunkIndex: 0 }], explanation: "Synthetic financial context and costs" },
+    }, signals: ["Synthetic supported signal"],
     sourceReferences: [], keySignalDetails: [],
   })) }));
   if (prompt.includes("Ranking Agent")) return gemini(JSON.stringify({ rankings: ["Engineer", "Technician", "Analyst"].map(careerPath => ({
@@ -220,10 +225,13 @@ try {
     assert.ok(!providerCalls().some(r => r.body.includes("pii_regions")));
   });
   await check("analysis completes retrieval, three specialists, synthesis, ranking and persistence", async () => {
-    const response = await post(`/api/sessions/${sessionId}/analyze`);
+    const response = await post(`/api/sessions/${sessionId}/analyze`, JSON.stringify({ runId, profileVersion: 1 }));
     assert.equal(response.status, 200, await response.clone().text());
     const result = await response.json();
     assert.equal(result.rankedRecommendations.recommendations.length, 3);
+    assert.equal(result.rankedRecommendations.scoreContract, "0-100-v1");
+    assert.deepEqual(result.rankedRecommendations.recommendations.map(r => [r.careerPath, r.alignmentScore, r.rank, r.approvedProfileVersion]),
+      [["Analyst", 71, 1, 1], ["Engineer", 71, 1, 1], ["Technician", 71, 1, 1]]);
     assert.ok(result.agentStatuses.every(a => a.status === "SUCCESS"));
     assert.equal(providerCalls().filter(r => r.url.endsWith(":batchEmbedContents")).length, 3);
     const calls = providerCalls();

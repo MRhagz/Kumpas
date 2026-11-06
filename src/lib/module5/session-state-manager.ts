@@ -82,13 +82,14 @@ export class SessionStateManager {
 
     const hasApprovedProfile = !!profile.data;
     const currentRun = hasApprovedProfile && run.data?.status !== "superseded" ? run.data : null;
-    const hasReport = currentRun?.phase === "ready" && currentRun.status === "completed" &&
+    const hasCurrentRecommendations = currentRun?.recommendations?.scoreContract === "0-100-v1";
+    const hasReport = hasCurrentRecommendations && currentRun?.phase === "ready" && currentRun.status === "completed" &&
       !!currentRun.recommendations && !!report.data && Date.parse(report.data.expires_at) > Date.now();
     const analysisRestartRequired = hasApprovedProfile &&
-      (!currentRun || (currentRun.phase === "ready" && !hasReport));
+      (!currentRun || (!!currentRun.recommendations && !hasCurrentRecommendations) || (currentRun.phase === "ready" && !hasReport));
     const analysisRetryRequired = analysisRestartRequired || (!!currentRun && !hasReport &&
       (currentRun.phase === "failed" || Date.parse(currentRun.deadline_at) <= Date.now()));
-    const hasRecommendations = !!currentRun?.recommendations &&
+    const hasRecommendations = hasCurrentRecommendations &&
       (hasReport || (!analysisRetryRequired && currentRun.status === "running" &&
         currentRun.phase === "report_pending"));
     const reportStatus: ReportStatus = hasReport

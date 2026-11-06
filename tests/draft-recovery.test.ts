@@ -40,7 +40,7 @@ beforeEach(() => {
     }],
     profile_versions: [approval],
     analysis_runs: [{ ...scope, run_id: "run-2", approved_profile_version: 2, status: "completed",
-      phase: "ready", deadline_at: "2026-11-05T00:05:00.000Z", recommendations: { private: "model output" } }],
+      phase: "ready", deadline_at: "2026-11-05T00:05:00.000Z", recommendations: { scoreContract: "0-100-v1", private: "model output" } }],
     report_versions: [{ ...scope, run_id: "run-2", approved_profile_version: 2, report_version: 3,
       status: "draft", expires_at: "2026-11-06T00:04:00.000Z" }],
   };
@@ -93,6 +93,16 @@ describe("S03 and S04 draft recovery", () => {
     mocks.requireUser.mockResolvedValueOnce(null);
     expect((await resume()).status).toBe(401);
     expect(await (await resume()).json()).toMatchObject({ nextStep: "report", expiresAt: expiry });
+  });
+
+  it.each(["ready", "report_pending"])("restarts legacy normalized scoring from %s without losing approved inputs", async (phase) => {
+    Object.assign(tables.analysis_runs[0], { phase, recommendations: { private: "legacy 0-1 output" } });
+    expect(await (await resume()).json()).toMatchObject({
+      nextStep: "analysis", analysisRestartRequired: true, hasApprovedProfile: true,
+      hasRecommendations: false, hasReport: false, profileVersion: 2, expiresAt: expiry,
+    });
+    expect(tables.profile_versions[0].approved_at).toBe(createdAt);
+    expect(tables.sessions[0].current_run_id).toBe("run-2");
   });
 
   it("hides both the list entry and direct route from a different owner", async () => {
