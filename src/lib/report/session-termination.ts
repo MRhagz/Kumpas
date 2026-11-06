@@ -1,7 +1,8 @@
 import "server-only";
 
 import { drainExtractionCleanup } from "@/lib/module2/extraction-cleanup";
-import { drainReportCleanup } from "@/lib/report/artifact-cleanup";
+import { drainReportCleanup, queueReportCleanup } from "@/lib/report/artifact-cleanup";
+import { pdfFileStore } from "@/lib/report/file-store";
 import { supabaseAdmin } from "@/lib/supabase";
 
 export interface SessionTerminationResult {
@@ -35,9 +36,19 @@ export class SessionTerminationHandler {
     let sessionRowsPurged = true;
     const sessionScrubbed = true;
     let redactedImagesPurged = 0;
+    let reportInventoryCompleted = true;
 
     // Revoke first so a late provider/PDF result cannot publish during cleanup.
     await this.scrubSession(sessionId, terminalStatus);
+
+    if (terminalStatus === "cancelled") {
+      try {
+        await pdfFileStore.queueSessionReportPdfs(sessionId, queueReportCleanup);
+      } catch {
+        reportInventoryCompleted = false;
+        warnings.push("Report artifact inventory is pending retry.");
+      }
+    }
 
     try {
       await this.purgeSessionRows(sessionId);
@@ -61,7 +72,7 @@ export class SessionTerminationHandler {
     if (terminalStatus === "cancelled") {
       try {
         const cleanup = await drainReportCleanup();
-        reportPdfPurged = !cleanup.pending && sessionRowsPurged;
+        reportPdfPurged = reportInventoryCompleted && !cleanup.pending && sessionRowsPurged;
         if (!reportPdfPurged) warnings.push("Report artifact cleanup is pending retry.");
       } catch {
         reportPdfPurged = false;

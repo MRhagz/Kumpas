@@ -162,6 +162,16 @@ export class PdfFileStore {
     if (error) throw new Error("Report artifact deletion failed.");
   }
 
+  async queueSessionReportPdfs(sessionId: string, queueDeletion: (objectKey: string) => Promise<void>): Promise<void> {
+    const prefix = normalizeSessionId(sessionId);
+    const objects = await listAllStorageObjects(this.getClient().storage.from(this.bucketName), this.bucketName, prefix);
+    for (const object of objects) {
+      if (object.name.endsWith(".pdf") && !object.name.includes("/")) {
+        await queueDeletion(`${prefix}/${object.name}`);
+      }
+    }
+  }
+
   // Callers authorize the exact report against persisted metadata before reading bytes.
   async downloadReportPdf(sessionId: string, reportVersion: number): Promise<Blob> {
     const bucket = this.getClient().storage.from(this.bucketName);

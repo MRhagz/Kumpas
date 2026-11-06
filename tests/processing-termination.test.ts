@@ -1,8 +1,11 @@
 import { beforeEach, expect, it, vi } from "vitest";
-const boundary = vi.hoisted(() => ({ events: [] as string[], removePdf: vi.fn(), purge: vi.fn() }));
+const boundary = vi.hoisted(() => ({ events: [] as string[], removePdf: vi.fn(), purge: vi.fn(), inventory: vi.fn() }));
+vi.mock("@/lib/report/file-store", () => ({ pdfFileStore: { queueSessionReportPdfs: () => {
+  boundary.events.push("inventory"); return boundary.inventory();
+} } }));
 vi.mock("@/lib/report/artifact-cleanup", () => ({ drainReportCleanup: () => {
   boundary.events.push("pdf cleanup"); return boundary.removePdf();
-} }));
+}, queueReportCleanup: vi.fn() }));
 vi.mock("@/lib/module2/extraction-cleanup", () => ({ drainExtractionCleanup: vi.fn(async () => ({ removed: 0, failed: 0, pending: false })) }));
 vi.mock("@/lib/supabase", () => ({ supabaseAdmin: {
   rpc: () => { boundary.events.push("purge content"); return boundary.purge(); },
@@ -16,13 +19,22 @@ vi.mock("@/lib/supabase", () => ({ supabaseAdmin: {
   },
 } }));
 import { SessionTerminationHandler } from "@/lib/report/session-termination";
-beforeEach(() => { boundary.events.length = 0; vi.clearAllMocks(); boundary.removePdf.mockResolvedValue({ removed: 1, failed: 0, pending: false }); boundary.purge.mockResolvedValue({ error: null }); });
+beforeEach(() => { boundary.events.length = 0; vi.clearAllMocks(); boundary.inventory.mockResolvedValue(undefined); boundary.removePdf.mockResolvedValue({ removed: 1, failed: 0, pending: false }); boundary.purge.mockResolvedValue({ error: null }); });
 it("revokes a run before artifact cleanup and removes newly persisted profile/run/report data", async () => {
   const result = await new SessionTerminationHandler().terminateSession("session");
   expect(result.sessionScrubbed).toBe(true); expect(result.reportPdfPurged).toBe(true);
   expect(boundary.events[0]).toBe("revoke");
   expect(boundary.events).not.toContain("delete correction_logs");
-  expect(boundary.events).toEqual(["revoke", "purge content", "pdf cleanup"]);
+  expect(boundary.events).toEqual(["revoke", "inventory", "purge content", "pdf cleanup"]);
+});
+
+it("does not report complete PDF cleanup when storage inventory fails", async () => {
+  boundary.inventory.mockRejectedValue(new Error("PRIVATE storage failure"));
+  const result = await new SessionTerminationHandler(vi.fn()).terminateSession("session");
+  expect(result.reportPdfPurged).toBe(false);
+  expect(result.sessionRowsPurged).toBe(true);
+  expect(result.warnings).toContain("Report artifact inventory is pending retry.");
+  expect(result.warnings.join()).not.toContain("PRIVATE");
 });
 it("keeps access revoked and reports pending cleanup after an object deletion failure", async () => {
   boundary.removePdf.mockRejectedValue(new Error("storage unavailable"));
