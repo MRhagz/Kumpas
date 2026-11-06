@@ -4,7 +4,7 @@ import {
   pdfFileStore,
   type ReportPdfRetentionResult,
 } from "@/lib/report/file-store";
-import { drainReportCleanup } from "@/lib/report/artifact-cleanup";
+import { drainReportCleanup, queueReportCleanup } from "@/lib/report/artifact-cleanup";
 import { supabaseAdmin } from "@/lib/supabase";
 
 export interface ReportRetentionCleanupOptions {
@@ -39,11 +39,7 @@ export async function runReportRetentionCleanup(
       .select("session_id").eq("session_id", sessionId).maybeSingle();
     if (tombstone.error) throw new Error("Could not verify report deletion state.");
     return tombstone.data ? new Date(0).toISOString() : null;
-  }, async (objectKey) => {
-    const queued = await supabaseAdmin.from("report_artifact_cleanup")
-      .upsert({ object_key: objectKey }, { onConflict: "object_key", ignoreDuplicates: true });
-    if (queued.error) throw new Error("Could not queue report deletion.");
-  });
+  }, queueReportCleanup);
   const cleanup = await drainReportCleanup();
   result.deletedCount += cleanup.removed;
   if (cleanup.pending) result.warnings.push("Report artifact cleanup is pending retry.");

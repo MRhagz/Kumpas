@@ -4,6 +4,12 @@ import { pdfFileStore } from "@/lib/report/file-store";
 
 interface CleanupObject { object_key: string; lease_token: string; attempts: number }
 
+export async function queueReportCleanup(objectKey: string) {
+  const { error } = await supabaseAdmin.from("report_artifact_cleanup")
+    .upsert({ object_key: objectKey }, { onConflict: "object_key", ignoreDuplicates: true });
+  if (error) throw new Error("Could not queue report deletion.");
+}
+
 export async function drainReportCleanup(limit = 50) {
   const { data, error } = await supabaseAdmin.rpc("claim_report_cleanup", { p_limit: limit });
   if (error) throw new Error("Report cleanup unavailable.");

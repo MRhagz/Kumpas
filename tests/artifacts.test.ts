@@ -87,4 +87,13 @@ describe("Private versioned PDF objects", () => {
     expect(queue).toHaveBeenCalledWith(`${id}/1.pdf`);
     expect(bucket.remove).not.toHaveBeenCalled();
   });
+
+  it("inventories unpublished PDF versions on termination before deleting bytes", async () => {
+    const { newStore, bucket } = fixture();
+    bucket.list.mockResolvedValueOnce({ data: [{ name: "1.pdf" }, { name: "2.pdf" }, { name: "unrelated.txt" }], error: null });
+    const queue = vi.fn(async () => undefined);
+    await newStore().queueSessionReportPdfs(id, queue);
+    expect(queue.mock.calls).toEqual([[`${id}/1.pdf`], [`${id}/2.pdf`]]);
+    expect(bucket.remove).not.toHaveBeenCalled();
+  });
 });

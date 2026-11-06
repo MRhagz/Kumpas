@@ -10,7 +10,7 @@ Approved sources read: [SRS](https://drive.google.com/file/d/1tKAG3mu-d8_xhZz9du
 | --- | --- | --- |
 | Draft, notes, extracted fields, approved profiles, analysis and recommendations | Session creation + exactly 24 hours; earlier explicit termination | Existing fixed-clock database/route guards deny access. Atomic cleanup deletes content, including profile/run cascades and legacy child rows. Activity never extends expiry. Completed drafts and incomplete terminal cleanup are included in sweeps. |
 | Published private PDFs | Generation + exactly 24 hours; earlier explicit termination | Existing exact-owner/version/approval checks remain. Draft expiry retains only the session/report authorization metadata needed for a separately valid PDF; no draft payload. PDF expiry deletes report metadata and queues its object before removal. The remaining session authorization row is removed when no report remains. |
-| Unpublished/orphan PDFs | Storage creation + 24 hours; earlier known session deletion | Private bucket inventory queues objects even without report metadata. A session tombstone immediately makes its orphan PDFs eligible. No public or signed URL is issued. |
+| Unpublished/orphan PDFs | Storage creation + 24 hours; earlier known session deletion | Private bucket inventory queues objects even without report metadata. A session tombstone immediately makes its orphan PDFs eligible. Termination inventories all PDF versions, including unpublished leftovers, before reporting physical cleanup complete. No public or signed URL is issued. |
 | Upload images and temporary PDF pages | Same extraction invocation, success or failure | SW-06 uses memory, inline Gemini payloads and `finally` task destruction. There is no application Files API upload and no durable new image store. The legacy `DocumentStorageService` has no active upload/retrieval route. No local masking is introduced. |
 | Legacy redacted/document objects | Already past their extraction lifecycle | Inventory of every `kumpas-documents` object catches lost/orphan references. SW-06's durable extraction queue and leases retry actual Storage deletion. |
 | Academic correction logs | Original session creation + 12 UTC calendar months, month-end fallback | SW-08's restricted access, pseudonymous reference, immutable expiry and separate scheduled purge remain. Draft deletion does not reset or cascade these logs. |
@@ -60,12 +60,12 @@ The operator must name the restore owner, backup timestamps, target, agreed RPO/
 
 Local checks, 6 November 2026:
 
-- `npx vitest run --config vitest.config.ts` — **504 passed**, 33 files. Includes separate clock boundaries, overlapping draft/PDF lifetime, correct report authorization after draft expiry, cancellation/failure retries, restoration of a pre-cancellation snapshot with the later deletion ledger, expired restore versus valid draft, restricted lifecycle privileges and legacy orphan inventory.
-- `npx tsc --noEmit` — passed.
+- `npx vitest run --config vitest.config.ts` — **506 passed**, 33 files. Includes separate clock boundaries, overlapping draft/PDF lifetime, correct report authorization after draft expiry, cancellation/failure retries, restoration of a pre-cancellation snapshot with the later deletion ledger, expired restore versus valid draft, restricted lifecycle privileges and legacy orphan inventory.
+- `npx tsc --noEmit`; `npm run lint:access` — passed.
 - Scoped lint — passed:
 
   ```sh
-  npx eslint src/lib/module5/expired-session-cleanup.ts src/lib/report/file-store.ts src/lib/report/retention-cleanup.ts src/lib/report/session-termination.ts src/lib/report/artifact-cleanup.ts src/lib/module2/extraction-cleanup.ts scripts/retention-recovery.mjs scripts/run-retention-cleanup.mjs tests/retention-cleanup.test.ts tests/retention-database.test.ts tests/processing-termination.test.ts tests/intake-cleanup.test.ts tests/artifacts.test.ts
+  npx eslint src/lib/module5/expired-session-cleanup.ts src/lib/report src/lib/module2/extraction-cleanup.ts scripts/retention-recovery.mjs scripts/run-retention-cleanup.mjs tests/retention-cleanup.test.ts tests/retention-database.test.ts tests/processing-termination.test.ts tests/intake-cleanup.test.ts tests/artifacts.test.ts
   ```
 
 - `node --check scripts/retention-recovery.mjs`; `node --check scripts/run-retention-cleanup.mjs`; `git diff --check` — passed.
