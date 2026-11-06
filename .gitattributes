@@ -1,1 +1,3 @@
 tests/fixtures/upload-*.pdf binary
+tests/fixtures/extraction/*.pdf binary
+tests/fixtures/extraction/*.json text eol=lf
