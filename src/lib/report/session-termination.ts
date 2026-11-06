@@ -1,6 +1,6 @@
 import "server-only";
 
-import { documentStorageService } from "@/lib/module2/document-storage-service";
+import { drainExtractionCleanup } from "@/lib/module2/extraction-cleanup";
 import { pdfFileStore } from "@/lib/report/file-store";
 import { supabaseAdmin } from "@/lib/supabase";
 
@@ -51,21 +51,12 @@ export class SessionTerminationHandler {
     }
 
     try {
-      const redactedImagePaths = await this.getRedactedImagePaths(sessionId);
-      redactedImagesPurged = await this.purgeRedactedImages(
-        sessionId,
-        redactedImagePaths,
-        warnings,
-        warn,
-      );
-    } catch (error) {
-      const message =
-        error instanceof Error
-          ? error.message
-          : "Failed to collect redacted image paths.";
-
-      warnings.push(message);
-      warn(`[SessionTerminationHandler] sessionId=${sessionId}: ${message}`);
+      const cleanup = await drainExtractionCleanup(sessionId);
+      redactedImagesPurged = cleanup.removed;
+      if (cleanup.failed) warnings.push("Temporary artifact cleanup is pending retry.");
+    } catch {
+      warnings.push("Temporary artifact cleanup is pending retry.");
+      warn("[SessionTerminationHandler] Artifact cleanup pending");
     }
 
     try {
@@ -91,47 +82,6 @@ export class SessionTerminationHandler {
       sessionScrubbed,
       warnings,
     };
-  }
-
-  private async getRedactedImagePaths(sessionId: string): Promise<string[]> {
-    const { data, error } = await supabaseAdmin
-      .from("extraction_results")
-      .select("redacted_image_path")
-      .eq("session_id", sessionId);
-
-    if (error) {
-      throw new Error(`Failed to load redacted image paths: ${error.message}`);
-    }
-
-    return (data ?? [])
-      .map((row) => row.redacted_image_path)
-      .filter((path): path is string => typeof path === "string" && path.length > 0);
-  }
-
-  private async purgeRedactedImages(
-    sessionId: string,
-    storagePaths: string[],
-    warnings: string[],
-    warn: (message: string) => void,
-  ): Promise<number> {
-    let purgedCount = 0;
-
-    for (const storagePath of storagePaths) {
-      try {
-        await documentStorageService.deleteRedacted(storagePath);
-        purgedCount += 1;
-      } catch (error) {
-        const message =
-          error instanceof Error
-            ? error.message
-            : `Failed to delete redacted image: ${storagePath}`;
-
-        warnings.push(message);
-        warn(`[SessionTerminationHandler] sessionId=${sessionId}: ${message}`);
-      }
-    }
-
-    return purgedCount;
   }
 
   private async purgeSessionRows(sessionId: string, purgeReports: boolean): Promise<void> {

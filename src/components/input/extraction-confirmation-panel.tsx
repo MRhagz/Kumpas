@@ -204,7 +204,7 @@ function NCAEEditor({
   const [editing, setEditing] = useState<string | null>(null);
 
   const updateScore = useCallback(
-    (strand: string, value: number) => {
+    (strand: string, value: number | null) => {
       onChange({
         ...data,
         strand_scores: { ...data.strand_scores, [strand]: value },
@@ -227,8 +227,8 @@ function NCAEEditor({
                 type="number"
                 min={0}
                 max={100}
-                value={score}
-                onChange={(e) => updateScore(strand, parseFloat(e.target.value) || 0)}
+                value={score ?? ""}
+                onChange={(e) => updateScore(strand, e.target.value === "" ? null : Number(e.target.value))}
                 onBlur={() => setEditing(null)}
                 onKeyDown={(e) => e.key === "Enter" && setEditing(null)}
                 autoFocus
@@ -277,7 +277,7 @@ function NATEditor({
   const [editing, setEditing] = useState<string | null>(null);
 
   const updateScore = useCallback(
-    (subject: string, value: number) => {
+    (subject: string, value: number | null) => {
       onChange({
         ...data,
         subjects: { ...data.subjects, [subject]: value },
@@ -300,8 +300,8 @@ function NATEditor({
                 type="number"
                 min={0}
                 max={100}
-                value={score}
-                onChange={(e) => updateScore(subject, parseFloat(e.target.value) || 0)}
+                value={score ?? ""}
+                onChange={(e) => updateScore(subject, e.target.value === "" ? null : Number(e.target.value))}
                 onBlur={() => setEditing(null)}
                 onKeyDown={(e) => e.key === "Enter" && setEditing(null)}
                 autoFocus
@@ -350,7 +350,7 @@ function Form137Editor({
   const [editingIdx, setEditingIdx] = useState<number | null>(null);
 
   const updateGrade = useCallback(
-    (idx: number, value: number) => {
+    (idx: number, value: number | null) => {
       const updated = [...data.subjects];
       updated[idx] = { ...updated[idx], grade: value };
       onChange({ ...data, subjects: updated });
@@ -387,8 +387,8 @@ function Form137Editor({
                       type="number"
                       min={60}
                       max={100}
-                      value={subject.grade}
-                      onChange={(e) => updateGrade(i, parseFloat(e.target.value) || 0)}
+                      value={subject.grade ?? ""}
+                      onChange={(e) => updateGrade(i, e.target.value === "" ? null : Number(e.target.value))}
                       onBlur={() => setEditingIdx(null)}
                       onKeyDown={(e) => e.key === "Enter" && setEditingIdx(null)}
                       autoFocus

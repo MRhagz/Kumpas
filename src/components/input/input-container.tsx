@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useCallback, useEffect } from "react";
+import { useState, useCallback, useEffect, useRef } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import {
   FileText,
@@ -33,6 +33,7 @@ import { toast } from "sonner";
 import { EMPTY_NOTES } from "@/lib/analysis-types";
 import type { ExtractedNotes } from "@/lib/analysis-types";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
+import type { IntakeDraft } from "@/lib/module2/intake-draft-store";
 import inputStyles from "@/styles/input.module.css";
 import {
   AlertDialog,
@@ -154,6 +155,20 @@ export default function InputContainer() {
   const [isSubmitting, setIsSubmitting] = useState(false);
 
   const sectionHtml = activeTab === "image" ? imageSectionHtml : manualSectionHtml;
+  const hydratedSession = useRef<string | null>(null);
+  const notesRevision = useRef(0);
+  const editGeneration = useRef(0);
+  const [dirtyDraft, setDirtyDraft] = useState(false);
+  const [savingDraft, setSavingDraft] = useState(false);
+  const [draftError, setDraftError] = useState<string | null>(null);
+  const [pendingUpload, setPendingUpload] = useState(false);
+  const [notesSource, setNotesSource] = useState<Record<string, unknown> | null>(null);
+  const markDraftChanged = () => {
+    editGeneration.current++;
+    setDirtyDraft(true);
+    setNotesReviewed(false);
+  };
+
 
   useEffect(() => {
     let isMounted = true;
@@ -161,6 +176,7 @@ export default function InputContainer() {
     const initializeSession = async () => {
       try {
         if (resumableSessionId) {
+          if (hydratedSession.current === resumableSessionId) return;
           const response = await fetch(
             `/api/sessions/${encodeURIComponent(resumableSessionId)}`,
           );
@@ -193,8 +209,34 @@ export default function InputContainer() {
             throw new Error("This session has expired. Please start a new session.");
           }
 
+          const draftResponse = await fetch(`/api/sessions/${encodeURIComponent(sessionState.sessionId)}/intake`);
+          if (!draftResponse.ok) throw new Error("Could not load the intake draft. Reload before editing.");
+          const draft = await draftResponse.json() as IntakeDraft;
           if (isMounted) {
+            hydratedSession.current = sessionState.sessionId;
             setSessionId(sessionState.sessionId);
+            const next: SlotEntriesMap = { 1: [], 2: [], 3: [] };
+            const types: Record<SlotKey, string> = { 1: "", 2: "", 3: "" };
+            draft.documents.forEach((doc, index) => {
+              const slot = SLOT_KEYS[index];
+              if (!slot) return;
+              types[slot] = doc.document_type;
+              next[slot] = [{ file: new File([], "Saved academic record"), processingState: { step: "complete", progress: 100 },
+                uploaded: { documentId: doc.id, slotIndex: slot, docType: doc.document_type,
+                  extractedData: doc.structured_data, originalExtractedData: doc.original_data ?? doc.structured_data,
+                  redactedImageUrl: null, revision: doc.draft_revision, evidenceState: doc.evidence_state, provenance: doc.provenance } }];
+            });
+            setSlotEntries(next);
+            setSlotTypes(types);
+            if (draft.notes) {
+              const { careerGoal, interests, financial, concerns, impression, revision, source } = draft.notes;
+              notesRevision.current = revision;
+              setManualSectionHtml({ careerGoal, interests, financial, concerns, impression });
+              setActiveTab("manual");
+              setNotesSource(source);
+            }
+            setPendingUpload(draft.uploadPending);
+            if (draft.uploadPending) setDraftError("An earlier upload is still processing. Reload after it finishes before approval.");
           }
           return;
         }
@@ -210,6 +252,7 @@ export default function InputContainer() {
         }
 
         if (isMounted) {
+          hydratedSession.current = data.sessionId;
           setSessionId(data.sessionId);
           window.history.replaceState(null, "", `/input?session=${encodeURIComponent(data.sessionId)}`);
         }
@@ -232,11 +275,11 @@ export default function InputContainer() {
   }, [resumableSessionId, router]);
 
   const updateManualNotes = (notes: ExtractedNotes) => {
-    setNotesReviewed(false);
+    markDraftChanged();
     setManualSectionHtml(notes);
   };
   const updateImageNotes = (notes: ExtractedNotes) => {
-    setNotesReviewed(false);
+    markDraftChanged();
     setImageSectionHtml(notes);
   };
 
@@ -248,7 +291,7 @@ export default function InputContainer() {
 
   const handleTabChange = (newTab: string) => {
     const target = newTab as InputMode;
-    if (target === activeTab) return;
+    if (target === activeTab || scanning || savingDraft) return;
     setNotesReviewed(false);
     if (tabHasData(activeTab)) {
       setPendingTab(target);
@@ -269,6 +312,7 @@ export default function InputContainer() {
 
   const confirmTabSwitch = () => {
     if (!pendingTab) return;
+    markDraftChanged();
     if (activeTab === "image") resetImageState();
     else setManualSectionHtml(EMPTY_NOTES);
     setActiveTab(pendingTab);
@@ -277,7 +321,7 @@ export default function InputContainer() {
   };
 
   const extractSections = async (file: File) => {
-    if (!processingConfirmed) return;
+    if (!processingConfirmed || !sessionId || dirtyDraft || savingDraft) return;
     setNotesReviewed(false);
     setScanning(true);
     setScanError(null);
@@ -286,6 +330,8 @@ export default function InputContainer() {
       const fd = new FormData();
       fd.append("file", file);
       fd.append("notesReviewed", "true");
+      fd.append("sessionId", sessionId);
+      fd.append("revision", String(notesRevision.current));
       const res = await fetch("/api/extract-notes", { method: "POST", body: fd });
       if (!res.ok) {
         const e = await res.json().catch(() => ({}));
@@ -299,6 +345,9 @@ export default function InputContainer() {
         concerns: data.concerns || "<p></p>",
         impression: data.impression || "<p></p>",
       });
+      notesRevision.current = data.revision;
+      setNotesSource(data.source);
+      setNotesFile(new File([], "Saved notes photograph"));
       setImageSectionsReady(true);
       toast.success("Notes extracted", {
         description: "AI Vision extracted your counselor notes",
@@ -307,16 +356,19 @@ export default function InputContainer() {
     } catch (err) {
       setScanError(err instanceof Error ? err.message : "Extraction failed");
     } finally {
+      setNotesFile(new File([], "Notes photograph released"));
       setScanning(false);
     }
   };
 
   const handleNotesSelect = (f: File | null) => {
+    if (scanning || savingDraft) return;
     if (!f) {
+      markDraftChanged();
       resetImageState();
       return;
     }
-    if (!processingConfirmed) return;
+    if (!processingConfirmed || dirtyDraft || savingDraft || scanning) return;
     if (!f.type.startsWith("image/")) {
       toast.error("Invalid file type", { position: "top-center" });
       return;
@@ -341,6 +393,7 @@ export default function InputContainer() {
   );
 
   const handleSlotFileRemove = useCallback((slot: SlotKey, fileIdx: number) => {
+    setNotesReviewed(false);
     setSlotEntries((prev) => ({
       ...prev,
       [slot]: prev[slot].filter((_, i) => i !== fileIdx),
@@ -370,14 +423,16 @@ export default function InputContainer() {
                     progress: 100,
                     extractedData: result.extractedData,
                   },
+                  file: new File([], "Saved academic record"),
                   uploaded: result,
                 }
               : e,
           ),
         };
       });
+      setNotesReviewed(false);
       toast.success(`Document extracted`, {
-        description: "PII redacted server-side",
+        description: "Review the extracted evidence before approval",
         position: "top-center",
       });
     },
@@ -388,13 +443,16 @@ export default function InputContainer() {
     setSlotEntries((prev) => ({
       ...prev,
       [slot]: prev[slot].map((e) =>
-        e.file === file ? { ...e, processingState: { step: "error", progress: 0, error } } : e,
+        e.file === file ? { ...e, file: new File([], "Academic upload failed"), processingState: { step: "error", progress: 0, error } } : e,
       ),
     }));
     toast.error(`Upload failed`, { description: error, position: "top-center" });
   }, []);
 
   const handleDataUpdate = useCallback((documentId: string, data: ExtractedAcademicData) => {
+    editGeneration.current++;
+    setDirtyDraft(true);
+    setNotesReviewed(false);
     setSlotEntries((prev) => {
       const next = { ...prev };
       for (const s of SLOT_KEYS) {
@@ -408,8 +466,38 @@ export default function InputContainer() {
     });
   }, []);
 
+  const saveDraft = async () => {
+    if (!sessionId || savingDraft || scanning) return;
+    const generation = editGeneration.current;
+    setSavingDraft(true);
+    if (!pendingUpload) setDraftError(null);
+    const patch = async (body: unknown) => {
+      const response = await fetch(`/api/sessions/${sessionId}/intake`, {
+        method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body),
+      });
+      if (!response.ok) {
+        const error = await response.json().catch(() => ({}));
+        throw new Error(error.error || "Could not save the draft. Retry saving before approval.");
+      }
+      return response.json() as Promise<{ revision: number }>;
+    };
+    try {
+      for (const doc of uploadedDocs) {
+        if (doc.evidenceState && doc.evidenceState !== "provided") continue;
+        const saved = await patch({ documentId: doc.documentId, revision: doc.revision, data: doc.extractedData });
+        setSlotEntries((prev) => Object.fromEntries(SLOT_KEYS.map((slot) => [slot, prev[slot].map((entry) =>
+          entry.uploaded?.documentId === doc.documentId ? { ...entry, uploaded: { ...entry.uploaded, revision: saved.revision } } : entry)])) as SlotEntriesMap);
+      }
+      const saved = await patch({ revision: notesRevision.current, notes: sectionHtml });
+      notesRevision.current = saved.revision;
+      if (editGeneration.current === generation) setDirtyDraft(false);
+    } catch (error) {
+      setDraftError(error instanceof Error ? error.message : "Draft save failed. Retry saving.");
+    } finally { setSavingDraft(false); }
+  };
+
   const handleApprove = async () => {
-    if (!sessionId || !processingConfirmed || !notesReviewed || !requiredNotesFilled(sectionHtml)) return;
+    if (!sessionId || !processingConfirmed || !notesReviewed || !requiredNotesFilled(sectionHtml) || dirtyDraft || savingDraft || scanning || draftError || pendingUpload) return;
     setIsSubmitting(true);
     try {
       const corrections: CorrectionLog[] = [];
@@ -509,6 +597,7 @@ export default function InputContainer() {
       </div>
 
       <ProcessingNotice confirmed={processingConfirmed} onConfirm={setProcessingConfirmed} />
+      <fieldset disabled={savingDraft || isSubmitting} className="min-w-0">
       <div className="overflow-hidden rounded-2xl border border-black/[0.06] bg-cream-light shadow-card">
         {/* Part 1: Counselor Notes */}
         <div className="p-6 sm:p-8">
@@ -635,7 +724,7 @@ export default function InputContainer() {
                   <input
                     id="notes-file-input"
                     type="file"
-                    accept="image/*"
+                    accept="image/jpeg,image/png,image/webp"
                     className="hidden"
                     onChange={(e) => handleNotesSelect(e.target.files?.[0] || null)}
                   />
@@ -667,7 +756,7 @@ export default function InputContainer() {
                           ? "Reading handwriting with AI Vision…"
                           : scanError
                             ? scanError
-                            : `${(notesFile.size / 1024).toFixed(0)} KB · Extracted & ready to edit`}
+                            : "Extracted & ready to edit · Photograph released"}
                       </p>
                     </div>
                     <span
@@ -691,7 +780,9 @@ export default function InputContainer() {
                     </span>
                     <button
                       type="button"
-                      onClick={resetImageState}
+                      disabled={scanning}
+                      aria-label="Remove notes photograph"
+                      onClick={() => handleNotesSelect(null)}
                       className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full border border-black/10 bg-white text-black/30 hover:text-charcoal-2 cursor-pointer"
                     >
                       <X size={14} />
@@ -784,6 +875,7 @@ export default function InputContainer() {
                 uploaded: slotEntries[3][0]?.uploaded ?? null,
               },
             }}
+            disabled={dirtyDraft || scanning}
             onSlotFilesAdd={handleSlotFilesAdd}
             onSlotFileRemove={handleSlotFileRemove}
             onSlotTypeChange={handleSlotTypeChange}
@@ -803,10 +895,21 @@ export default function InputContainer() {
           </div>
         )}
 
+        <div className="px-6 pb-4 sm:px-8 space-y-2">
+          <p className="text-sm">{["ncae", "form_137", "nat"].filter((type) => !uploadedDocs.some((doc) => doc.docType === type)).map((type) => `${type === "form_137" ? "Form 137" : type.toUpperCase()}: not provided`).join(" · ")}</p>
+          {notesSource && <p className="text-xs text-muted-text break-all">Notes source: {String(notesSource.documentId ?? "unavailable")} · Page {String(notesSource.page ?? "unavailable")} · Review needed</p>}
+          <p role="status" className="text-sm">{savingDraft ? "Saving draft…" : dirtyDraft ? "Unsaved changes — save before approval or another upload." : "Draft saved. Review the values before approval."}</p>
+          {draftError && <p role="alert" className="text-sm text-red-soft">{draftError}</p>}
+          <button type="button" className="rounded border border-black/20 px-3 py-2 text-sm disabled:opacity-50"
+            disabled={!sessionId || savingDraft || scanning || (!dirtyDraft && !draftError)} onClick={saveDraft}>
+            {draftError ? "Retry saving draft" : "Save draft"}
+          </button>
+        </div>
+
         {/* Part 3: ConfirmationApprovalBar */}
         {sessionId && processingConfirmed && (
           <ConfirmationApprovalBar
-            documentsReady={SLOT_KEYS.every((slot) => slotEntries[slot].every((entry) => entry.processingState.step === "complete"))}
+            documentsReady={!dirtyDraft && !savingDraft && !scanning && !draftError && !pendingUpload && SLOT_KEYS.every((slot) => slotEntries[slot].every((entry) => entry.processingState.step === "complete"))}
             notes={sectionHtml}
             notesReviewed={notesReviewed}
             onNotesReviewedChange={setNotesReviewed}
@@ -816,6 +919,7 @@ export default function InputContainer() {
         )}
       </div>
 
+      </fieldset>
       <AlertDialog open={showSwitchDialog} onOpenChange={setShowSwitchDialog}>
         <AlertDialogContent>
           <AlertDialogHeader>

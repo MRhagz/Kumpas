@@ -1,4 +1,5 @@
 import assert from "node:assert/strict";
+import sharp from "sharp";
 import { spawn } from "node:child_process";
 import { createServer } from "node:http";
 import { once } from "node:events";
@@ -33,6 +34,13 @@ const env = { ...process.env, NODE_ENV: "production",
   GEMINI_GENERATION_MODEL: "gemini-3.8-flash", GEMINI_API_VERSION: "v1beta",
   EMBEDDING_MODEL: "gemini-embedding-001", EMBEDDING_DIMENSIONS: "768",
 };
+const syntheticImage = await sharp({ create: { width: 8, height: 8, channels: 3, background: "white" } }).png().toBuffer();
+const runId = "33333333-3333-4333-8333-333333333333";
+const extractionId = "44444444-4444-4444-8444-444444444444";
+const run = (phase = "pending", recommendations = null) => ({ session_id: sessionId, counselor_id: userId,
+  run_id: runId, approved_profile_version: 1, analysis_started_at: new Date().toISOString(),
+  deadline_at: new Date(Date.now() + 300000).toISOString(), status: "running", phase,
+  recommendations, failed_stage: null, candidate_report_version: null });
 const requests = [];
 const children = new Set();
 const checks = [];
@@ -62,15 +70,28 @@ function dispatch(request) {
       invited_at: "2026-11-01T00:00:00Z", email_confirmed_at: "2026-11-01T00:00:00Z",
       app_metadata: { role: "counselor", counselor_activated: true } });
     if (url.pathname.endsWith("/rpc/counselor_access")) return json("active");
+    if (url.pathname.endsWith("/rpc/claim_academic_upload")) return json({ id: extractionId, upload_token: runId });
+    if (url.pathname.endsWith("/rpc/finish_academic_upload")) return json({ id: extractionId,
+      structured_data: body.p_data, original_data: body.p_data, evidence_state: body.p_evidence,
+      provenance: body.p_provenance, draft_revision: 1 });
+    if (url.pathname.endsWith("/rpc/release_academic_upload")) return json(null);
+    if (url.pathname.endsWith("/rpc/claim_extraction_cleanup")) return json([]);
+    if (url.pathname.endsWith("/rpc/read_intake_draft")) return json({ documents: [], notes: { revision: 0 }, uploadPending: false });
+    if (url.pathname.endsWith("/rpc/save_intake_notes")) return json({ draft_revision: 1 });
+    if (url.pathname === "/rest/v1/analysis_runs" && request.method === "GET") return json(run());
+    if (url.pathname === "/rest/v1/profile_versions" && request.method === "GET") return json({ profile });
+    if (url.pathname.endsWith("/rpc/transition_processing_run")) return json(run(body.p_action === "analysis_ready" ? "report_pending" : "analysis", body.p_result));
     if (url.pathname.endsWith("/rpc/match_knowledge_chunks")) return json([{
       content: "Synthetic public government evidence", source_url: "https://example.gov.ph/evidence",
       acquisition_method: "operator_curated_csv", ingestion_timestamp: "2026-11-01T00:00:00Z",
-      silo_id: body.target_silo_id,
+      silo_id: body.target_silo_id, chunk_index: 0,
+      source_type: { AcademicAuditor: "psa_openstat_lfs", IndustryAnalyst: "dole_ble_lmi", FeasibilityStrategist: "ched_cmo" }[body.request_agent],
+      embedding_model: "gemini-embedding-001", embedding_dimensions: 768,
     }]);
     if (url.pathname === "/rest/v1/sessions" && request.method === "GET") {
       const other = (url.searchParams.get("id") ?? "").includes("bbbbbbbb");
       return json({ counselor_id: other ? "another-owner" : userId, status: "active",
-        expires_at: "2099-01-01T00:00:00Z", approved_profile: profile, module_status: {} });
+        expires_at: "2099-01-01T00:00:00Z", approved_profile: profile, module_status: {}, current_profile_version: 1, current_run_id: runId, current_report_version: 0 });
     }
     if (url.pathname.startsWith("/storage/v1/object/")) return json({ Key: "synthetic-document" });
     if (url.pathname === "/rest/v1/extraction_results") return json({ id: "synthetic-extraction", ...body });
@@ -95,9 +116,9 @@ function dispatch(request) {
     careerGoal: "<p>Engineering</p>", interests: "<p>Math</p>", financial: "", concerns: "", impression: "", studentName: forbidden,
   }));
   if (prompt.includes("pii_regions")) return gemini(JSON.stringify({ pii_regions: [] }));
-  if (prompt.includes("data extraction specialist")) return gemini(JSON.stringify({
+  if (prompt.includes("academic evidence")) return gemini(JSON.stringify({ evidence_state: "provided", data: {
     strand_scores: { "Scientific Ability": 90 }, overall_percentile: null, studentName: forbidden,
-  }));
+  } }));
   if (prompt.includes("Synthesis Interpreter")) return gemini(JSON.stringify({ candidates: ["Engineer", "Technician", "Analyst"].map(careerPath => ({
     careerPath, aptitudeScore: 0.8, demandScore: 0.7, feasibilityScore: 0.6, signals: ["Synthetic supported signal"],
     sourceReferences: [], keySignalDetails: [],
@@ -131,8 +152,9 @@ async function post(path, body, authenticated = true) {
 }
 function image(notes = false, reviewed = true) {
   const body = new FormData();
-  body.set("file", new Blob(["SYNTHETIC_IMAGE_ONLY"], { type: "image/jpeg" }), "synthetic.jpg");
+  body.set("file", new Blob([syntheticImage], { type: "image/png" }), "synthetic.png");
   if (notes && reviewed) body.set("notesReviewed", "true");
+  if (notes) { body.set("sessionId", sessionId); body.set("revision", "0"); }
   if (!notes) body.set("docType", "ncae");
   return body;
 }
@@ -177,24 +199,25 @@ try {
     assert.equal(providerCalls().length, 0);
   });
   await check("document and notes extraction use approved model/header and discard unexpected fields", async () => {
-    for (const [path, notes] of [["/api/extract-document", false], ["/api/extract-notes", true]]) {
+    for (const [path, notes] of [[`/api/extract-document?sessionId=${sessionId}`, false], ["/api/extract-notes", true]]) {
       const response = await post(path, image(notes));
       assert.equal(response.status, 200, await response.clone().text());
       const result = await response.text();
       assert.ok(!result.includes(forbidden));
-      if (!notes) assert.equal(JSON.parse(result).data.overall_percentile, null);
+      if (!notes) assert.equal(JSON.parse(result).structuredData.data.overall_percentile, null);
     }
   });
   await check("session upload completes image processing, extraction and selected-field persistence", async () => {
     const body = image();
-    body.set("file", new Blob([Buffer.from("iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+aHXkAAAAASUVORK5CYII=", "base64")], { type: "image/png" }), "synthetic.png");
     const response = await post(`/api/sessions/${sessionId}/upload`, body);
     assert.equal(response.status, 200, await response.clone().text());
     const result = await response.json();
     assert.equal(result.status, "complete");
-    const write = requests.find(r => r.method === "POST" && r.url.includes("/extraction_results"));
+    const write = requests.find(r => r.method === "POST" && r.url.includes("/rpc/finish_academic_upload"));
     assert.ok(write);
     assert.ok(!write.body.includes("raw_gemini_response") && !write.body.includes(forbidden));
+    assert.ok(!("redactedImageUrl" in result));
+    assert.ok(!providerCalls().some(r => r.body.includes("pii_regions")));
   });
   await check("analysis completes retrieval, three specialists, synthesis, ranking and persistence", async () => {
     const response = await post(`/api/sessions/${sessionId}/analyze`);
@@ -206,12 +229,12 @@ try {
     const calls = providerCalls();
     assert.ok(calls.every(r => !r.body.includes(forbidden)), "private/unexpected fields reached provider");
     assert.equal(calls.filter(r => r.body.includes(financial)).length, 1, "financial context is feasibility-only");
-    assert.ok(requests.some(r => r.method === "POST" && r.url.includes("/ranked_recommendations")));
+    assert.ok(requests.some(r => r.method === "POST" && r.url.includes("/rpc/transition_processing_run") && r.body.includes("analysis_ready")));
   });
   await check("provider failures and malformed responses do not leak secrets or raw output", async () => {
     for (const failure of ["provider-error", "malformed"]) {
       mode = failure;
-      for (const path of ["/api/extract-document", "/api/extract-notes", `/api/sessions/${sessionId}/analyze`, `/api/sessions/${sessionId}/upload`]) {
+      for (const path of [`/api/extract-document?sessionId=${sessionId}`, "/api/extract-notes", `/api/sessions/${sessionId}/analyze`, `/api/sessions/${sessionId}/upload`]) {
         const response = await post(path, image(path.endsWith("notes")));
         assert.ok(response.status >= 400);
         const text = await response.text();
