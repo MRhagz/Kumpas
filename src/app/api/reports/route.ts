@@ -77,8 +77,8 @@ export async function POST(request: Request): Promise<Response> {
       expiresAt: report.expires_at, generatedAt: report.generated_at, byteLength,
       recommendationCount: reportPayload.rankedRecommendations.recommendations.length,
       academicEvidence: reportPayload.academicEvidence,
-      recommendations: reportPayload.rankedRecommendations.recommendations.map(({ id, rank, careerPath, alignmentScore, reasoningSummary, keySignals, keySignalDetails }) =>
-        ({ id, rank, careerPath, alignmentScore, reasoningSummary, keySignals, keySignalDetails })),
+      recommendations: reportPayload.rankedRecommendations.recommendations.map(({ id, rank, careerPath, alignmentScore, incompleteReason, reasoningSummary, keySignals, keySignalDetails }) =>
+        ({ id, rank, careerPath, alignmentScore, incompleteReason, reasoningSummary, keySignals, keySignalDetails })),
     };
     return json(response);
   } catch (error) {

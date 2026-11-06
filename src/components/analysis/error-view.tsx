@@ -10,6 +10,7 @@ interface ErrorViewProps {
 }
 
 export default function ErrorView({ title, message, onRetry, onBack }: ErrorViewProps) {
+    const insufficientEvidence = message.startsWith("Insufficient evidence");
     const isProhibited = message.includes("PROHIBITED_CONTENT") || message.includes("Safety settings");
 
     return (
@@ -46,13 +47,13 @@ export default function ErrorView({ title, message, onRetry, onBack }: ErrorView
                             onClick={onBack}
                             className="flex items-center gap-2 rounded-xl border border-black/10 bg-white px-5 py-3 text-sm font-medium text-ink cursor-pointer hover:bg-black/[0.03]"
                         >
-                            <ArrowLeft size={15} /> Return to Confirm Information
+                            <ArrowLeft size={15} /> {insufficientEvidence ? "End Session" : "Return to Confirm Information"}
                         </button>
                         <button
                             onClick={onRetry}
                             className="rounded-xl bg-ink px-5 py-3 text-sm font-semibold text-white cursor-pointer hover:bg-forest"
                         >
-                            Retry analysis
+                            {insufficientEvidence ? "Retry" : "Retry analysis"}
                         </button>
                     </div>
                 </>

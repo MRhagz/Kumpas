@@ -44,6 +44,7 @@ beforeAll(async () => {
     "20260523000002_module3_recommendations.sql", "20260524000000_create_profiles.sql",
     "20260524000001_tighten_session_security.sql", "20260524000002_module5_session_progress.sql",
     "20261104132302_sw01_invited_counselor_access.sql",
+    "20261106161754_sw16_alignment_scoring.sql",
   ]) await db.exec(migration(file));
   await db.exec(`
     insert into auth.users(id, invited_at, email_confirmed_at, raw_app_meta_data) values
