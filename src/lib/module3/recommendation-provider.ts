@@ -261,3 +261,15 @@ function normalizePolarity(value: unknown): KeySignalDetail["polarity"] {
 
   return "neutral";
 }
+
+/** A report is assembled only from the immutable profile and outputs of its run. */
+export function runRecommendationProvider(profile: ApprovedProfile, recommendations: RankedRecommendationList): RecommendationProvider {
+  const availableDocuments = Object.keys(profile.academicData).map((key) => key === "form137" ? "form137" : key) as AcademicDocumentType[];
+  const missingDocuments = ALL_ACADEMIC_TYPES.filter((type) => !availableDocuments.includes(type));
+  return {
+    getApprovedStudentProfile: async (sessionId) => buildStudentProfile(sessionId, profile),
+    getRankedRecommendations: async () => recommendations,
+    getAcademicEvidenceSummary: async () => ({ availableDocuments, missingDocuments,
+      completenessNote: missingDocuments.length ? `Missing: ${missingDocuments.join(", ")}. Recommendations use only approved available inputs.` : "All academic documents are available for analysis." }),
+  };
+}

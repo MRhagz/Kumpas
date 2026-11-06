@@ -1,3 +1,4 @@
+import { requestProviderJson } from "@/lib/processing-budget";
 /**
  * API route: Gemini Vision — extract counselor notes from image.
  *
@@ -72,7 +73,7 @@ export async function POST(request: NextRequest) {
     const mimeType = file.type || "image/jpeg";
 
     // Call Gemini Vision API with image + text prompt
-    const geminiResponse = await fetch(GEMINI_URL, {
+    const geminiData = await requestProviderJson(GEMINI_URL, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
@@ -97,16 +98,6 @@ export async function POST(request: NextRequest) {
       }),
     });
 
-    if (!geminiResponse.ok) {
-      const errorText = await geminiResponse.text();
-      console.error("[extract-notes] Gemini API error:", errorText);
-      return Response.json(
-        { error: "Gemini API request failed", details: errorText },
-        { status: 502 }
-      );
-    }
-
-    const geminiData = await geminiResponse.json();
     const rawText =
       geminiData?.candidates?.[0]?.content?.parts?.[0]?.text ?? "";
 
