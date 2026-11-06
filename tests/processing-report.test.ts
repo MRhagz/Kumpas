@@ -65,6 +65,13 @@ describe("SW-15 PDF-ready budget boundary", () => {
     expect(await response.json()).toMatchObject({ generatedAt: "2026-11-05T00:01:00Z", reportVersion: 1, downloadUrl: null });
     expect(mocks.render).not.toHaveBeenCalled(); expect(mocks.upload).not.toHaveBeenCalled(); expect(mocks.transition).not.toHaveBeenCalled();
   });
+  it("does not open a ready run's missing or stale report version", async () => {
+    mocks.load.mockResolvedValue({ run: { ...run(), phase: "ready", status: "completed" }, reportVersion: 1 });
+    mocks.single.mockResolvedValue({ data: null, error: null });
+    expect((await request()).status).toBe(409);
+    expect(mocks.assemble).not.toHaveBeenCalled();
+    expect(mocks.download).not.toHaveBeenCalled();
+  });
   it("returns a version-bound application URL for an approved report", async () => {
     mocks.load.mockResolvedValue({ run: { ...run(), phase: "ready", status: "completed" }, reportVersion: 2 });
     mocks.single.mockResolvedValue({ data: { status: "approved", generated_at: "2026-11-05T00:01:00Z",
