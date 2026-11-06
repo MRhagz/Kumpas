@@ -24,12 +24,14 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
   let stage = "analysis";
   try {
     const text = await request.text();
-    let body: { retryRunId?: string | null };
+    let body: { runId?: string | null; profileVersion?: number; retryRunId?: string | null };
     try { body = text ? JSON.parse(text) : {}; } catch { return json({ error: "Invalid analysis request." }, 400); }
-    if (!body || typeof body !== "object") return json({ error: "Invalid analysis request." }, 400);
+    if (!body || typeof body !== "object" || !Number.isInteger(body.profileVersion) ||
+        (typeof body.runId !== "string" && body.runId !== null)) return json({ error: "The approved run and profile version are required." }, 400);
     if (body.retryRunId !== undefined) {
       const saved = await sessionStateManager.getSessionState(sessionId, user.id);
-      if (!saved?.hasApprovedProfile || body.retryRunId !== saved.currentRunId) {
+      if (!saved?.hasApprovedProfile || body.retryRunId !== saved.currentRunId ||
+          body.runId !== saved.currentRunId || body.profileVersion !== saved.profileVersion) {
         throw new ProcessingError(stage, "stale");
       }
       if (saved.analysisRestartRequired) {
@@ -46,9 +48,12 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
       }
     } else {
       ({ run } = await loadProcessingRun(sessionId, user.id));
+      if (body.runId !== run.run_id || body.profileVersion !== run.approved_profile_version) {
+        throw new ProcessingError(stage, "stale");
+      }
     }
     if (run.phase === "report_pending" || run.phase === "ready") {
-      return json({ rankedRecommendations: run.recommendations, runId: run.run_id });
+      return json({ rankedRecommendations: run.recommendations, runId: run.run_id, profileVersion: run.approved_profile_version });
     }
     const budget = runBudget(run);
     budget.assert(stage);
@@ -64,7 +69,7 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
     const rankedRecommendations = await metaAgentSynthesizer.synthesize(sessionId, agentOutputs, budget, false);
     budget.assert(stage);
     await transitionRun(run, "analysis_ready", rankedRecommendations);
-    return json({ rankedRecommendations, runId: run.run_id, agentStatuses: agentOutputs.map(({ agentName, status, error }) => ({ agent: agentName, status, error })) });
+    return json({ rankedRecommendations, runId: run.run_id, profileVersion: run.approved_profile_version, agentStatuses: agentOutputs.map(({ agentName, status, error }) => ({ agent: agentName, status, error })) });
   } catch (error) {
     if (run && claimed) await failRun(run, error instanceof ProcessingError ? error.stage : stage);
     return json({

@@ -49,7 +49,6 @@ import type {
   DocumentProcessingState,
   ExtractedAcademicData,
   UploadedDocument,
-  CorrectionLog,
 } from "@/types";
 
 const GUIDE = [
@@ -123,6 +122,7 @@ export default function InputContainer() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const resumableSessionId = searchParams.get("session");
+  const reviewingInputs = searchParams.get("edit") === "1";
 
   const [sessionId, setSessionId] = useState<string | null>(null);
   const [sessionError, setSessionError] = useState<string | null>(null);
@@ -157,6 +157,7 @@ export default function InputContainer() {
   const sectionHtml = activeTab === "image" ? imageSectionHtml : manualSectionHtml;
   const hydratedSession = useRef<string | null>(null);
   const notesRevision = useRef(0);
+  const profileVersion = useRef(0);
   const editGeneration = useRef(0);
   const [dirtyDraft, setDirtyDraft] = useState(false);
   const [savingDraft, setSavingDraft] = useState(false);
@@ -194,11 +195,11 @@ export default function InputContainer() {
 
           const sessionState = (await response.json()) as SessionStateResponse;
 
-          if (
+          if (!reviewingInputs && (
             sessionState.nextStep === "analysis" ||
             sessionState.nextStep === "report" ||
             sessionState.nextStep === "complete"
-          ) {
+          )) {
             router.replace(
               `/analysis?session=${encodeURIComponent(sessionState.sessionId)}`,
             );
@@ -215,6 +216,7 @@ export default function InputContainer() {
           if (isMounted) {
             hydratedSession.current = sessionState.sessionId;
             setSessionId(sessionState.sessionId);
+            profileVersion.current = draft.profileVersion;
             const next: SlotEntriesMap = { 1: [], 2: [], 3: [] };
             const types: Record<SlotKey, string> = { 1: "", 2: "", 3: "" };
             draft.documents.forEach((doc, index) => {
@@ -272,7 +274,7 @@ export default function InputContainer() {
     return () => {
       isMounted = false;
     };
-  }, [resumableSessionId, router]);
+  }, [resumableSessionId, reviewingInputs, router]);
 
   const updateManualNotes = (notes: ExtractedNotes) => {
     markDraftChanged();
@@ -349,6 +351,7 @@ export default function InputContainer() {
       setNotesSource(data.source);
       setNotesFile(new File([], "Saved notes photograph"));
       setImageSectionsReady(true);
+      markDraftChanged();
       toast.success("Notes extracted", {
         description: "AI Vision extracted your counselor notes",
         position: "top-center",
@@ -393,6 +396,8 @@ export default function InputContainer() {
   );
 
   const handleSlotFileRemove = useCallback((slot: SlotKey, fileIdx: number) => {
+    editGeneration.current++;
+    setDirtyDraft(true);
     setNotesReviewed(false);
     setSlotEntries((prev) => ({
       ...prev,
@@ -431,6 +436,8 @@ export default function InputContainer() {
         };
       });
       setNotesReviewed(false);
+      editGeneration.current++;
+      setDirtyDraft(true);
       toast.success(`Document extracted`, {
         description: "Review the extracted evidence before approval",
         position: "top-center",
@@ -490,6 +497,9 @@ export default function InputContainer() {
       }
       const saved = await patch({ revision: notesRevision.current, notes: sectionHtml });
       notesRevision.current = saved.revision;
+      const current = await fetch(`/api/sessions/${sessionId}/intake`, { cache: "no-store" });
+      if (!current.ok) throw new Error("Could not verify the saved draft. Retry saving before approval.");
+      profileVersion.current = ((await current.json()) as IntakeDraft).profileVersion;
       if (editGeneration.current === generation) setDirtyDraft(false);
     } catch (error) {
       setDraftError(error instanceof Error ? error.message : "Draft save failed. Retry saving.");
@@ -500,53 +510,6 @@ export default function InputContainer() {
     if (!sessionId || !processingConfirmed || !notesReviewed || !requiredNotesFilled(sectionHtml) || dirtyDraft || savingDraft || scanning || draftError || pendingUpload) return;
     setIsSubmitting(true);
     try {
-      const corrections: CorrectionLog[] = [];
-      for (const doc of uploadedDocs) {
-        if (doc.extractedData.type === "ncae" && doc.originalExtractedData.type === "ncae") {
-          for (const strand of Object.keys(doc.extractedData.data.strand_scores)) {
-            const orig = doc.originalExtractedData.data.strand_scores[strand];
-            const curr = doc.extractedData.data.strand_scores[strand];
-            if (orig !== curr)
-              corrections.push({
-                session_id: sessionId,
-                field_name: `ncae_strand.${strand}`,
-                extracted_value: String(orig ?? ""),
-                corrected_value: String(curr),
-              });
-          }
-        }
-        if (doc.extractedData.type === "nat" && doc.originalExtractedData.type === "nat") {
-          for (const sub of Object.keys(doc.extractedData.data.subjects)) {
-            const orig = doc.originalExtractedData.data.subjects[sub];
-            const curr = doc.extractedData.data.subjects[sub];
-            if (orig !== curr)
-              corrections.push({
-                session_id: sessionId,
-                field_name: `nat_subject.${sub}`,
-                extracted_value: String(orig ?? ""),
-                corrected_value: String(curr),
-              });
-          }
-        }
-        if (doc.extractedData.type === "form_137" && doc.originalExtractedData.type === "form_137") {
-          doc.extractedData.data.subjects.forEach((s, i) => {
-            const origGrade =
-              doc.originalExtractedData.type === "form_137"
-                ? doc.originalExtractedData.data.subjects[i]?.grade
-                : undefined;
-            if (origGrade !== s.grade)
-              corrections.push({
-                session_id: sessionId,
-                // Include year so corrections from two Form 137s with the same subject names
-                // (e.g. "Filipino" from elementary AND junior high) don't collide.
-                field_name: `form137_subject.${s.year || "unknown"}.${s.name}`,
-                extracted_value: String(origGrade ?? ""),
-                corrected_value: String(s.grade),
-              });
-          });
-        }
-      }
-
       const res = await fetch(`/api/sessions/${sessionId}/approve`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -559,7 +522,9 @@ export default function InputContainer() {
             concerns: sectionHtml.concerns,
             impression: sectionHtml.impression,
           },
-          corrections,
+          profileVersion: profileVersion.current,
+          notesRevision: notesRevision.current,
+          documents: uploadedDocs.map((doc) => ({ id: doc.documentId, revision: doc.revision })),
         }),
       });
 
