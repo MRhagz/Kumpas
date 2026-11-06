@@ -1,7 +1,7 @@
 import "server-only";
 
 import { drainExtractionCleanup } from "@/lib/module2/extraction-cleanup";
-import { pdfFileStore } from "@/lib/report/file-store";
+import { drainReportCleanup } from "@/lib/report/artifact-cleanup";
 import { supabaseAdmin } from "@/lib/supabase";
 
 export interface SessionTerminationResult {
@@ -40,11 +40,10 @@ export class SessionTerminationHandler {
     await this.scrubSession(sessionId, terminalStatus);
 
     try {
-      if (terminalStatus === "cancelled") await pdfFileStore.deleteReportPdf(sessionId);
-    } catch (error) {
-      reportPdfPurged = false;
-      const message =
-        error instanceof Error ? error.message : "Failed to delete report PDF.";
+      await this.purgeSessionRows(sessionId);
+    } catch {
+      sessionRowsPurged = false;
+      const message = "Session content cleanup is pending retry.";
 
       warnings.push(message);
       warn(`[SessionTerminationHandler] sessionId=${sessionId}: ${message}`);
@@ -53,26 +52,22 @@ export class SessionTerminationHandler {
     try {
       const cleanup = await drainExtractionCleanup(sessionId);
       redactedImagesPurged = cleanup.removed;
-      if (cleanup.failed) warnings.push("Temporary artifact cleanup is pending retry.");
+      if (cleanup.pending) warnings.push("Temporary artifact cleanup is pending retry.");
     } catch {
       warnings.push("Temporary artifact cleanup is pending retry.");
       warn("[SessionTerminationHandler] Artifact cleanup pending");
     }
 
-    try {
-      await this.purgeSessionRows(sessionId, terminalStatus === "cancelled");
-    } catch (error) {
-      sessionRowsPurged = false;
-      const message =
-        error instanceof Error
-          ? error.message
-          : "Failed to purge session-scoped rows.";
-
-      warnings.push(message);
-      warn(`[SessionTerminationHandler] sessionId=${sessionId}: ${message}`);
+    if (terminalStatus === "cancelled") {
+      try {
+        const cleanup = await drainReportCleanup();
+        reportPdfPurged = !cleanup.pending && sessionRowsPurged;
+        if (!reportPdfPurged) warnings.push("Report artifact cleanup is pending retry.");
+      } catch {
+        reportPdfPurged = false;
+        warnings.push("Report artifact cleanup is pending retry.");
+      }
     }
-
-
 
     return {
       sessionId,
@@ -84,36 +79,11 @@ export class SessionTerminationHandler {
     };
   }
 
-  private async purgeSessionRows(sessionId: string, purgeReports: boolean): Promise<void> {
-    // Correction audits have an independent calendar expiry and no cascading session FK.
-    await this.deleteRows("profile_versions", { session_id: sessionId });
-    if (purgeReports) await this.deleteRows("report_versions", { session_id: sessionId });
-    await this.deleteRows("ranked_recommendations", {
-      session_id: sessionId,
-    });
-    await this.deleteRows("extraction_results", {
-      session_id: sessionId,
-    });
-    await this.deleteRows("session_notes", {
-      session_id: sessionId,
-    });
-  }
-
-  private async deleteRows(
-    tableName: string,
-    match: Record<string, unknown>,
-  ): Promise<void> {
-    let query = supabaseAdmin.from(tableName).delete();
-
-    Object.entries(match).forEach(([column, value]) => {
-      query = query.eq(column, value);
-    });
-
-    const { error } = await query;
-
-    if (error) {
-      throw new Error(`Failed to delete ${tableName}: ${error.message}`);
-    }
+  private async purgeSessionRows(sessionId: string): Promise<void> {
+    // RPC queues report/image references and removes draft payload atomically.
+    // A failed transaction keeps the revoked parent available for monitored retry.
+    const { error } = await supabaseAdmin.rpc("purge_session_content", { p_session_id: sessionId });
+    if (error) throw new Error("Session content cleanup is pending retry.");
   }
 
   private async scrubSession(
@@ -140,7 +110,7 @@ export class SessionTerminationHandler {
     const { error } = await (terminalStatus === "expired" ? update.neq("status", "cancelled") : update);
 
     if (error) {
-      throw new Error(`Failed to scrub session: ${error.message}`);
+      throw new Error("Failed to revoke session access.");
     }
   }
 }
