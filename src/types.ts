@@ -84,21 +84,21 @@ export interface DocumentProcessingState {
 
 /* ─── Extracted academic data ─── */
 export interface NCAEData {
-  strand_scores: Record<string, number>;
-  overall_percentile?: number;
-  recommended_strand?: string;
+  strand_scores: Record<string, number | null>;
+  overall_percentile?: number | null;
+  recommended_strand?: string | null;
 }
 
 export interface NATData {
-  subjects: Record<string, number>;
-  composite_score?: number;
-  mastery_level?: string;
+  subjects: Record<string, number | null>;
+  composite_score?: number | null;
+  mastery_level?: string | null;
 }
 
 export interface Form137Data {
-  subjects: { name: string; grade: number; year: string }[];
-  gwa?: number;
-  school_year?: string;
+  subjects: { id?: string; name: string; grade: number | null; year: string; grade_level?: string | null }[];
+  gwa?: number | null;
+  school_year?: string | null;
 }
 
 export type ExtractedAcademicData =
@@ -155,6 +155,14 @@ export interface CorrectionLog {
 export interface ApprovedProfile {
   sessionId: string;
   sessionTimestamp: string;
+  /** Present on reviewed snapshots; legacy profiles require reconfirmation. */
+  profileVersion?: number;
+  confirmedAt?: string;
+  inputEvidence?: {
+    documents: { documentId: string; documentType: string; revision: number;
+      status: "provided" | "unreadable" | "unsupported"; source: ExtractionProvenance }[];
+    notes: { revision: number; source: Record<string, unknown> | null };
+  };
   counselorNotes: {
     careerGoal: string;
     interests: string;
@@ -176,4 +184,26 @@ export interface UploadedDocument {
   extractedData: ExtractedAcademicData;
   redactedImageUrl: string | null;
   originalExtractedData: ExtractedAcademicData;
+  revision?: number;
+  evidenceState?: "provided" | "unreadable" | "unsupported";
+  provenance?: ExtractionProvenance;
+}
+
+export interface ExtractionProvenance {
+  documentId?: string;
+  extractedAt?: string;
+  model?: string;
+  promptVersion?: string;
+  /** Page is unknown for legacy data and tiled multi-page renders. */
+  page?: number | null;
+}
+
+export interface ExtractionDraft {
+  id: string;
+  document_type: "ncae" | "form_137" | "nat";
+  structured_data: ExtractedAcademicData;
+  original_data: ExtractedAcademicData;
+  evidence_state: "provided" | "unreadable" | "unsupported";
+  provenance: ExtractionProvenance;
+  draft_revision: number;
 }

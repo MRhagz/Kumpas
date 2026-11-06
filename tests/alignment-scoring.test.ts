@@ -1,5 +1,6 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import type { AgentOutput, CandidateCareerPath } from "@/lib/module3/types";
+import { ProcessingBudget } from "@/lib/processing-budget";
 import type { ApprovedProfile } from "@/types";
 
 const boundary = vi.hoisted(() => ({ generate: vi.fn(), from: vi.fn(), rows: [] as Record<string, unknown>[] }));
@@ -9,6 +10,7 @@ import { alignmentScoreCalculator } from "@/lib/module3/alignment-score-calculat
 import { parseSynthesis, synthesisInterpreter } from "@/lib/module3/synthesis-interpreter";
 import { rankingAgent } from "@/lib/module3/ranking-agent";
 import { rankedRecommendationBuilder } from "@/lib/module3/ranked-recommendation-builder";
+import { runRecommendationProvider } from "@/lib/module3/recommendation-provider";
 import { metaAgentSynthesizer } from "@/lib/module3/meta-agent-synthesizer";
 
 const profile: ApprovedProfile = {
@@ -109,6 +111,16 @@ describe("F09 model validation and evidence", () => {
     expect(list.recommendations[2]).toMatchObject({ alignmentScore: null, financialFeasibility: null, status: "incomplete" });
     expect(list.recommendations[2].incompleteReason).toContain("feasibility");
     expect(boundary.rows[2]).toMatchObject({ rank: null, alignment_score: null, financial_feasibility: null });
+  });
+  it("publishes a version-bound score contract without legacy writes inside the shared run", async () => {
+    boundary.generate.mockResolvedValueOnce({ text: JSON.stringify({ candidates: [candidate()] }) })
+      .mockResolvedValueOnce({ text: JSON.stringify({ rankings: [{ careerPath: "Alpha", reasoningSummary: "Grounded explanation" }] }) });
+    const list = await metaAgentSynthesizer.synthesize("session", outputs, profile, 2, new ProcessingBudget(), false);
+    expect(list).toMatchObject({ scoreContract: "0-100-v1", recommendations: [{ alignmentScore: 74.5, rank: 1, approvedProfileVersion: 2 }] });
+    expect(list.recommendations[0].componentEvidence).toEqual(candidate().componentEvidence);
+    expect(boundary.from).not.toHaveBeenCalled();
+    expect(await runRecommendationProvider(profile, list).getRankedRecommendations("session")).toBe(list);
+    expect(() => runRecommendationProvider(profile, { ...list, scoreContract: undefined })).toThrow(/Legacy scoring contract/);
   });
   it.each([{ candidates: [] }, { candidates: [candidate("Unsupported", null, null, null)] }])("returns insufficient evidence without explanation calls or successful persistence: %j", async ({ candidates }) => {
     boundary.generate.mockResolvedValue({ text: JSON.stringify({ candidates }) });

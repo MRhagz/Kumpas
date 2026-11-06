@@ -64,9 +64,9 @@ class PipelineRefreshTests(unittest.TestCase):
     def test_tesda_bad_provenance_reports_row_and_field_before_embedding(self):
         with tempfile.TemporaryDirectory() as directory:
             file = Path(directory) / "tesda.csv"
-            file.write_text("program_name,tesda_qualification_code,program_cost_php,"
+            file.write_text("program_name,tesda_qualification_code,provider_name,location,program_cost_php,"
                             "tuition_benchmark_php,source_reference,publication_date\n"
-                            "Cookery,NC2,100,100,TESDA,invalid-date\n")
+                            "Cookery,NC2,Fixture provider,Fixture location,100,100,TESDA,invalid-date\n")
             with self.assertRaises(self.tesda.ValidationFailure) as error:
                 self.tesda.load_and_validate(file)
             self.assertIn("row 2: publication_date", error.exception.errors[0])
@@ -89,20 +89,21 @@ class PipelineRefreshTests(unittest.TestCase):
         module = self.dole
         stack, logger, repo, _ = self.configured(module)
         stack.enter_context(patch.object(module, "_resolve_directory", return_value=Path("/fixtures")))
-        stack.enter_context(patch.object(module, "_list_pdfs", return_value=[Path("good.pdf"), Path("bad.pdf")]))
+        stack.enter_context(patch.object(module, "_list_pdfs", return_value=[Path("/fixtures/good.pdf"), Path("/fixtures/bad.pdf")]))
         valid = module._build_chunks(Path("good.pdf"), "operator_curated_pdf://dole/good.pdf", {}, ["Valid"])
         stack.enter_context(patch.object(module, "_process_pdf", side_effect=[
             valid, module.PDFTextExtractionError("corrupt PDF")]))
         self.assertEqual(module.run(), 0)
         self.assertEqual(repo.refresh.call_args.args[0], valid)
         self.assertEqual(logger.prepare.call_args.kwargs["run_metadata"]["files_failed"], 1)
-        logger.record.assert_not_called()  # success log is inside refresh transaction
+        self.assertEqual(logger.record.call_args.kwargs["run_status"], "failure")
+        self.assertEqual(logger.record.call_args.kwargs["run_metadata"]["file"], "bad.pdf")
 
     def test_all_publications_fail_without_replacing_any_valid_data(self):
         module = self.dole
         stack, logger, repo, _ = self.configured(module)
         stack.enter_context(patch.object(module, "_resolve_directory", return_value=Path("/fixtures")))
-        stack.enter_context(patch.object(module, "_list_pdfs", return_value=[Path("bad.pdf")]))
+        stack.enter_context(patch.object(module, "_list_pdfs", return_value=[Path("/fixtures/bad.pdf")]))
         stack.enter_context(patch.object(module, "_process_pdf", side_effect=module.PDFTextExtractionError("corrupt")))
         self.assertEqual(module.run(), 1)
         repo.refresh.assert_not_called()
@@ -112,7 +113,7 @@ class PipelineRefreshTests(unittest.TestCase):
         module = self.dole
         stack, logger, repo, embedder = self.configured(module)
         stack.enter_context(patch.object(module, "_resolve_directory", return_value=Path("/fixtures")))
-        stack.enter_context(patch.object(module, "_list_pdfs", return_value=[Path("good.pdf")]))
+        stack.enter_context(patch.object(module, "_list_pdfs", return_value=[Path("/fixtures/good.pdf")]))
         valid = module._build_chunks(Path("good.pdf"), "operator_curated_pdf://dole/good.pdf", {}, ["Valid"])
         stack.enter_context(patch.object(module, "_process_pdf", return_value=valid))
         repo.refresh.side_effect = RuntimeError("database transaction failed")

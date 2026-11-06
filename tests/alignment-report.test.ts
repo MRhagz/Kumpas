@@ -35,7 +35,7 @@ it("accepts fewer paths, ties and partial comparisons; rejects false scored part
 
 it("renders exact scores and clearly unscored partial comparisons in the report UI", () => {
   const html = renderToStaticMarkup(createElement(ReportDownloadView, {
-    report: { ...payload, downloadUrl: "/synthetic.pdf", expiresAt: "2099-01-01T00:00:00Z", byteLength: 1,
+    report: { ...payload, reportVersion: 1, downloadUrl: "/synthetic.pdf", expiresAt: "2099-01-01T00:00:00Z", byteLength: 1,
       recommendationCount: recommendations.length, recommendations }, onNewSession: () => {},
   }));
   expect(html).toContain("74.50%"); expect(html).not.toContain("7450");

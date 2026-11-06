@@ -13,8 +13,7 @@ on:
     branches:
       - main
     paths:
-      - "ingestion/data/dole_ble/**/*.pdf"
-      - "ingestion/data/dole_ble/**/*.meta.json"
+      - "ingestion/data/dole_ble/**"
       - "ingestion/src/kumpas_ingestion/pipelines/dole_ble.py"
       - ".github/workflows/ingest-dole-ble.yml"
   workflow_dispatch:
@@ -28,8 +27,16 @@ concurrency:
   group: ingest-dole-ble
   cancel-in-progress: false
 
+permissions:
+  contents: read
+
 jobs:
+  verify:
+    uses: ./.github/workflows/sw12-contracts.yml
+
   ingest:
+    needs: [verify]
+    if: github.ref == 'refs/heads/main'
     runs-on: ubuntu-latest
     env:
       SUPABASE_URL: ${{ secrets.SUPABASE_URL }}

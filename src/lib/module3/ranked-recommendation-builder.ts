@@ -9,6 +9,7 @@ export class RankedRecommendationBuilder {
     rankedPaths: RankedCareerPath[],
     agentOutputs: AgentOutput[],
     approvedProfileVersion: number | null = null,
+    persist = true,
   ): Promise<RankedRecommendationList> {
     const failedAgents = agentOutputs
       .filter((o) => o.status === "FAILED")
@@ -68,6 +69,13 @@ export class RankedRecommendationBuilder {
         incompleteReason,
       };
     });
+
+    const result: RankedRecommendationList = {
+      sessionId, generatedAt: new Date().toISOString(), recommendations, scoreContract: "0-100-v1",
+      limitation: recommendations.filter((r) => r.alignmentScore !== null).length < 3
+        ? "Fewer than three scored paths are supported. Unscored partial comparisons have missing evidence; no weights were redistributed." : undefined,
+    };
+    if (!persist) return result;
 
     const recRows = recommendations.map((r) => ({
       id: r.id,
@@ -130,12 +138,7 @@ export class RankedRecommendationBuilder {
       }
     }
 
-    return {
-      sessionId,
-      generatedAt: new Date().toISOString(),
-      recommendations,
-      limitation: recommendations.filter((r) => r.alignmentScore !== null).length < 3 ? "Fewer than three scored paths are supported. Unscored partial comparisons have missing evidence; no weights were redistributed." : undefined,
-    };
+    return result;
   }
 }
 

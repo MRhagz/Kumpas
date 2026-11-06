@@ -47,13 +47,13 @@ export default function ErrorView({ title, message, onRetry, onBack }: ErrorView
                             onClick={onBack}
                             className="flex items-center gap-2 rounded-xl border border-black/10 bg-white px-5 py-3 text-sm font-medium text-ink cursor-pointer hover:bg-black/[0.03]"
                         >
-                            <ArrowLeft size={15} /> {insufficientEvidence ? "End Session" : "Start over"}
+                            <ArrowLeft size={15} /> {insufficientEvidence ? "End Session" : "Return to Confirm Information"}
                         </button>
                         <button
                             onClick={onRetry}
                             className="rounded-xl bg-ink px-5 py-3 text-sm font-semibold text-white cursor-pointer hover:bg-forest"
                         >
-                            {insufficientEvidence ? "Retry" : "Try again"}
+                            {insufficientEvidence ? "Retry" : "Retry analysis"}
                         </button>
                     </div>
                 </>

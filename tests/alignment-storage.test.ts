@@ -4,7 +4,7 @@ import { afterAll, beforeAll, describe, expect, it } from "vitest";
 
 const db = new PGlite();
 const migrationDirectory = new URL("../supabase/migrations/", import.meta.url);
-const proposedMigration = new URL("../docs/sw16-scoring-migration.sql", import.meta.url);
+const scoringMigration = new URL("20261106161754_sw16_alignment_scoring.sql", migrationDirectory);
 const evidence = JSON.stringify({ aptitude: { inputReferences: ["academicData.nat.subjects.Mathematics"] } });
 const weights = JSON.stringify({ aptitude: 0.35, demand: 0.40, feasibility: 0.25 });
 
@@ -16,7 +16,7 @@ beforeAll(async () => {
   await db.exec(readFileSync(new URL("20260523000002_module3_recommendations.sql", migrationDirectory), "utf8"));
   await db.exec(`insert into public.ranked_recommendations(session_id, rank, career_path, alignment_score, aptitude_fit, market_demand, financial_feasibility, reasoning_summary)
     values ('11111111-1111-4111-8111-111111111111', 1, 'Legacy', 0.85, 0.8, 0.9, 0.7, 'Legacy');`);
-  await db.exec(readFileSync(proposedMigration, "utf8"));
+  await db.exec(readFileSync(scoringMigration, "utf8"));
 }, 30000);
 afterAll(() => db.close());
 

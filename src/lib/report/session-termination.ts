@@ -1,6 +1,6 @@
 import "server-only";
 
-import { documentStorageService } from "@/lib/module2/document-storage-service";
+import { drainExtractionCleanup } from "@/lib/module2/extraction-cleanup";
 import { pdfFileStore } from "@/lib/report/file-store";
 import { supabaseAdmin } from "@/lib/supabase";
 
@@ -31,13 +31,16 @@ export class SessionTerminationHandler {
     const warnings: string[] = [];
     const terminalStatus = options.terminalStatus ?? "cancelled";
     const warn = options.warn ?? this.warn;
-    let reportPdfPurged = true;
+    let reportPdfPurged = terminalStatus === "cancelled";
     let sessionRowsPurged = true;
-    let sessionScrubbed = true;
+    const sessionScrubbed = true;
     let redactedImagesPurged = 0;
 
+    // Revoke first so a late provider/PDF result cannot publish during cleanup.
+    await this.scrubSession(sessionId, terminalStatus);
+
     try {
-      await pdfFileStore.deleteReportPdf(sessionId);
+      if (terminalStatus === "cancelled") await pdfFileStore.deleteReportPdf(sessionId);
     } catch (error) {
       reportPdfPurged = false;
       const message =
@@ -48,25 +51,16 @@ export class SessionTerminationHandler {
     }
 
     try {
-      const redactedImagePaths = await this.getRedactedImagePaths(sessionId);
-      redactedImagesPurged = await this.purgeRedactedImages(
-        sessionId,
-        redactedImagePaths,
-        warnings,
-        warn,
-      );
-    } catch (error) {
-      const message =
-        error instanceof Error
-          ? error.message
-          : "Failed to collect redacted image paths.";
-
-      warnings.push(message);
-      warn(`[SessionTerminationHandler] sessionId=${sessionId}: ${message}`);
+      const cleanup = await drainExtractionCleanup(sessionId);
+      redactedImagesPurged = cleanup.removed;
+      if (cleanup.failed) warnings.push("Temporary artifact cleanup is pending retry.");
+    } catch {
+      warnings.push("Temporary artifact cleanup is pending retry.");
+      warn("[SessionTerminationHandler] Artifact cleanup pending");
     }
 
     try {
-      await this.purgeSessionRows(sessionId);
+      await this.purgeSessionRows(sessionId, terminalStatus === "cancelled");
     } catch (error) {
       sessionRowsPurged = false;
       const message =
@@ -78,16 +72,7 @@ export class SessionTerminationHandler {
       warn(`[SessionTerminationHandler] sessionId=${sessionId}: ${message}`);
     }
 
-    try {
-      await this.scrubSession(sessionId, terminalStatus);
-    } catch (error) {
-      sessionScrubbed = false;
-      const message =
-        error instanceof Error ? error.message : "Failed to scrub session.";
 
-      warnings.push(message);
-      warn(`[SessionTerminationHandler] sessionId=${sessionId}: ${message}`);
-    }
 
     return {
       sessionId,
@@ -99,48 +84,10 @@ export class SessionTerminationHandler {
     };
   }
 
-  private async getRedactedImagePaths(sessionId: string): Promise<string[]> {
-    const { data, error } = await supabaseAdmin
-      .from("extraction_results")
-      .select("redacted_image_path")
-      .eq("session_id", sessionId);
-
-    if (error) {
-      throw new Error(`Failed to load redacted image paths: ${error.message}`);
-    }
-
-    return (data ?? [])
-      .map((row) => row.redacted_image_path)
-      .filter((path): path is string => typeof path === "string" && path.length > 0);
-  }
-
-  private async purgeRedactedImages(
-    sessionId: string,
-    storagePaths: string[],
-    warnings: string[],
-    warn: (message: string) => void,
-  ): Promise<number> {
-    let purgedCount = 0;
-
-    for (const storagePath of storagePaths) {
-      try {
-        await documentStorageService.deleteRedacted(storagePath);
-        purgedCount += 1;
-      } catch (error) {
-        const message =
-          error instanceof Error
-            ? error.message
-            : `Failed to delete redacted image: ${storagePath}`;
-
-        warnings.push(message);
-        warn(`[SessionTerminationHandler] sessionId=${sessionId}: ${message}`);
-      }
-    }
-
-    return purgedCount;
-  }
-
-  private async purgeSessionRows(sessionId: string): Promise<void> {
+  private async purgeSessionRows(sessionId: string, purgeReports: boolean): Promise<void> {
+    // Correction audits have an independent calendar expiry and no cascading session FK.
+    await this.deleteRows("profile_versions", { session_id: sessionId });
+    if (purgeReports) await this.deleteRows("report_versions", { session_id: sessionId });
     await this.deleteRows("ranked_recommendations", {
       session_id: sessionId,
     });
@@ -173,7 +120,7 @@ export class SessionTerminationHandler {
     sessionId: string,
     terminalStatus: "cancelled" | "expired",
   ): Promise<void> {
-    const { error } = await supabaseAdmin
+    const update = supabaseAdmin
       .from("sessions")
       .update({
         status: terminalStatus,
@@ -189,6 +136,8 @@ export class SessionTerminationHandler {
         completed_at: new Date().toISOString(),
       })
       .eq("id", sessionId);
+    // Draft expiry racing with cancellation must never restore PDF access.
+    const { error } = await (terminalStatus === "expired" ? update.neq("status", "cancelled") : update);
 
     if (error) {
       throw new Error(`Failed to scrub session: ${error.message}`);

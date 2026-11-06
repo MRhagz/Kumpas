@@ -51,7 +51,7 @@ class EmbeddingContractTests(unittest.TestCase):
     def test_config_rejects_model_or_dimension_change(self):
         for options in ({"embedding_model": "text-embedding-004"}, {"embedding_dimensions": 3072}):
             with self.subTest(options=options), self.assertRaisesRegex(ConfigError, "Incompatible"):
-                IngestionConfig("db", "key", "key", **options)
+                IngestionConfig("https://db.example", "key", "key", **options)
         with patch.dict(os.environ, {
             "SUPABASE_URL": "db", "SUPABASE_SERVICE_ROLE_KEY": "key", "GEMINI_API_KEY": "key",
             "EMBEDDING_DIMENSIONS": "invalid",

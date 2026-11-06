@@ -1,8 +1,6 @@
 import sharp from "sharp";
 
-const GEMINI_API_KEY = process.env.DOCUMENT_INTAKE_API_KEY!;
-const GEMINI_MODEL = "gemini-2.5-flash";
-const GEMINI_URL = `https://generativelanguage.googleapis.com/v1beta/models/${GEMINI_MODEL}:generateContent?key=${GEMINI_API_KEY}`;
+import { getGeminiResponseText, requestGeminiImage } from "@/lib/module3/gemini-config";
 
 const PII_DETECTION_PROMPT = `You are a PII detector for Philippine student documents (Form 137, NCAE, NAT).
 
@@ -44,33 +42,27 @@ export class PIIRedactionService {
   async redact(imageBuffer: Buffer, mimeType: string): Promise<RedactionResult> {
     const base64 = imageBuffer.toString("base64");
 
-    const response = await fetch(GEMINI_URL, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        contents: [
-          {
-            parts: [
-              { text: PII_DETECTION_PROMPT },
-              { inlineData: { mimeType, data: base64 } },
-            ],
-          },
-        ],
-        generationConfig: {
-          temperature: 0.0,
-          maxOutputTokens: 4096,
-          responseMimeType: "application/json",
+    const response = await requestGeminiImage({
+      contents: [
+        {
+          parts: [
+            { text: PII_DETECTION_PROMPT },
+            { inlineData: { mimeType, data: base64 } },
+          ],
         },
-      }),
+      ],
+      generationConfig: {
+        maxOutputTokens: 4096,
+        responseMimeType: "application/json",
+      },
     });
 
     if (!response.ok) {
-      const detail = await response.text();
-      throw new Error(`Gemini PII detection failed: ${detail}`);
+      throw new Error("Gemini PII detection failed.");
     }
 
     const data = await response.json();
-    const rawText = data?.candidates?.[0]?.content?.parts?.[0]?.text ?? "";
+    const rawText = getGeminiResponseText(data);
 
     let parsed: { pii_regions?: PIIRegion[] };
     try {
@@ -80,7 +72,7 @@ export class PIIRedactionService {
         .trim();
       parsed = JSON.parse(cleaned);
     } catch {
-      throw new Error(`Failed to parse Gemini PII response: ${rawText.slice(0, 200)}`);
+      throw new Error("Failed to parse Gemini PII response.");
     }
 
     const regions = parsed.pii_regions ?? [];

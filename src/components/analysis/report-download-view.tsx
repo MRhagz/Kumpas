@@ -176,15 +176,17 @@ export default function ReportDownloadView({
           <section className="rounded-lg bg-ink p-5 text-white shadow-card">
             <div className="flex items-center gap-2 text-xs font-semibold uppercase tracking-wider text-white/60">
               <CheckCircle2 size={15} />
-              Report Ready
+              {report.downloadUrl ? "Approved report" : "Draft report"}
             </div>
             <h2 className="mt-3 text-lg font-bold">
-              Download the counselor report
+              {report.downloadUrl ? "Download the counselor report" : "Review the counselor report"}
             </h2>
             <p className="mt-2 text-sm leading-relaxed text-white/70">
               {isDownloadExpired
                 ? "This report has expired. Start a new session to generate a report."
-                : "The report opens in a new tab. You must remain signed in to the counselor account that owns this session."}
+                : report.downloadUrl
+                  ? "The report opens in a new tab. Save the approved copy using your school’s process."
+                  : "Final download is available after this report version is approved."}
             </p>
             <div className="mt-4 space-y-3 rounded-lg border border-white/10 bg-white/5 p-3">
               <MetadataRow label="Generated" value={generatedAt} />
@@ -195,12 +197,12 @@ export default function ReportDownloadView({
               />
             </div>
             <div className="mt-5">
-              <PdfDownloadButton
+              {report.downloadUrl && <PdfDownloadButton
                 downloadUrl={report.downloadUrl}
                 fileName={fileName}
                 disabled={isDownloadExpired}
                 onDownloadStart={onReportDownloadStart}
-              />
+              />}
             </div>
           </section>
         </aside>

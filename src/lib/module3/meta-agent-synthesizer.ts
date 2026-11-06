@@ -1,3 +1,4 @@
+import { ProcessingBudget, ProcessingError } from "@/lib/processing-budget";
 import type { RankedRecommendationList } from "@/lib/report/types";
 import type { ApprovedProfile } from "@/types";
 import { InsufficientEvidenceError } from "./alignment-score-calculator";
@@ -13,32 +14,26 @@ export class MetaAgentSynthesizer {
     agentOutputs: AgentOutput[],
     profile: ApprovedProfile,
     approvedProfileVersion: number | null = null,
+    budget = new ProcessingBudget(),
+    persist = true,
   ): Promise<RankedRecommendationList> {
-    const synthesis = await this.runSynthesisInterpreter(agentOutputs, profile);
+    const synthesis = await synthesisInterpreter.synthesize(agentOutputs, profile, budget);
 
     const scoredPaths = alignmentScoreCalculator.calculate(synthesis).filter((p) => p.aptitudeScore !== null || p.demandScore !== null || p.feasibilityScore !== null);
-
     if (scoredPaths.length === 0) throw new InsufficientEvidenceError();
 
-    const rankedPaths = await this.runRankingAgent(scoredPaths);
+    const rankedPaths = await this.runRankingAgent(scoredPaths, budget);
 
-    return rankedRecommendationBuilder.build(sessionId, rankedPaths, agentOutputs, approvedProfileVersion);
+    budget.assert("recommendation assembly");
+    return rankedRecommendationBuilder.build(sessionId, rankedPaths, agentOutputs, approvedProfileVersion, persist);
   }
 
-  private async runSynthesisInterpreter(agentOutputs: AgentOutput[], profile: ApprovedProfile) {
+  private async runRankingAgent(scoredPaths: Awaited<ReturnType<typeof alignmentScoreCalculator.calculate>>, budget: ProcessingBudget) {
     try {
-      return await synthesisInterpreter.synthesize(agentOutputs, profile);
-    } catch (firstError) {
-      console.warn("[MetaAgentSynthesizer] SynthesisInterpreter first attempt failed, retrying...", firstError);
-      return await synthesisInterpreter.synthesize(agentOutputs, profile);
-    }
-  }
-
-  private async runRankingAgent(scoredPaths: Awaited<ReturnType<typeof alignmentScoreCalculator.calculate>>) {
-    try {
-      return await rankingAgent.generateReasoning(scoredPaths);
+      return await rankingAgent.generateReasoning(scoredPaths, budget);
     } catch (error) {
-      console.warn("[MetaAgentSynthesizer] RankingAgent failed, proceeding with placeholder reasoning", error);
+      if (error instanceof ProcessingError) throw error;
+      console.warn("[MetaAgentSynthesizer] RankingAgent failed, proceeding with placeholder reasoning");
       return scoredPaths.map((path) => ({
         ...path,
         reasoningSummary: "",

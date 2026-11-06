@@ -27,11 +27,13 @@ vi.mock("@/lib/report/assembler", () => ({ assembleReportData: vi.fn(), ReportAs
 vi.mock("@/lib/report/pdf-renderer", () => ({ renderReportPdf: vi.fn() }));
 vi.mock("@/lib/report/file-store", () => ({
   normalizeReportSessionId: (id: string) => id.trim(), pdfFileStore: { downloadReportPdf: m.downloadPdf },
+  getReportPdfObjectKey: (id: string, version: number) => `${id}/${version}.pdf`,
 }));
 vi.mock("@/lib/module2/document-storage-service", () => ({ documentStorageService: { retrieveRedacted: m.downloadImage } }));
 vi.mock("@/lib/module5/expired-session-cleanup", () => ({ runExpiredSessionCleanup: m.cleanup }));
 vi.mock("@/lib/report/retention-cleanup", () => ({ runReportRetentionCleanup: m.retention }));
 
+import * as intake from "@/app/api/sessions/[sessionId]/intake/route";
 import * as sessions from "@/app/api/sessions/route";
 import * as session from "@/app/api/sessions/[sessionId]/route";
 import * as analyze from "@/app/api/sessions/[sessionId]/analyze/route";
@@ -54,12 +56,13 @@ const owner = { id: ownerId, email: "a@example.test", invited_at: "2026-01-01", 
   app_metadata: { role: "counselor", counselor_activated: true }, user_metadata: {} };
 const context = { params: Promise.resolve({ sessionId, documentId }) };
 const ownedRoutes = [
+  ["GET", "/api/sessions/id/intake", intake.GET], ["PATCH", "/api/sessions/id/intake", intake.PATCH],
   ["GET", "/api/sessions/id", session.GET], ["DELETE", "/api/sessions/id", session.DELETE],
   ["POST", "/api/sessions/id/analyze", analyze.POST], ["POST", "/api/sessions/id/approve", approve.POST],
   ["POST", "/api/sessions/id/complete", complete.POST], ["POST", "/api/sessions/id/upload", upload.POST],
   ["DELETE", "/api/sessions/id/upload", upload.DELETE],
   ["POST", "/api/reports", reports.POST],
-  ["GET", "/api/reports/id", pdf.GET], ["GET", "/api/reports/id?download=1", pdf.GET],
+  ["GET", "/api/reports/id?version=1", pdf.GET], ["GET", "/api/reports/id?version=1&download=1", pdf.GET],
   ["GET", "/api/sessions/id/documents/id", image.GET],
 ] as const;
 const routes = [...ownedRoutes,
@@ -76,7 +79,9 @@ beforeEach(() => {
   m.getUser.mockResolvedValue({ data: { user: owner }, error: null });
   m.rpc.mockResolvedValue({ data: "active", error: null });
   m.maybeSingle.mockResolvedValue({ data: { counselor_id: ownerId, status: "active", expires_at: "2099-01-01" }, error: null });
-  m.from.mockReturnValue({ select: () => ({ eq: () => ({ maybeSingle: m.maybeSingle }) }) });
+  const query = { select: () => query, eq: () => query, in: () => query,
+    not: () => query, gt: () => query, maybeSingle: m.maybeSingle, single: m.maybeSingle };
+  m.from.mockReturnValue(query);
 });
 describe("F01/I03 protected route inventory", () => {
   it("inventories every exported API handler, including maintenance", () => {
@@ -162,7 +167,12 @@ describe("F01/I03 protected route inventory", () => {
   for (const download of [false, true]) {
     it(`only the owner receives report bytes (${download ? "download" : "preview"})`, async () => {
       m.downloadPdf.mockResolvedValue(new Blob(["%PDF-1.4 synthetic"]));
-      const response = await pdf.GET(request("GET", `/api/reports/id${download ? "?download=1" : ""}`), context);
+      const sessionRow = { current_run_id: "run", current_profile_version: 1, current_report_version: 1 };
+      const reportRow = { object_key: `${sessionId}/1.pdf`, expires_at: "2099-01-01" };
+      for (let read = 0; read < 2; read++) {
+        m.maybeSingle.mockResolvedValueOnce({ data: sessionRow }).mockResolvedValueOnce({ data: reportRow });
+      }
+      const response = await pdf.GET(request("GET", `/api/reports/id?version=1${download ? "&download=1" : ""}`), context);
       expect(response.status).toBe(200);
       expect(response.headers.get("Cache-Control")).toBe("private, no-store");
       expect(response.headers.get("Content-Disposition")).toContain(download ? "attachment" : "inline");
