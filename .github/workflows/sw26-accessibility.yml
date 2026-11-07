@@ -31,10 +31,18 @@ jobs:
           cache: npm
       - run: npm ci --ignore-scripts --no-audit --no-fund
       - run: npx playwright install --with-deps ${{ matrix.browser }}
-      - run: npx playwright test --project=${{ matrix.project }}
+      - if: matrix.project != 'firefox'
+        run: npx playwright test --project=${{ matrix.project }}
+      # Start a fresh Firefox process between widths: repeated axe injection can crash its page.
+      - if: matrix.project == 'firefox'
+        run: npx playwright test --project=firefox --grep=375px
+      - if: matrix.project == 'firefox'
+        run: npx playwright test --project=firefox --grep=1280px --output=test-results-desktop
       - uses: actions/upload-artifact@v4
         if: always()
         with:
           name: accessibility-${{ matrix.project }}
-          path: test-results/
+          path: |
+            test-results/
+            test-results-desktop/
           retention-days: 14

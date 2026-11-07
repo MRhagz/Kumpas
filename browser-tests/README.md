@@ -23,7 +23,8 @@ On Windows a workspace-local engine cache can be selected with
 locations. The CI matrix provisions Chrome, Edge and WebKit on Linux, and Firefox
 on Windows. The Linux Firefox page crashes inside axe on the report scan even
 with legacy frame mode; that failed run is retained as an explicit platform
-limitation. Windows runs the same keyboard assertions and axe rules.
+limitation. Windows runs the same keyboard assertions and axe rules in separate
+invocations per width, avoiding repeated scan injection across viewport tests.
 Artifacts retain browser versions, axe JSON and screenshots for 14 days.
 
 The Vite fixture imports real intake/analysis/report components and application
