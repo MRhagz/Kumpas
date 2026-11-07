@@ -125,6 +125,15 @@ export default function ReportDownloadView({
         </div>
       </header>
 
+      {report.agentStatuses?.some((s) => s.status !== "SUCCESS") && (
+        <section role="status" className="mb-5 rounded-lg border border-amber-200 bg-amber-50 p-4 text-sm">
+          <h2 className="font-semibold">Partial specialist analysis</h2>
+          <p>Some analysis is unavailable. Missing dimensions remain unscored. Review or correct the confirmed inputs to run analysis again.</p>
+          <ul>
+            {report.agentStatuses.map((s) => <li key={s.agent}>{s.agent}: {s.status === "SUCCESS" ? "Complete" : s.status === "FAILED" ? "Failed" : "Unavailable"}</li>)}
+          </ul>
+        </section>
+      )}
       <div className="mb-5 grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
         {report.recommendations.filter((r) => r.rank !== null).map((recommendation) => (
           <RecommendationCard

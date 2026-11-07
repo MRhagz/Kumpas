@@ -38,7 +38,14 @@ export interface RetrievedChunk {
 
 // ─── Agent Output (produced by each specialist agent) ──────────────
 
-export type AgentStatus = "SUCCESS" | "FAILED";
+export type AgentStatus = "SUCCESS" | "FAILED" | "UNAVAILABLE";
+
+export interface SpecialistStatus {
+  agent: AgentName;
+  status: AgentStatus;
+  error?: string;
+  unavailableEvidence: string[];
+}
 
 export interface AgentOutput {
   agentName: AgentName;

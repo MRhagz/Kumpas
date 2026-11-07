@@ -100,7 +100,7 @@ describe("I05 specialist evidence isolation", () => {
   it.each(specialists)("%s makes missing evidence explicit without generation", async (_name, agent) => {
     boundary.rpc.mockReturnValueOnce(rpcResult({ data: [], error: null }));
     const result = await agent.analyze(profile, "test-key");
-    expect(result.status).toBe("FAILED");
+    expect(result.status).toBe("UNAVAILABLE");
     expect(result.retrievedChunks).toEqual([]);
     expect(result.unavailableEvidence?.length).toBeGreaterThan(0);
     expect(result.analysis).toContain("Public evidence unavailable");

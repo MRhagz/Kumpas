@@ -94,7 +94,7 @@ export class FeasibilityStrategistAgent {
     if (chunks.length === 0) {
       return {
         agentName: AGENT_NAME,
-        status: "FAILED",
+        status: "UNAVAILABLE",
         error: "No relevant public evidence retrieved.",
         analysis: JSON.stringify({ summary: "Public evidence unavailable.", unavailableEvidence: missing }),
         retrievedChunks: [],
