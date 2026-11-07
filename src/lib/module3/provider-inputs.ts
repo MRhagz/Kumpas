@@ -32,6 +32,9 @@ export function selectAcademicData(data: ApprovedProfile["academicData"]): Appro
 
 export function selectAgentAnalysis(agent: AgentName, text: string): string {
   const data = JSON.parse(text);
+  if (!data || typeof data !== "object" || Array.isArray(data) || typeof data.summary !== "string" || !data.summary.trim()) {
+    throw new Error("Invalid specialist analysis: a nonempty summary is required.");
+  }
   const strings = (value: unknown): string[] => Array.isArray(value)
     ? value.filter((item): item is string => typeof item === "string") : [];
   const summary = typeof data.summary === "string" ? data.summary : "";

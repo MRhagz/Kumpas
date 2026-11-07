@@ -34,7 +34,7 @@ export class AgentDispatcher {
 
     const runSpecialist = async (fn: () => Promise<AgentOutput>, name: AgentOutput["agentName"]) => {
       try { return await fn(); } catch (error) {
-        if (error instanceof ProcessingError && error.code === "deadline") throw error;
+        if (error instanceof ProcessingError && (error.code === "deadline" || error.code === "stale")) throw error;
         return createFailedOutput(name, error);
       }
     };

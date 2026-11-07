@@ -2,6 +2,7 @@ import { supabaseAdmin } from "@/lib/supabase";
 import type { RankedRecommendationList, RecommendationSource } from "@/lib/report/types";
 import { ALIGNMENT_WEIGHTS, InsufficientEvidenceError } from "./alignment-score-calculator";
 import type { AgentOutput, RankedCareerPath } from "./types";
+import { AGENT_SILO_MAP } from "./types";
 
 export class RankedRecommendationBuilder {
   async build(
@@ -11,9 +12,12 @@ export class RankedRecommendationBuilder {
     approvedProfileVersion: number | null = null,
     persist = true,
   ): Promise<RankedRecommendationList> {
-    const failedAgents = agentOutputs
-      .filter((o) => o.status === "FAILED")
-      .map((o) => o.agentName);
+    const agentStatuses = (Object.keys(AGENT_SILO_MAP) as AgentOutput["agentName"][]).map((agent) => {
+      const output = agentOutputs.find((o) => o.agentName === agent);
+      return { agent, status: output?.status ?? "UNAVAILABLE" as const,
+        error: output?.error, unavailableEvidence: output?.unavailableEvidence ?? [] };
+    });
+    const failedAgents = agentStatuses.filter((o) => o.status !== "SUCCESS").map((o) => o.agent);
 
     const supportedPaths = rankedPaths.filter((p) => p.aptitudeScore !== null || p.demandScore !== null || p.feasibilityScore !== null);
     if (supportedPaths.length === 0) throw new InsufficientEvidenceError();
@@ -36,6 +40,9 @@ export class RankedRecommendationBuilder {
       } else if (hasEmptyReasoning) {
         status = "degraded";
         degradedReason = "Reasoning summary unavailable";
+      }
+      if (hasFailedContributor) {
+        incompleteReason = `${incompleteReason ?? ""} Specialist analysis failed or unavailable: ${failedAgents.join(", ")}. Retry analysis or review the confirmed inputs.`.trim();
       }
 
       const sources: RecommendationSource[] = path.sourceReferences.map(
@@ -71,7 +78,7 @@ export class RankedRecommendationBuilder {
     });
 
     const result: RankedRecommendationList = {
-      sessionId, generatedAt: new Date().toISOString(), recommendations, scoreContract: "0-100-v1",
+      sessionId, generatedAt: new Date().toISOString(), recommendations, scoreContract: "0-100-v1", agentStatuses,
       limitation: recommendations.filter((r) => r.alignmentScore !== null).length < 3
         ? "Fewer than three scored paths are supported. Unscored partial comparisons have missing evidence; no weights were redistributed." : undefined,
     };
