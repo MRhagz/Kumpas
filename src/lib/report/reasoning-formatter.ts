@@ -1,4 +1,5 @@
 import type { RankedRecommendation } from "@/lib/report/types";
+import { evidenceClaims, summaryText, type EvidenceClaim } from "./evidence-summary";
 
 export interface FormattedReasoningSummary {
   recommendationId: string;
@@ -6,6 +7,7 @@ export interface FormattedReasoningSummary {
   summary: string;
   isPlaceholder: boolean;
   concerns: string[];
+  claims: EvidenceClaim[];
 }
 
 export interface ReasoningSummaryFormatterOptions {
@@ -14,15 +16,18 @@ export interface ReasoningSummaryFormatterOptions {
 
 const DEFAULT_MAX_LENGTH = 700;
 const PLACEHOLDER_SUMMARY =
-  "A detailed reasoning summary is not available for this recommendation. Review the alignment score, key signals, and source references before presenting it to the student.";
+  "Evidence summary unavailable. Review the approved inputs and cited sources with the counselor before using this comparison.";
 
 export function formatReasoningSummary(
   recommendation: RankedRecommendation,
   options: ReasoningSummaryFormatterOptions = {},
 ): FormattedReasoningSummary {
   const maxLength = options.maxLength ?? DEFAULT_MAX_LENGTH;
-  const normalizedSummary = normalizeWhitespace(recommendation.reasoningSummary);
-  const isPlaceholder = normalizedSummary.length === 0;
+  const claims = evidenceClaims({ componentEvidence: recommendation.componentEvidence ?? { aptitude: null, demand: null, feasibility: null },
+    aptitudeScore: recommendation.aptitudeFit, demandScore: recommendation.marketDemand, feasibilityScore: recommendation.financialFeasibility,
+    sourceReferences: recommendation.sources });
+  const normalizedSummary = summaryText(claims);
+  const isPlaceholder = !claims.length || recommendation.reasoningSummary !== normalizedSummary;
   const summary = isPlaceholder
     ? PLACEHOLDER_SUMMARY
     : truncateAtSentenceBoundary(normalizedSummary, maxLength);
@@ -33,6 +38,7 @@ export function formatReasoningSummary(
     summary,
     isPlaceholder,
     concerns: buildConcerns(recommendation),
+    claims: isPlaceholder ? [] : claims,
   };
 }
 
@@ -62,11 +68,10 @@ function buildConcerns(recommendation: RankedRecommendation): string[] {
     );
   }
 
+  const missing = [recommendation.aptitudeFit === null ? "aptitude" : "", recommendation.marketDemand === null ? "demand" : "", recommendation.financialFeasibility === null ? "feasibility" : ""].filter(Boolean);
+  if (missing.length) concerns.push(`Missing evidence: ${missing.join(", ")}; no total or rank is assigned.`);
+  if (recommendation.sources.length) concerns.push("Source currency is unverified. Check for outdated or superseding evidence before using this comparison.");
   return concerns;
-}
-
-function normalizeWhitespace(value: string): string {
-  return value.replace(/\s+/g, " ").trim();
 }
 
 function truncateAtSentenceBoundary(value: string, maxLength: number): string {

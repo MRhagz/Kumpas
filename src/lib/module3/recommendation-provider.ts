@@ -11,6 +11,23 @@ import type {
   StudentProfile,
 } from "@/lib/report/types";
 import type { ApprovedProfile } from "@/types";
+import { formatReasoningSummary } from "@/lib/report/reasoning-formatter";
+import { sourceDate, publicSourceUrl } from "@/lib/report/evidence-summary";
+
+function safeRecommendation(recommendation: RankedRecommendation): RankedRecommendation {
+  const formatted = formatReasoningSummary(recommendation, { maxLength: Number.MAX_SAFE_INTEGER });
+  return { ...recommendation, reasoningSummary: formatted.summary,
+    keySignals: formatted.claims.length ? formatted.claims.map((claim) => claim.text) : [formatted.summary],
+    keySignalDetails: formatted.claims.map((claim) => ({ label: `${claim.dimension[0].toUpperCase()}${claim.dimension.slice(1)} evidence`, value: claim.text, polarity: "neutral" })),
+    componentEvidence: Object.fromEntries(Object.entries(recommendation.componentEvidence ?? {}).map(([dimension, evidence]) => [dimension,
+      evidence ? { ...evidence, explanation: formatted.claims.find((claim) => claim.dimension === dimension)?.text ?? "Evidence summary unavailable." } : null])) as RankedRecommendation["componentEvidence"],
+    sources: recommendation.sources.map((source) => ({ ...source, relatedSignals: formatted.claims.filter((claim) => claim.sourceReferences.some((ref) => ref.reference === source.reference && ref.chunkIndex === source.chunkIndex && ref.siloId === source.siloId)).map((claim) => claim.text), ingestionTimestamp: sourceDate(source.ingestionTimestamp),
+      publicationDate: sourceDate(source.publicationDate), sourceUrl: publicSourceUrl(source.sourceUrl) ?? publicSourceUrl(source.reference) })) };
+}
+
+export function sanitizeRecommendationList(list: RankedRecommendationList): RankedRecommendationList {
+  return { ...list, recommendations: list.recommendations.map(safeRecommendation) };
+}
 
 function stripHtml(value: string): string {
   return value.replace(/<[^>]*>/g, "").trim();
@@ -128,6 +145,10 @@ async function getRankedRecommendations(
       reference: s.reference,
       acquisitionMethod: s.acquisition_method,
       ingestionTimestamp: s.ingestion_timestamp,
+      publicationDate: s.publication_date ?? null,
+      sourceUrl: s.source_url ?? null,
+      chunkIndex: s.chunk_index ?? undefined,
+      siloId: s.silo_id ?? undefined,
       relatedSignals: (s.related_signals as string[]) ?? [],
     });
     sourcesByRec.set(s.recommendation_id, list);
@@ -160,7 +181,7 @@ async function getRankedRecommendations(
     sessionId,
     generatedAt: recs[0]?.created_at ?? new Date().toISOString(),
     scoreContract: "0-100-v1",
-    recommendations,
+    recommendations: recommendations.map(safeRecommendation),
   };
 }
 
@@ -279,7 +300,7 @@ export function runRecommendationProvider(profile: ApprovedProfile, recommendati
   const missingDocuments = ALL_ACADEMIC_TYPES.filter((type) => !availableDocuments.includes(type));
   return {
     getApprovedStudentProfile: async (sessionId) => buildStudentProfile(sessionId, profile),
-    getRankedRecommendations: async () => recommendations,
+    getRankedRecommendations: async () => sanitizeRecommendationList(recommendations),
     getAcademicEvidenceSummary: async () => ({ availableDocuments, missingDocuments,
       completenessNote: missingDocuments.length ? `Missing: ${missingDocuments.join(", ")}. Recommendations use only approved available inputs.` : "All academic documents are available for analysis." }),
   };

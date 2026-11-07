@@ -30,7 +30,11 @@ export interface RecommendationSource {
   title: string;
   reference: string;
   acquisitionMethod: SourceAcquisitionMethod;
-  ingestionTimestamp: string;
+  ingestionTimestamp: string | null;
+  publicationDate?: string | null;
+  sourceUrl?: string | null;
+  chunkIndex?: number;
+  siloId?: string;
   relatedSignals: string[];
 }
 
@@ -107,6 +111,8 @@ export interface ReportGenerationResponse {
 }
 
 export interface ReportRecommendationSummary {
+  evidenceClaims?: import("./evidence-summary").EvidenceClaim[];
+  sources?: RecommendationSource[];
   incompleteReason?: string;
   id: string;
   rank: number | null;
@@ -288,7 +294,7 @@ export function validateRankedRecommendationList(
         );
       }
 
-      if (Number.isNaN(Date.parse(source.ingestionTimestamp))) {
+      if (source.ingestionTimestamp !== null && Number.isNaN(Date.parse(source.ingestionTimestamp))) {
         errors.push(`${sourceLabel} ingestion timestamp must be a valid ISO date.`);
       }
     });
