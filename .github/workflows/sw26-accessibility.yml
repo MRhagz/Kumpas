@@ -5,19 +5,24 @@ permissions:
   contents: read
 jobs:
   browser:
-    runs-on: ubuntu-latest
+    runs-on: ${{ matrix.os }}
     strategy:
       fail-fast: false
       matrix:
         include:
           - project: chrome
             browser: chrome
+            os: ubuntu-latest
           - project: edge
             browser: msedge
+            os: ubuntu-latest
           - project: firefox
             browser: firefox
+            # Firefox's Linux axe scan crashes its page; Windows runs the same rules and keyboard assertions.
+            os: windows-latest
           - project: webkit-engine
             browser: webkit
+            os: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
