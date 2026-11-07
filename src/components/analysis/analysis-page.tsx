@@ -13,9 +13,10 @@ import type { ReportGenerationResponse } from "@/lib/report/types";
 
 import ErrorView from "@/components/analysis/error-view";
 import ReportDownloadView from "@/components/analysis/report-download-view";
+import type { SpecialistStatus } from "@/lib/module3/types";
 
 type AnalysisPageState =
-  | { phase: "processing"; completedStages: StageName[] }
+  | { phase: "processing"; completedStages: StageName[]; agentStatuses?: SpecialistStatus[]; isPartial?: boolean }
   | { phase: "reportReady"; report: ReportGenerationResponse }
   | { phase: "unavailable" }
   | { phase: "error"; message: string };
@@ -117,8 +118,8 @@ function AnalysisContent() {
     const { signal } = controller;
     setState({ phase: "processing", completedStages: [] });
 
-    const markStages = (stages: StageName[]) => {
-      if (!signal.aborted) setState({ phase: "processing", completedStages: stages });
+    const markStages = (stages: StageName[], agentStatuses?: SpecialistStatus[], isPartial = false) => {
+      if (!signal.aborted) setState({ phase: "processing", completedStages: stages, agentStatuses, isPartial });
     };
 
     markStages(["documentParsing"]);
@@ -177,17 +178,12 @@ function AnalysisContent() {
       }
 
       const analysis = await res.json();
+      const statuses = analysis.agentStatuses as SpecialistStatus[] | undefined;
+      const stageByAgent = { AcademicAuditor: "feasibility", IndustryAnalyst: "laborMarket", FeasibilityStrategist: "jobDemand" } as const;
       markStages([
         "documentParsing", "notesParsing", "transcriptionLayer",
-        "feasibility", "laborMarket", "jobDemand",
-      ]);
-      await new Promise((r) => setTimeout(r, 500));
-
-      markStages([
-        "documentParsing", "notesParsing", "transcriptionLayer",
-        "feasibility", "laborMarket", "jobDemand", "synthesis",
-      ]);
-      await new Promise((r) => setTimeout(r, 600));
+        ...(statuses ?? []).filter((s) => s.status === "SUCCESS").map((s) => stageByAgent[s.agent]), "synthesis",
+      ], statuses, analysis.rankedRecommendations.recommendations.some((r: { rank: number | null }) => r.rank === null));
 
       if (!signal.aborted) await generateReport(analysis.runId, signal);
     } catch (err) {
@@ -230,7 +226,7 @@ function AnalysisContent() {
         </div>}
       </div>
       {state.phase === "processing" && (
-        <LoadingScreen completedStages={state.completedStages} />
+        <LoadingScreen completedStages={state.completedStages} agentStatuses={state.agentStatuses} isPartial={state.isPartial} />
       )}
       {state.phase === "error" && (
         <ErrorView

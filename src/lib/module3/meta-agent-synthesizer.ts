@@ -17,6 +17,7 @@ export class MetaAgentSynthesizer {
     budget = new ProcessingBudget(),
     persist = true,
   ): Promise<RankedRecommendationList> {
+    if (!agentOutputs.some((output) => output.status === "SUCCESS")) throw new InsufficientEvidenceError();
     const synthesis = await synthesisInterpreter.synthesize(agentOutputs, profile, budget);
 
     const scoredPaths = alignmentScoreCalculator.calculate(synthesis).filter((p) => p.aptitudeScore !== null || p.demandScore !== null || p.feasibilityScore !== null);

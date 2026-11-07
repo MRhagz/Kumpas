@@ -54,7 +54,7 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
       }
     }
     if (run.phase === "report_pending" || run.phase === "ready") {
-      return json({ rankedRecommendations: run.recommendations, runId: run.run_id, profileVersion: run.approved_profile_version });
+      return json({ rankedRecommendations: run.recommendations, runId: run.run_id, profileVersion: run.approved_profile_version, agentStatuses: run.recommendations?.agentStatuses });
     }
     const budget = runBudget(run);
     budget.assert(stage);
@@ -63,14 +63,12 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
     const approvedProfile = await budget.run("approved profile", (signal) => approvedRunProfile(run!, signal), false);
     stage = "specialist analysis";
     const agentOutputs = await agentDispatcher.dispatch({ sessionId, approvedProfile }, budget);
-    if (agentOutputs.every((output) => output.status === "FAILED")) {
-      throw new Error("Specialist analysis unavailable. Check provider or Supabase availability and retry analysis. Approved inputs are saved.");
-    }
+    if (!agentOutputs.some((output) => output.status === "SUCCESS")) throw new InsufficientEvidenceError();
     stage = "synthesis and explanation";
     const rankedRecommendations = await metaAgentSynthesizer.synthesize(sessionId, agentOutputs, approvedProfile, run.approved_profile_version, budget, false);
     budget.assert(stage);
     await transitionRun(run, "analysis_ready", rankedRecommendations);
-    return json({ rankedRecommendations, runId: run.run_id, profileVersion: run.approved_profile_version, agentStatuses: agentOutputs.map(({ agentName, status, error }) => ({ agent: agentName, status, error })) });
+    return json({ rankedRecommendations, runId: run.run_id, profileVersion: run.approved_profile_version, agentStatuses: rankedRecommendations.agentStatuses });
   } catch (error) {
     if (run && claimed) await failRun(run, error instanceof ProcessingError ? error.stage : stage);
     return json({
