@@ -1,0 +1,51 @@
+name: Session and PDF retention
+on:
+  pull_request:
+  workflow_dispatch:
+  schedule:
+    - cron: '*/15 * * * *'
+permissions:
+  contents: read
+jobs:
+  verify:
+    if: github.event_name == 'pull_request'
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:17
+        env:
+          POSTGRES_PASSWORD: contract-test
+          POSTGRES_DB: sw23
+        ports: ['5432:5432']
+        options: >-
+          --health-cmd pg_isready --health-interval 5s
+          --health-timeout 5s --health-retries 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci --ignore-scripts --no-audit --no-fund
+      - run: psql -X -f supabase/tests/sw23_retention.sql
+        env:
+          PGHOST: localhost
+          PGPORT: 5432
+          PGUSER: postgres
+          PGDATABASE: sw23
+          PGPASSWORD: contract-test
+      - run: npx vitest run --config vitest.config.ts tests/retention-database.test.ts tests/retention-cleanup.test.ts tests/report-delivery.test.ts tests/draft-recovery.test.ts tests/processing-termination.test.ts tests/intake-cleanup.test.ts tests/correction-logs.test.ts
+      - run: npx tsc --noEmit
+  cleanup:
+    if: github.event_name != 'pull_request' && github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - run: node scripts/run-retention-cleanup.mjs
+        env:
+          KUMPAS_APP_URL: ${{ vars.KUMPAS_APP_URL }}
+          SESSION_CLEANUP_SECRET: ${{ secrets.SESSION_CLEANUP_SECRET }}
+          REPORT_RETENTION_SECRET: ${{ secrets.REPORT_RETENTION_SECRET }}
