@@ -1,7 +1,7 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { ProcessingBudget, ProviderError } from "@/lib/processing-budget";
 import { reportContentMarker } from "@/lib/report/types";
-const mocks = vi.hoisted(() => ({ load: vi.fn(), transition: vi.fn(), fail: vi.fn(), profile: vi.fn(), assemble: vi.fn(), render: vi.fn(), upload: vi.fn(), download: vi.fn(), remove: vi.fn(), single: vi.fn(), maybeSingle: vi.fn() }));
+const mocks = vi.hoisted(() => ({ load: vi.fn(), transition: vi.fn(), fail: vi.fn(), profile: vi.fn(), assemble: vi.fn(), render: vi.fn(), upload: vi.fn(), download: vi.fn(), remove: vi.fn(), single: vi.fn(), maybeSingle: vi.fn(), queue: vi.fn() }));
 vi.mock("@/lib/auth/api-auth", () => ({ requireUser: async () => ({ id: "owner" }), userOwnsSession: async () => true,
   notFoundResponse: () => Response.json({}, { status: 404 }), unauthorizedResponse: () => Response.json({}, { status: 401 }) }));
 vi.mock("@/lib/module5/processing-run", () => ({ loadProcessingRun: mocks.load, transitionRun: mocks.transition, failRun: mocks.fail,
@@ -9,7 +9,8 @@ vi.mock("@/lib/module5/processing-run", () => ({ loadProcessingRun: mocks.load, 
 vi.mock("@/lib/report/assembler", () => ({ assembleReportData: mocks.assemble, ReportAssemblyError: class extends Error {} }));
 vi.mock("@/lib/report/pdf-renderer", () => ({ renderReportPdf: mocks.render }));
 vi.mock("@/lib/module3/recommendation-provider", () => ({ runRecommendationProvider: vi.fn() }));
-vi.mock("@/lib/report/file-store", () => ({ normalizeReportSessionId: (id: string) => id, pdfFileStore: { uploadReportPdf: mocks.upload, downloadReportPdf: mocks.download, deleteReportPdf: mocks.remove } }));
+vi.mock("@/lib/report/artifact-cleanup", () => ({ queueReportCleanup: mocks.queue }));
+vi.mock("@/lib/report/file-store", () => ({ getReportPdfObjectKey: (id: string, version: number) => `${id}/${version}.pdf`, normalizeReportSessionId: (id: string) => id, pdfFileStore: { uploadReportPdf: mocks.upload, downloadReportPdf: mocks.download, deleteReportPdf: mocks.remove } }));
 vi.mock("@/lib/supabase", () => ({ supabaseAdmin: { from: () => { const query = { select: () => query, eq: () => query, in: () => query, gt: () => query, single: mocks.single, maybeSingle: mocks.maybeSingle }; return query; } } }));
 import { POST } from "@/app/api/reports/route";
 const request = (runId = "run") => POST(new Request("http://localhost/api/reports", { method: "POST", body: JSON.stringify({ sessionId: "session", runId }) }));
@@ -23,6 +24,7 @@ beforeEach(() => {
   mocks.download.mockResolvedValue(new Blob(["%PDF synthetic"])); mocks.remove.mockResolvedValue(undefined);
   mocks.single.mockResolvedValue({ data: { generated_at: "2026-11-05T00:01:00Z", expires_at: "2026-11-06T00:01:00Z" }, error: null });
   mocks.maybeSingle.mockResolvedValue({ data: null, error: null });
+  mocks.queue.mockResolvedValue(undefined);
 });
 afterEach(() => { vi.useRealTimers(); });
 

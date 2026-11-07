@@ -1,5 +1,5 @@
 import { ReportAssemblyError, assembleReportData } from "@/lib/report/assembler";
-import { normalizeReportSessionId, pdfFileStore } from "@/lib/report/file-store";
+import { getReportPdfObjectKey, normalizeReportSessionId, pdfFileStore } from "@/lib/report/file-store";
 import { renderReportPdf } from "@/lib/report/pdf-renderer";
 import { formatReasoningSummary } from "@/lib/report/reasoning-formatter";
 import { reportContentMarker, type ReportGenerationResponse } from "@/lib/report/types";
@@ -7,6 +7,7 @@ import { runRecommendationProvider } from "@/lib/module3/recommendation-provider
 import { approvedRunProfile, failRun, loadProcessingRun, runBudget, transitionRun, type ProcessingRun } from "@/lib/module5/processing-run";
 import { ProcessingError } from "@/lib/processing-budget";
 import { supabaseAdmin } from "@/lib/supabase";
+import { queueReportCleanup } from "@/lib/report/artifact-cleanup";
 import { notFoundResponse, requireUser, unauthorizedResponse, userOwnsSession } from "@/lib/auth/api-auth";
 
 export const runtime = "nodejs";
@@ -106,7 +107,12 @@ export async function POST(request: Request): Promise<Response> {
         // that RPC or by a newer run; uncertain cleanup remains for retention.
         const { data, error: readError } = await supabaseAdmin.from("report_versions").select("report_version")
           .eq("session_id", sessionId).eq("report_version", reportVersion).maybeSingle();
-        if (!readError && !data) await pdfFileStore.deleteReportPdf(sessionId, reportVersion).catch(() => undefined);
+        if (!readError && !data) {
+          // A late upload can finish after termination's Storage inventory.
+          // Persist its exact object reference before attempting deletion.
+          await queueReportCleanup(getReportPdfObjectKey(sessionId, reportVersion)).catch(() => undefined);
+          await pdfFileStore.deleteReportPdf(sessionId, reportVersion).catch(() => undefined);
+        }
       }
     }
     return json({ error: error instanceof ProcessingError ? error.message : `${stage} failed. Your approved inputs are saved. Retry analysis or return to Confirm Information.`,

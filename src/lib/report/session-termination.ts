@@ -11,6 +11,7 @@ export interface SessionTerminationResult {
   redactedImagesPurged: number;
   sessionRowsPurged: boolean;
   sessionScrubbed: boolean;
+  cleanupPending: boolean;
   warnings: string[];
 }
 
@@ -37,6 +38,7 @@ export class SessionTerminationHandler {
     const sessionScrubbed = true;
     let redactedImagesPurged = 0;
     let reportInventoryCompleted = true;
+    let cleanupPending = false;
 
     // Revoke first so a late provider/PDF result cannot publish during cleanup.
     await this.scrubSession(sessionId, terminalStatus);
@@ -61,6 +63,8 @@ export class SessionTerminationHandler {
     }
 
     try {
+      const inventory = await supabaseAdmin.rpc("queue_legacy_document_cleanup");
+      if (inventory.error) throw new Error("Temporary artifact inventory unavailable.");
       const cleanup = await drainExtractionCleanup(sessionId);
       redactedImagesPurged = cleanup.removed;
       if (cleanup.pending) warnings.push("Temporary artifact cleanup is pending retry.");
@@ -72,12 +76,24 @@ export class SessionTerminationHandler {
     if (terminalStatus === "cancelled") {
       try {
         const cleanup = await drainReportCleanup();
+        // The global drain can contain other sessions; confirm this session below.
         reportPdfPurged = reportInventoryCompleted && !cleanup.pending && sessionRowsPurged;
-        if (!reportPdfPurged) warnings.push("Report artifact cleanup is pending retry.");
       } catch {
         reportPdfPurged = false;
         warnings.push("Report artifact cleanup is pending retry.");
       }
+      try {
+        const { data, error } = await supabaseAdmin.rpc("session_termination_state", {
+          p_session_id: sessionId, p_inventory_completed: reportInventoryCompleted,
+        });
+        if (error || !data) throw new Error("Cleanup state unavailable.");
+        cleanupPending = data.cleanupPending;
+        reportPdfPurged = data.reportPdfPurged;
+      } catch {
+        cleanupPending = true;
+        reportPdfPurged = false;
+      }
+      if (cleanupPending) warnings.push("Session cleanup is pending retry. Access remains revoked.");
     }
 
     return {
@@ -86,6 +102,7 @@ export class SessionTerminationHandler {
       redactedImagesPurged,
       sessionRowsPurged,
       sessionScrubbed,
+      cleanupPending: cleanupPending || warnings.length > 0,
       warnings,
     };
   }
