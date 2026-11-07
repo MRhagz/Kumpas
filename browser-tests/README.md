@@ -20,7 +20,10 @@ npx tsc --noEmit
 
 On Windows a workspace-local engine cache can be selected with
 `PLAYWRIGHT_BROWSERS_PATH`; installed Edge/Chrome channels use their normal
-locations. The CI matrix provisions Chrome, Edge, Firefox and WebKit on Linux.
+locations. The CI matrix provisions Chrome, Edge and WebKit on Linux, and Firefox
+on Windows. The Linux Firefox page crashes inside axe on the report scan even
+with legacy frame mode; that failed run is retained as an explicit platform
+limitation. Windows runs the same keyboard assertions and axe rules.
 Artifacts retain browser versions, axe JSON and screenshots for 14 days.
 
 The Vite fixture imports real intake/analysis/report components and application
