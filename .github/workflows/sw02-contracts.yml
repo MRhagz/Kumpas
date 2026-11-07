@@ -25,7 +25,7 @@ jobs:
           node-version: 22
           cache: npm
       - run: npm ci --ignore-scripts --no-audit --no-fund
-      - run: node_modules/.bin/vitest run --config vitest.config.ts tests/versioned-contracts.test.ts
+      - run: node_modules/.bin/vitest run --config vitest.config.ts tests/versioned-contracts.test.ts tests/report-delivery.test.ts tests/report-review.test.tsx tests/processing-report.test.ts tests/draft-recovery.test.ts
       - run: node_modules/.bin/tsc --noEmit --pretty false
       - run: node_modules/.bin/eslint src/lib/module5/versioned-contracts.ts tests/versioned-contracts.test.ts
       - run: python3 scripts/sw02-concurrency.py

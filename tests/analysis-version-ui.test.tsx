@@ -9,7 +9,7 @@ vi.mock("@/components/session/session-progress-indicator", () => ({ default: () 
 vi.mock("@/components/analysis/loading-screen", () => ({ default: () => <p>Processing</p> }));
 vi.mock("@/components/analysis/report-download-view", () => ({ default: () => <p>Current report</p> }));
 vi.mock("@/components/analysis/error-view", () => ({ default: ({ message }: { message: string }) => <p role="alert">{message}</p> }));
-const current = { sessionId: "session", profileVersion: 1, currentRunId: "run-1", nextStep: "report", hasApprovedProfile: true, reportStatus: "ready" };
+const current = { sessionId: "session", profileVersion: 1, currentRunId: "run-1", currentReportVersion: 1, reportReviewStatus: "draft", nextStep: "report", hasApprovedProfile: true, reportStatus: "ready" };
 beforeEach(() => { vi.useFakeTimers(); vi.clearAllMocks(); });
 afterEach(() => { cleanup(); vi.useRealTimers(); vi.unstubAllGlobals(); });
 
@@ -25,7 +25,7 @@ it.each([false, true])("a delayed report response is displayed only for the curr
   render(<AnalysisPage />);
   await act(async () => { await vi.advanceTimersByTimeAsync(800); });
   expect(resolveReport).toBeTypeOf("function");
-  await act(async () => { resolveReport(Response.json({ sessionId: "session", runId: "run-1", reportVersion: 1 })); });
+  await act(async () => { resolveReport(Response.json({ sessionId: "session", runId: "run-1", reportVersion: 1, reviewStatus: "draft" })); });
   if (changed) {
     expect(screen.queryByText("Current report")).toBeNull();
     expect(screen.getByRole("alert").textContent).toContain("Inputs changed");
