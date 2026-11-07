@@ -128,8 +128,12 @@ export interface ReportGenerationResponse {
   agentStatuses?: import("@/lib/module3/types").SpecialistStatus[];
   sessionId: string;
   reportVersion: number;
+  runId?: string;
   approvedProfileVersion?: number | null;
-  reviewStatus?: "draft" | "approved";
+  reviewStatus?: "draft" | "approved" | "rejected";
+  reviewedAt?: string | null;
+  reviewedBy?: string | null;
+  previewUrl?: string | null;
   /** Null for PDFs produced before the two-audience content contract. */
   studentSummary?: StudentReportSummary | null;
   downloadUrl: string | null;

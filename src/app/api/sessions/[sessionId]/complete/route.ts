@@ -1,62 +1,12 @@
-import { type NextRequest } from "next/server";
+import { requireUser, unauthorizedResponse, notFoundResponse, userOwnsSession } from "@/lib/auth/api-auth";
 
-import { normalizeReportSessionId } from "@/lib/report/file-store";
-import { sessionCompletionService } from "@/lib/report/session-completion";
-import {
-  notFoundResponse,
-  requireUser,
-  unauthorizedResponse,
-  userOwnsSession,
-} from "@/lib/auth/api-auth";
-
-export const runtime = "nodejs";
-
-const SESSION_RESPONSE_HEADERS = {
-  "Cache-Control": "no-store",
-};
-
-export async function POST(
-  _request: NextRequest,
-  { params }: { params: Promise<{ sessionId: string }> },
-) {
-  const { sessionId } = await params;
-
+export async function POST(_request: Request, { params }: { params: Promise<{ sessionId: string }> }) {
   const user = await requireUser();
   if (!user) return unauthorizedResponse();
-
-  let normalizedSessionId: string;
-
-  try {
-    normalizedSessionId = normalizeReportSessionId(sessionId);
-  } catch (error) {
-    const message =
-      error instanceof Error ? error.message : "Invalid session id.";
-
-    return createSessionJsonResponse({ error: message }, 400);
-  }
-
-  if (!(await userOwnsSession(normalizedSessionId, user.id))) {
-    return notFoundResponse();
-  }
-
-  try {
-    await sessionCompletionService.markReportDownloaded(normalizedSessionId);
-
-    return createSessionJsonResponse({
-      sessionId: normalizedSessionId,
-      status: "completed",
-    });
-  } catch (error) {
-    const message =
-      error instanceof Error ? error.message : "Failed to mark session complete.";
-
-    return createSessionJsonResponse({ error: message }, 500);
-  }
-}
-
-function createSessionJsonResponse(body: unknown, status = 200): Response {
-  return Response.json(body, {
-    status,
-    headers: SESSION_RESPONSE_HEADERS,
+  const { sessionId } = await params;
+  if (!(await userOwnsSession(sessionId, user.id))) return notFoundResponse();
+  // Completion is recorded only by the authorized PDF delivery route.
+  return Response.json({ error: "Open the approved report to complete delivery." }, {
+    status: 410, headers: { "Cache-Control": "private, no-store" },
   });
 }

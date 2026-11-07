@@ -32,10 +32,10 @@ export async function POST(request: Request): Promise<Response> {
     run = current.run;
     if (body.runId !== run.run_id || !run.recommendations) throw new ProcessingError(stage, "stale");
     const loadReport = async (version: number) => {
-      const { data, error } = await supabaseAdmin.from("report_versions").select("generated_at, expires_at, status")
+      const { data, error } = await supabaseAdmin.from("report_versions").select("generated_at, expires_at, status, reviewed_at, reviewed_by")
         .eq("session_id", sessionId).eq("counselor_id", user.id)
         .eq("run_id", current.run.run_id).eq("approved_profile_version", current.run.approved_profile_version)
-        .eq("report_version", version).in("status", ["draft", "approved"])
+        .eq("report_version", version).in("status", ["draft", "approved", "rejected"])
         .gt("expires_at", new Date().toISOString()).single();
       if (error || !data) throw new ProcessingError("draft publication", "stale");
       return data;
@@ -78,9 +78,12 @@ export async function POST(request: Request): Promise<Response> {
     }
     const report = await loadReport(version);
     const response: ReportGenerationResponse = {
-      sessionId, reportVersion: version,
+      sessionId, reportVersion: version, runId: run.run_id,
       approvedProfileVersion: run.approved_profile_version,
       reviewStatus: report.status,
+      reviewedAt: report.reviewed_at, reviewedBy: report.reviewed_by,
+      previewUrl: hasStudentSummary && report.status === "draft"
+        ? `/api/reports/${encodeURIComponent(sessionId)}/preview?version=${version}` : null,
       studentSummary: hasStudentSummary ? reportPayload.studentSummary : null,
       downloadUrl: report.status === "approved"
         ? `/api/reports/${encodeURIComponent(sessionId)}?version=${version}&download=1` : null,
