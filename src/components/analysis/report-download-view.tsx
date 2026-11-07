@@ -513,7 +513,7 @@ function EvidenceList({
       </div>
       <p
         className={`mt-1 text-sm font-semibold ${
-          tone === "warning" ? "text-amber-700" : "text-ink"
+          tone === "warning" ? "text-amber-800" : "text-ink"
         }`}
       >
         {value}

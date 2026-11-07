@@ -1,0 +1,73 @@
+# SW-26 browser and accessibility verification
+
+Prerequisite SW-25 is merged in base `4b0f9cc`. The supplied SRS accessibility
+section targets WCAG 2.1 AA; STD S08 requires keyboard/focus/contrast/status
+checks and explicit exceptions. RTM NFR-014/015 reader/usability studies remain
+human release-verification activities. No source documents or submission PDFs
+are edited; later document reconciliation retains the SW-05 extraction decision.
+
+## Reproduce
+
+```
+npm ci
+npx playwright install firefox webkit
+npx playwright test --project=edge --project=firefox --project=webkit-engine
+npx playwright install chrome
+npx playwright test --project=chrome
+npm run test:access -- --maxWorkers=2
+npx tsc --noEmit
+```
+
+On Windows a workspace-local engine cache can be selected with
+`PLAYWRIGHT_BROWSERS_PATH`; installed Edge/Chrome channels use their normal
+locations. The CI matrix provisions Chrome, Edge, Firefox and WebKit on Linux.
+Artifacts retain browser versions, axe JSON and screenshots for 14 days.
+
+The Vite fixture imports real intake/analysis/report components and application
+CSS. Only Next navigation, the authentication header and API responses are
+isolated. It uses synthetic data, a system fallback font and no real provider,
+authentication, private storage or student records. It is outside the Next app
+routes and is not a deployed bypass. This checks rendered components rather
+than hosted infrastructure. Do not use real student data in these fixtures.
+
+At 375x900 and 1280x900, tests use Tab/Shift+Tab, Space, Enter and Escape to
+reach notices/editors, choose an invalid upload through the native file picker,
+read its alert, open/cancel termination and verify restored focus, approve inputs,
+review a non-empty long-label recommendation and unlock final download.
+They assert visible focus, five named stages with textual state, zero horizontal
+page overflow and zero axe WCAG 2.1 A/AA violations at intake/review/download.
+Axe JSON also records incomplete checks; automated checks do not establish full
+WCAG conformance or replace a spoken screen-reader evaluation.
+
+## Observed local coverage (Windows, 7 November 2026)
+
+| Browser | Observed result |
+| --- | --- |
+| Edge 156.0.4314.58 | Both viewport workflows pass; all three scans per workflow have 0 violations and 0 incomplete results. |
+| Firefox 159.0, Playwright build | Intake/review scans have 0 violations and 0 incomplete results; the process crashes during download-stage axe evaluation. Local complete browser check is **not passed**. Linux CI is recorded separately in the PR. |
+| WebKit 27.2, Playwright engine | Both viewport workflows pass; all three scans per workflow have 0 violations and 0 incomplete results. Supplemental engine coverage, **not Safari**. |
+| Chrome | Not installed locally; launch checks failed. Linux CI is recorded separately in the PR. |
+| Safari 15+ | Not available on this Windows host; no Safari run claimed. Actual Safari/macOS or iOS remains required release verification. |
+
+Early fixture attempts needed a public-config stub and stable Next navigation
+adapter. Browser measurements exposed the Tab-consuming editor, unlabeled
+selectors/format buttons, missing dialog return focus, a Firefox tab-list loop
+and the report warning contrast failure. These were corrected. Optional semantic
+snapshot collection also crashed Firefox and was removed; axe still exposes a
+local download-stage engine crash, which remains an explicit limitation.
+
+Not executed: real NVDA/Narrator/VoiceOver spoken-announcement tests, every
+historical minimum browser version, five-student comprehension assessment or
+five-counselor unassisted workflow study. Those are not counted as passing.
+The scoped unit tests verify natural editor Tab exit, named keyboard formatting
+and >=4.5:1 text-token contrast against white/cream; browser axe checks cover
+actual rendered combinations. The global focus fallback supports browsers without
+`:focus-visible`; motion is reduced when requested.
+
+## Deployment
+
+No schema, data migration, credentials or new runtime environment values.
+Adds dev-only Playwright/axe/Vite tooling and a PR-only browser workflow.
+Contrast tokens, focus styles, labels, keyboard handlers and dialog focus change
+in the application; existing Grade 10/SHS, extraction, approval, owner access,
+report release and cleanup contracts remain. No local redaction is added.
