@@ -29,6 +29,7 @@ import type {
   ReportGenerationResponse,
   ReportRecommendationSummary,
 } from "@/lib/report/types";
+import { publicSourceUrl, sourceDate, inputLabel } from "@/lib/report/evidence-summary";
 
 interface ReportDownloadViewProps {
   report: ReportGenerationResponse;
@@ -363,8 +364,25 @@ function RecommendationDetail({
         <p className="text-sm leading-relaxed text-ink text-justify">
           {recommendation.reasoningSummary.trim().length > 0
             ? recommendation.reasoningSummary
-            : "A detailed reasoning summary is not available for this recommendation. Review the alignment score, key signals, and source references before presenting it to the student."}
+            : "Evidence summary unavailable. Review the approved inputs and sources with the counselor."}
         </p>
+        {recommendation.evidenceClaims?.map((claim) => (
+          <div key={claim.dimension} className="mt-3 text-xs">
+            <p>{claim.dimension}: {claim.inputReferences.map(inputLabel).join(", ") || "public source evidence"}</p>
+            {claim.sourceReferences.map((ref) => <p key={`${ref.reference}:${ref.chunkIndex}`}>Supporting reference: {ref.reference}, chunk {ref.chunkIndex}</p>)}
+          </div>
+        ))}
+        {!!recommendation.sources?.length && <p className="mt-3 text-xs">Source currency is unverified. Check for outdated or superseding evidence.</p>}
+        {recommendation.sources?.map((source, index) => {
+          const url = publicSourceUrl(source.sourceUrl) ?? publicSourceUrl(source.reference);
+          return <div key={source.id} className="mt-3 break-words text-xs">
+            <p>[{index + 1}] {source.title}</p>
+            {url ? <a href={url} target="_blank" rel="noreferrer" className="underline">{url}</a> : <p>Source URL unavailable: {source.reference}</p>}
+            <p>{sourceDate(source.publicationDate) ? `Publication date: ${source.publicationDate}` : "Publication date unavailable"}</p>
+            <p>{sourceDate(source.ingestionTimestamp) ? `Ingestion date: ${source.ingestionTimestamp}` : "Ingestion date unavailable"}</p>
+            <p>Acquisition: {source.acquisitionMethod}</p>
+          </div>;
+        })}
       </div>
     </section>
   );

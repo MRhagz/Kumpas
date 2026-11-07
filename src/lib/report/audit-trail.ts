@@ -4,6 +4,7 @@ import type {
   RankedRecommendationList,
   RecommendationSource,
 } from "@/lib/report/types";
+import { sourceDate, publicSourceUrl } from "./evidence-summary";
 
 export interface AuditTrailBuildOptions {
   includeSourceUnavailableEntries?: boolean;
@@ -57,7 +58,7 @@ export function validateAuditTrail(auditTrail: AuditTrailEntry[]): string[] {
         errors.push(`${sourceLabel} requires a reference.`);
       }
 
-      if (Number.isNaN(Date.parse(source.ingestionTimestamp))) {
+      if (source.ingestionTimestamp !== null && Number.isNaN(Date.parse(source.ingestionTimestamp))) {
         errors.push(`${sourceLabel} requires a valid ingestion timestamp.`);
       }
     });
@@ -71,7 +72,8 @@ function buildRecommendationSources(
   includeUnavailable: boolean,
 ): RecommendationSource[] {
   if (recommendation.sources.length > 0) {
-    return recommendation.sources;
+    return recommendation.sources.map((source) => ({ ...source, ingestionTimestamp: sourceDate(source.ingestionTimestamp),
+      publicationDate: sourceDate(source.publicationDate), sourceUrl: publicSourceUrl(source.sourceUrl) ?? publicSourceUrl(source.reference) }));
   }
 
   if (!includeUnavailable) {
@@ -89,7 +91,9 @@ function buildSourceUnavailableEntry(
     title: "Source unavailable",
     reference: SOURCE_UNAVAILABLE_REFERENCE,
     acquisitionMethod: "unknown",
-    ingestionTimestamp: new Date(0).toISOString(),
+    ingestionTimestamp: null,
+    publicationDate: null,
+    sourceUrl: null,
     relatedSignals: recommendation.keySignals,
   };
 }

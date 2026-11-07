@@ -2,6 +2,7 @@ import { type NextRequest } from "next/server";
 import { InsufficientEvidenceError } from "@/lib/module3/alignment-score-calculator";
 import { agentDispatcher } from "@/lib/module3/agent-dispatcher";
 import { metaAgentSynthesizer } from "@/lib/module3/meta-agent-synthesizer";
+import { sanitizeRecommendationList } from "@/lib/module3/recommendation-provider";
 import { approvedRunProfile, failRun, loadProcessingRun, runBudget, transitionRun, type ProcessingRun } from "@/lib/module5/processing-run";
 import { ProcessingError } from "@/lib/processing-budget";
 import { sessionStateManager } from "@/lib/module5/session-state-manager";
@@ -54,7 +55,7 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
       }
     }
     if (run.phase === "report_pending" || run.phase === "ready") {
-      return json({ rankedRecommendations: run.recommendations, runId: run.run_id, profileVersion: run.approved_profile_version, agentStatuses: run.recommendations?.agentStatuses });
+      return json({ rankedRecommendations: run.recommendations ? sanitizeRecommendationList(run.recommendations) : null, runId: run.run_id, profileVersion: run.approved_profile_version, agentStatuses: run.recommendations?.agentStatuses });
     }
     const budget = runBudget(run);
     budget.assert(stage);
