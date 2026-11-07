@@ -96,11 +96,6 @@ function AnalysisContent() {
       if (!signal.aborted) setState({ phase: "processing", completedStages: stages, agentStatuses, isPartial });
     };
 
-    markStages(["documentParsing"]);
-    await new Promise((r) => setTimeout(r, 400));
-    markStages(["documentParsing", "notesParsing"]);
-    await new Promise((r) => setTimeout(r, 400));
-    markStages(["documentParsing", "notesParsing", "transcriptionLayer"]);
 
     try {
       let sessionState = await fetchSessionState(sessionId, signal);
@@ -151,7 +146,6 @@ function AnalysisContent() {
       const statuses = analysis.agentStatuses as SpecialistStatus[] | undefined;
       const stageByAgent = { AcademicAuditor: "feasibility", IndustryAnalyst: "laborMarket", FeasibilityStrategist: "jobDemand" } as const;
       markStages([
-        "documentParsing", "notesParsing", "transcriptionLayer",
         ...(statuses ?? []).filter((s) => s.status === "SUCCESS").map((s) => stageByAgent[s.agent]), "synthesis",
       ], statuses, analysis.rankedRecommendations.recommendations.some((r: { rank: number | null }) => r.rank === null));
 
@@ -239,6 +233,7 @@ function AnalysisContent() {
         <SessionProgressIndicator
           sessionId={sessionId}
           fallbackStep={state.phase === "reportReady" ? "report" : "analysis"}
+          refreshToken={state.phase === "reportReady" ? `${state.report.reportVersion}-${state.report.reviewStatus}` : state.phase}
           className="max-w-6xl"
         />
         {sessionId && <div className="mx-auto max-w-6xl px-4 pt-3 text-sm">
@@ -263,8 +258,7 @@ function AnalysisContent() {
             runPipeline(true);
           }}
           onBack={() => {
-            if (state.message.startsWith("Insufficient evidence")) void onNewSession();
-            else router.push(`/input?session=${encodeURIComponent(sessionId ?? "")}&edit=1`);
+            router.push(`/input?session=${encodeURIComponent(sessionId ?? "")}&edit=1`);
           }}
         />
       )}
