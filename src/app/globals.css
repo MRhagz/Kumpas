@@ -13,21 +13,21 @@
   --color-cream-light: #FDFAF6;
   --color-cream-dark: #E8E4DB;
   --color-ink: #1A1A18;
-  --color-forest: #6b8f71;
+  --color-forest: #376443;
   --color-forest-light: #8fb396;
   --color-gold: #C9963A;
-  --color-muted-text: #7A7A72;
+  --color-muted-text: #595950;
   --color-card-custom: #FDFCF8;
   --color-charcoal:  #1C1917;
   --color-charcoal-2:#3C3733;
   --color-charcoal-3:#6B6560;
-  --color-sage:      #6B8C6B;
+  --color-sage:      #3F6644;
   --color-sage-light:#D4E6D4;
-  --color-ochre:     #C4861C;
+  --color-ochre:     #80530A;
   --color-ochre-light:#F5E6CC;
   --color-ochre-pale: #FBF3E3;
-  --color-amber:     #D97706;
-  --color-red-soft:  #C85A4A;
+  --color-amber:     #944600;
+  --color-red-soft:  #A3372A;
   --red-light: #FAE8E5;
 
   /* SHADOWS */
@@ -115,9 +115,9 @@
   --charcoal: #1c1917;
   --charcoal-2: #3c3733;
   --charcoal-3: #6b6560;
-  --sage: #6b8c6b;
+  --sage: #3f6644;
   --sage-light: #d4e6d4;
-  --ochre: #c4861c;
+  --ochre: #80530a;
 }
 
 .dark {
@@ -163,7 +163,7 @@
   body {
     background-color: var(--color-cream);
     color: var(--color-ink);
-    overflow-x: hidden;
+
     @apply antialiased;
   }
 }
@@ -177,4 +177,21 @@
 @keyframes fadeIn {
   from { opacity: 0; transform: translateY(8px); }
   to { opacity: 1; transform: translateY(0); }
+}
+/* Keyboard focus remains visible even on controls that reset the browser outline. */
+:where(button, a, input, select, textarea, summary, [contenteditable="true"], [tabindex]):focus-visible {
+  outline: 3px solid #1e40af;
+  outline-offset: 3px;
+}
+:where(main, section, article) { min-width: 0; }
+:where(main, section) { overflow-wrap: anywhere; }
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after { animation-duration: 0.01ms !important; animation-iteration-count: 1 !important; transition-duration: 0.01ms !important; }
+}
+
+@supports not selector(:focus-visible) {
+  :where(button, a, input, select, textarea, summary, [contenteditable="true"], [tabindex]):focus {
+    outline: 3px solid #1e40af;
+    outline-offset: 3px;
+  }
 }

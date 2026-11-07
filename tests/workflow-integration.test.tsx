@@ -50,8 +50,8 @@ it.each(["Grade 10", "SHS"].flatMap(grade => Array.from({ length: 8 }, (_, mask)
       if (init?.method === "DELETE") { terminated = true; return Response.json({ status: "terminated", cleanupPending: true }); }
       return terminated ? Response.json({}, { status: 404 }) : Response.json(state());
     }));
-    const opened = vi.spyOn(window, "open").mockReturnValue(null);
-    vi.spyOn(HTMLAnchorElement.prototype, "click").mockImplementation(() => {});
+    const downloads: string[] = [];
+    vi.spyOn(HTMLAnchorElement.prototype, "click").mockImplementation(function(this: HTMLAnchorElement) { downloads.push(this.getAttribute("href")!); });
     let view = render(<InputContainer />);
     await screen.findByRole("textbox", { name: "Career Goal (required)" });
     fireEvent.click(screen.getByRole("checkbox", { name: /I have read this notice/ }));
@@ -68,7 +68,7 @@ it.each(["Grade 10", "SHS"].flatMap(grade => Array.from({ length: 8 }, (_, mask)
     expect(vi.mocked(fetch).mock.calls.filter(([url]) => String(url).endsWith("/analyze"))).toHaveLength(before);
     fireEvent.click(screen.getByRole("button", { name: "Approve report v1" }));
     fireEvent.click(await screen.findByRole("button", { name: "Download PDF" }));
-    expect(opened).toHaveBeenCalledWith("/approved-download", "_blank", "noopener,noreferrer");
+    expect(downloads).toEqual(["/approved-download"]);
     expect(vi.mocked(fetch).mock.calls.some(([url]) => String(url).includes("extract"))).toBe(false);
     fireEvent.click(screen.getByRole("button", { name: "End Session" }));
     await screen.findByRole("alertdialog");
