@@ -125,13 +125,8 @@ export class PdfFileStore {
       try {
         await this.deleteReportPdf(sessionId, 1);
         cleanupCompleted = true;
-      } catch (error) {
-        const message =
-          error instanceof Error
-            ? error.message
-            : "Failed to clean up report storage check PDF.";
-
-        warnings.push(message);
+      } catch {
+        warnings.push("Report storage check cleanup is pending retry.");
       }
     }
 

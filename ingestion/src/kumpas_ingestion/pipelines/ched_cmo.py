@@ -34,11 +34,11 @@ from datetime import UTC, datetime
 
 from pydantic import ValidationError
 
-from supabase import create_client
+from supabase import ClientOptions, create_client
 
 from ..config import IngestionConfig
 from ..embedding_service import EmbeddingService
-from ..ingestion_logger import IngestionLogger
+from ..ingestion_logger import IngestionLogger, run_cli
 from ..models import ChunkInput
 from ..pdf_downloader import PDFDownloader, PDFDownloadError
 from ..pdf_text_extractor import PDFTextExtractionError, PDFTextExtractor
@@ -131,8 +131,7 @@ def _embed_and_write(
 
 def _print_failure_report(failures: Iterable[tuple[str, str]]) -> None:
     print("CHED CMO publications skipped due to per-publication errors:")
-    for url, message in failures:
-        print(f"  - {url}: {message}")
+    print(f"ingestion_failed count={sum(1 for _ in failures)}")
 
 
 def run() -> int:
@@ -140,7 +139,8 @@ def run() -> int:
     target_year = _resolve_target_year()
     first_run_limit = _resolve_first_run_limit()
 
-    supabase = create_client(cfg.supabase_url, cfg.supabase_service_role_key)
+    supabase = create_client(cfg.supabase_url, cfg.supabase_publishable_key,
+                             options=ClientOptions(headers={"Authorization": f"Bearer {cfg.supabase_ingestion_token}"}))
     logger = IngestionLogger(supabase, workflow_name=WORKFLOW_NAME)
     logger.start(silo_id=SiloId.PATH_FEASIBILITY)
 
@@ -191,8 +191,8 @@ def run() -> int:
             "publications_failed": len(failures),
         }))
         return 0
-    except Exception as exc:
-        _logger.exception("CHED CMO ingestion failed")
+    except Exception as exc:  # noqa: BLE001 -- sanitize failures at the operational boundary
+        _logger.error("CHED CMO ingestion failed")
         logger.record(run_status="failure", error_message=str(exc), run_metadata={
             "target_year": target_year,
             "failures": [{"url": url, "error": error} for url, error in failures],
@@ -201,4 +201,4 @@ def run() -> int:
 
 
 if __name__ == "__main__":
-    sys.exit(run())
+    sys.exit(run_cli(run))

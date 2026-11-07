@@ -164,7 +164,8 @@ class TESDATests(unittest.TestCase):
         self.csv.write_bytes(b"\xff")
         result = subprocess.run(command, check=False, capture_output=True, text=True, env=environment)
         self.assertEqual(result.returncode, 1)
-        self.assertIn(str(self.csv), result.stdout)
+        self.assertNotIn(str(self.csv), result.stdout)
+        self.assertIn("validation_failed", result.stdout)
 
 
 if __name__ == "__main__":

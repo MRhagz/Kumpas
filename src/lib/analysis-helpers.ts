@@ -8,9 +8,6 @@ export function buildAgentPanels(
     labor: RawAgentResponse,
     jobDemand: RawAgentResponse
 ): Record<AgentKey, AgentPanelData> {
-    console.log("Feasibility:", feasibility);
-    console.log("Labor:", labor);
-    console.log("Job Demand:", jobDemand);
     return {
         feasibility: {
             key: "feasibility",
