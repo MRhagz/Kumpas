@@ -38,7 +38,7 @@ it("renders exact scores and clearly unscored partial comparisons in the report 
     report: { ...payload, reportVersion: 1, downloadUrl: "/synthetic.pdf", expiresAt: "2099-01-01T00:00:00Z", byteLength: 1,
       recommendationCount: recommendations.length, recommendations }, onNewSession: () => {},
   }));
-  expect(html).toContain("74.50%"); expect(html).not.toContain("7450");
+  expect(html).toContain("74.50/100"); expect(html).not.toContain("7450");
   expect(html).toContain("Unscored partial comparisons"); expect(html).toContain("Unscored");
   expect(html).toContain("Fewer than three scored paths");
 });
@@ -46,7 +46,7 @@ it("renders exact scores and clearly unscored partial comparisons in the report 
 it("renders two-decimal PDF scores, shared ranks, unavailable components and the separate partial heading", () => {
   const pdf = buildReportPdf(payload);
   const text = pdf.toString("latin1");
-  expect(text).toContain("74.50%"); expect(text).not.toContain("7450%");
+  expect(text).toContain("74.50/100"); expect(text).not.toContain("7450/100");
   expect(text).toContain("Unavailable"); expect(text).toContain("Unscored partial comparison");
   expect(text).not.toContain("Recommendation null");
   if (process.env.SW16_PDF_QA_DIR) {

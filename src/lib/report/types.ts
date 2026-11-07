@@ -23,6 +23,8 @@ export interface StudentProfile {
   financialStatus: "stable" | "constrained" | "unknown";
   concerns: string[];
   approvedAt: string;
+  /** Server-only confidential context used to withhold echoes in option titles. */
+  withheldNoteValues?: string[];
 }
 
 export interface RecommendationSource {
@@ -80,6 +82,28 @@ export interface AcademicEvidenceSummary {
   availableDocuments: AcademicDocumentType[];
   missingDocuments: AcademicDocumentType[];
   completenessNote: string;
+  documentStatuses?: Partial<Record<AcademicDocumentType, "provided" | "unreadable" | "unsupported" | "absent">>;
+}
+
+export interface StudentReportSummary {
+  disclosure: string;
+  scoreExplanation: string;
+  scope: string;
+  options: {
+    id: string;
+    careerPath: string;
+    rank: number | null;
+    alignmentScore: number | null;
+    reasons: string[];
+    considerations: string[];
+  }[];
+  limitations: string[];
+  nextSteps: string[];
+}
+
+/** Bump the content version when changing the assembled student projection. */
+export function reportContentMarker(reportVersion: number | null | undefined, profileVersion: number | null | undefined): string {
+  return `% Kumpas two-audience-v1 report=${reportVersion ?? "unavailable"} profile=${profileVersion ?? "unavailable"}\n`;
 }
 
 export interface AuditTrailEntry {
@@ -90,6 +114,9 @@ export interface AuditTrailEntry {
 
 export interface ReportPayload {
   sessionId: string;
+  reportVersion?: number | null;
+  approvedProfileVersion?: number | null;
+  studentSummary?: StudentReportSummary;
   studentProfile: StudentProfile;
   rankedRecommendations: RankedRecommendationList;
   academicEvidence: AcademicEvidenceSummary;
@@ -101,6 +128,14 @@ export interface ReportGenerationResponse {
   agentStatuses?: import("@/lib/module3/types").SpecialistStatus[];
   sessionId: string;
   reportVersion: number;
+  runId?: string;
+  approvedProfileVersion?: number | null;
+  reviewStatus?: "draft" | "approved" | "rejected";
+  reviewedAt?: string | null;
+  reviewedBy?: string | null;
+  previewUrl?: string | null;
+  /** Null for PDFs produced before the two-audience content contract. */
+  studentSummary?: StudentReportSummary | null;
   downloadUrl: string | null;
   expiresAt: string;
   generatedAt: string;

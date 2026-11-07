@@ -98,3 +98,12 @@ with check (bucket_id not in ('kumpas-documents', 'kumpas-reports'));
 
 -- Trigger functions are not application RPCs.
 revoke all on function public.handle_new_user() from public, anon, authenticated;
+
+-- Preserve evaluator-only column access when SW-08 was deployed first.
+do $$
+begin
+  if to_regprocedure('private.is_accuracy_evaluator()') is not null then
+    grant select(session_id, field_name, extracted_value, corrected_value, correction_timestamp)
+      on public.correction_logs to authenticated;
+  end if;
+end $$;

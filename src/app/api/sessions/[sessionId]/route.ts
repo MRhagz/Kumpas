@@ -3,6 +3,7 @@ import { type NextRequest } from "next/server";
 import { sessionStateManager } from "@/lib/module5/session-state-manager";
 import { normalizeReportSessionId } from "@/lib/report/file-store";
 import { sessionTerminationHandler } from "@/lib/report/session-termination";
+import { supabaseAdmin } from "@/lib/supabase";
 import {
   notFoundResponse,
   requireUser,
@@ -75,12 +76,20 @@ export async function DELETE(
     return createSessionJsonResponse({ error: message }, 400);
   }
 
-  if (!(await userOwnsSession(normalizedSessionId, user.id))) {
-    return notFoundResponse();
-  }
+  const { data: revoked, error } = await supabaseAdmin.rpc("begin_session_termination", {
+    p_session_id: normalizedSessionId, p_counselor_id: user.id,
+  });
+  if (error) return createSessionJsonResponse({ error: "Termination could not be confirmed. Retry ending this session." }, 503);
+  if (!revoked) return notFoundResponse();
 
-  const result =
-    await sessionTerminationHandler.terminateSession(normalizedSessionId);
+  let result;
+  try {
+    result = await sessionTerminationHandler.terminateSession(normalizedSessionId);
+  } catch {
+    // Revocation already committed; never report this as an active session.
+    return createSessionJsonResponse({ sessionId: normalizedSessionId, status: "terminated",
+      cleanupPending: true, warnings: ["Session ended. Cleanup is pending retry."] }, 202);
+  }
 
   return createSessionJsonResponse({
     sessionId: result.sessionId,
@@ -89,8 +98,9 @@ export async function DELETE(
     redactedImagesPurged: result.redactedImagesPurged,
     sessionRowsPurged: result.sessionRowsPurged,
     sessionScrubbed: result.sessionScrubbed,
+    cleanupPending: result.cleanupPending,
     warnings: result.warnings,
-  });
+  }, result.cleanupPending ? 202 : 200);
 }
 
 function createSessionJsonResponse(body: unknown, status = 200): Response {

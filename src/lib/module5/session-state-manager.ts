@@ -10,6 +10,8 @@ export interface SessionState {
   sessionId: string;
   currentRunId: string | null;
   profileVersion: number;
+  currentReportVersion: number;
+  reportReviewStatus: "draft" | "approved" | "rejected" | null;
   analysisRetryRequired: boolean;
   analysisRestartRequired: boolean;
   processingInProgress: boolean;
@@ -65,7 +67,7 @@ export class SessionStateManager {
           .eq("session_id", sessionId).eq("counselor_id", counselorId)
           .eq("run_id", runId).eq("approved_profile_version", version)
           .eq("report_version", session.current_report_version)
-          .in("status", ["draft", "approved"]).maybeSingle() : { data: null },
+          .in("status", ["draft", "approved", "rejected"]).maybeSingle() : { data: null },
     ]);
     if ([profile, run, report].some((result) => "error" in result && result.error)) {
       throw new Error("Saved session versions could not be loaded.");
@@ -112,6 +114,8 @@ export class SessionStateManager {
       sessionId,
       currentRunId: runId,
       profileVersion: version,
+      currentReportVersion: session.current_report_version,
+      reportReviewStatus: hasReport ? report.data!.status : null,
       analysisRetryRequired,
       analysisRestartRequired,
       processingInProgress: !analysisRetryRequired &&

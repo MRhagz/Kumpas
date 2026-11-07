@@ -1,12 +1,13 @@
 import { ReportAssemblyError, assembleReportData } from "@/lib/report/assembler";
-import { normalizeReportSessionId, pdfFileStore } from "@/lib/report/file-store";
+import { getReportPdfObjectKey, normalizeReportSessionId, pdfFileStore } from "@/lib/report/file-store";
 import { renderReportPdf } from "@/lib/report/pdf-renderer";
 import { formatReasoningSummary } from "@/lib/report/reasoning-formatter";
-import type { ReportGenerationResponse } from "@/lib/report/types";
+import { reportContentMarker, type ReportGenerationResponse } from "@/lib/report/types";
 import { runRecommendationProvider } from "@/lib/module3/recommendation-provider";
 import { approvedRunProfile, failRun, loadProcessingRun, runBudget, transitionRun, type ProcessingRun } from "@/lib/module5/processing-run";
 import { ProcessingError } from "@/lib/processing-budget";
 import { supabaseAdmin } from "@/lib/supabase";
+import { queueReportCleanup } from "@/lib/report/artifact-cleanup";
 import { notFoundResponse, requireUser, unauthorizedResponse, userOwnsSession } from "@/lib/auth/api-auth";
 
 export const runtime = "nodejs";
@@ -32,15 +33,15 @@ export async function POST(request: Request): Promise<Response> {
     run = current.run;
     if (body.runId !== run.run_id || !run.recommendations) throw new ProcessingError(stage, "stale");
     const loadReport = async (version: number) => {
-      const { data, error } = await supabaseAdmin.from("report_versions").select("generated_at, expires_at, status")
+      const { data, error } = await supabaseAdmin.from("report_versions").select("generated_at, expires_at, status, reviewed_at, reviewed_by")
         .eq("session_id", sessionId).eq("counselor_id", user.id)
         .eq("run_id", current.run.run_id).eq("approved_profile_version", current.run.approved_profile_version)
-        .eq("report_version", version).in("status", ["draft", "approved"])
+        .eq("report_version", version).in("status", ["draft", "approved", "rejected"])
         .gt("expires_at", new Date().toISOString()).single();
       if (error || !data) throw new ProcessingError("draft publication", "stale");
       return data;
     };
-    if (run.phase === "ready") await loadReport(current.reportVersion);
+    const existingReport = run.phase === "ready" ? await loadReport(current.reportVersion) : null;
     const budget = runBudget(run);
     if (run.phase !== "ready") {
       budget.assert(stage);
@@ -49,13 +50,16 @@ export async function POST(request: Request): Promise<Response> {
       if (!run.candidate_report_version) throw new ProcessingError("PDF reservation", "stale");
       reportVersion = run.candidate_report_version;
     }
+    const version = reportVersion ?? current.reportVersion;
     const assemble = async (signal?: AbortSignal) => {
       const profile = await approvedRunProfile(run!, signal);
-      return assembleReportData(sessionId, { provider: runRecommendationProvider(profile, run!.recommendations!) });
+      return assembleReportData(sessionId, { provider: runRecommendationProvider(profile, run!.recommendations!),
+        reportVersion: version, approvedProfileVersion: run!.approved_profile_version,
+        generatedAt: existingReport?.generated_at });
     };
     const reportPayload = claimed ? await budget.run("report assembly", assemble, false) : await assemble();
-    const version = reportVersion ?? current.reportVersion;
     let byteLength: number;
+    let hasStudentSummary = claimed;
     if (claimed) {
       stage = "PDF generation and storage";
       const stored = await budget.run(stage, async (signal) => {
@@ -68,11 +72,20 @@ export async function POST(request: Request): Promise<Response> {
       await transitionRun(run, "report_ready");
     } else {
       // An already-ready draft is read back, never regenerated with a new clock.
-      byteLength = (await pdfFileStore.downloadReportPdf(sessionId, current.reportVersion)).size;
+      const storedPdf = await pdfFileStore.downloadReportPdf(sessionId, current.reportVersion);
+      byteLength = storedPdf.size;
+      const header = Buffer.from(await storedPdf.slice(0, 256).arrayBuffer()).toString("utf8");
+      hasStudentSummary = header.startsWith(`%PDF-1.4\n${reportContentMarker(version, run.approved_profile_version)}`);
     }
     const report = await loadReport(version);
     const response: ReportGenerationResponse = {
-      sessionId, reportVersion: version,
+      sessionId, reportVersion: version, runId: run.run_id,
+      approvedProfileVersion: run.approved_profile_version,
+      reviewStatus: report.status,
+      reviewedAt: report.reviewed_at, reviewedBy: report.reviewed_by,
+      previewUrl: hasStudentSummary && report.status === "draft"
+        ? `/api/reports/${encodeURIComponent(sessionId)}/preview?version=${version}` : null,
+      studentSummary: hasStudentSummary ? reportPayload.studentSummary : null,
       downloadUrl: report.status === "approved"
         ? `/api/reports/${encodeURIComponent(sessionId)}?version=${version}&download=1` : null,
       expiresAt: report.expires_at, generatedAt: report.generated_at, byteLength,
@@ -94,7 +107,12 @@ export async function POST(request: Request): Promise<Response> {
         // that RPC or by a newer run; uncertain cleanup remains for retention.
         const { data, error: readError } = await supabaseAdmin.from("report_versions").select("report_version")
           .eq("session_id", sessionId).eq("report_version", reportVersion).maybeSingle();
-        if (!readError && !data) await pdfFileStore.deleteReportPdf(sessionId, reportVersion).catch(() => undefined);
+        if (!readError && !data) {
+          // A late upload can finish after termination's Storage inventory.
+          // Persist its exact object reference before attempting deletion.
+          await queueReportCleanup(getReportPdfObjectKey(sessionId, reportVersion)).catch(() => undefined);
+          await pdfFileStore.deleteReportPdf(sessionId, reportVersion).catch(() => undefined);
+        }
       }
     }
     return json({ error: error instanceof ProcessingError ? error.message : `${stage} failed. Your approved inputs are saved. Retry analysis or return to Confirm Information.`,
