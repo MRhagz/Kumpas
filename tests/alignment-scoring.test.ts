@@ -12,6 +12,7 @@ import { rankingAgent } from "@/lib/module3/ranking-agent";
 import { rankedRecommendationBuilder } from "@/lib/module3/ranked-recommendation-builder";
 import { runRecommendationProvider } from "@/lib/module3/recommendation-provider";
 import { metaAgentSynthesizer } from "@/lib/module3/meta-agent-synthesizer";
+import { evidenceClaims } from "@/lib/report/evidence-summary";
 
 const profile: ApprovedProfile = {
   sessionId: "session", sessionTimestamp: "2026-11-05T00:00:00Z",
@@ -100,7 +101,7 @@ describe("F09 model validation and evidence", () => {
   });
   it("explanations cannot override totals, components, rank or order", async () => {
     const scored = alignmentScoreCalculator.calculate({ candidates: [candidate("Beta", 74.504, 74.504, 74.504), candidate("Alpha", 74.503, 74.503, 74.503)] });
-    boundary.generate.mockResolvedValue({ text: JSON.stringify({ rankings: [{ careerPath: "Beta", reasoningSummary: "Model prefers Beta", alignmentScore: 100, rank: 1 }, { careerPath: "Alpha", reasoningSummary: "Alpha" }] }) });
+    boundary.generate.mockResolvedValue({ text: JSON.stringify({ rankings: scored.map((path) => ({ careerPath: path.careerPath, claims: evidenceClaims(path), reasoningSummary: "Model prefers Beta", alignmentScore: 100, rank: 1 })) }) });
     const result = await rankingAgent.generateReasoning(scored);
     expect(result.map((p) => ({ ...p, reasoningSummary: undefined }))).toEqual(scored.map((p) => ({ ...p, reasoningSummary: undefined })));
   });
@@ -114,12 +115,13 @@ describe("F09 model validation and evidence", () => {
   });
   it("publishes a version-bound score contract without legacy writes inside the shared run", async () => {
     boundary.generate.mockResolvedValueOnce({ text: JSON.stringify({ candidates: [candidate()] }) })
-      .mockResolvedValueOnce({ text: JSON.stringify({ rankings: [{ careerPath: "Alpha", reasoningSummary: "Grounded explanation" }] }) });
+      .mockImplementationOnce(async ({ contents }) => ({ text: JSON.stringify({ rankings: JSON.parse(contents.split("Evidence: ")[1]).map(({ careerPath, claims }: { careerPath: string; claims: unknown[] }) => ({ careerPath, claims })) }) }));
     const list = await metaAgentSynthesizer.synthesize("session", outputs, profile, 2, new ProcessingBudget(), false);
     expect(list).toMatchObject({ scoreContract: "0-100-v1", recommendations: [{ alignmentScore: 74.5, rank: 1, approvedProfileVersion: 2 }] });
-    expect(list.recommendations[0].componentEvidence).toEqual(candidate().componentEvidence);
+    expect(list.recommendations[0].componentEvidence?.aptitude?.inputReferences).toEqual(candidate().componentEvidence.aptitude!.inputReferences);
+    expect(list.recommendations[0].componentEvidence?.aptitude?.explanation).toContain("Aptitude comparison 80/100");
     expect(boundary.from).not.toHaveBeenCalled();
-    expect(await runRecommendationProvider(profile, list).getRankedRecommendations("session")).toBe(list);
+    expect(await runRecommendationProvider(profile, list).getRankedRecommendations("session")).toEqual(list);
     expect(() => runRecommendationProvider(profile, { ...list, scoreContract: undefined })).toThrow(/Legacy scoring contract/);
   });
   it.each([{ candidates: [] }, { candidates: [candidate("Unsupported", null, null, null)] }])("returns insufficient evidence without explanation calls or successful persistence: %j", async ({ candidates }) => {

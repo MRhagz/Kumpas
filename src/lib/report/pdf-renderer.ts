@@ -1,4 +1,5 @@
 import { formatReasoningSummary } from "@/lib/report/reasoning-formatter";
+import { publicSourceUrl, sourceDate } from "./evidence-summary";
 import type {
   AcademicDocumentType,
   KeySignalDetail,
@@ -63,6 +64,7 @@ class StyledReportPdf {
     this.renderAcademicEvidence();
     this.renderRecommendationOverview();
     this.renderRecommendations();
+    this.renderEvidenceReferences();
     this.renderFooter();
 
     return this.pages;
@@ -355,8 +357,8 @@ class StyledReportPdf {
       (entry) => entry.recommendationId === recommendation.id,
     );
     const sources = auditTrail?.sources ?? [];
-    const sourceCount = Math.max(1, sources.length);
-    const sourcesHeight = 70 + (sourceCount - 1) * 77;
+    const sourceCount = Math.max(1, Math.min(3, sources.length));
+    const sourcesHeight = 84 + (sourceCount - 1) * 91;
     const rightBodyHeight = 16 + sourcesHeight;
 
     const bodyHeight = Math.max(leftBodyHeight, rightBodyHeight);
@@ -402,7 +404,7 @@ class StyledReportPdf {
       4,
     );
 
-    this.drawMiniHeading("Reasoning Summary", leftX, signalsEndY - 10);
+    this.drawMiniHeading("Evidence Summary", leftX, signalsEndY - 10);
     const reasoningEndY = this.drawParagraph(
       formattedReasoning.summary,
       leftX,
@@ -478,7 +480,7 @@ class StyledReportPdf {
           title: "Source unavailable",
           reference: "source-unavailable",
           acquisitionMethod: "unknown",
-          ingestionTimestamp: new Date(0).toISOString(),
+          ingestionTimestamp: null,
           relatedSignals: [],
         },
         x,
@@ -489,13 +491,13 @@ class StyledReportPdf {
     }
 
     let sourceY = y;
-    sources.forEach((source) => {
-      sourceY = this.drawSourceBox(source, x, sourceY, width) - 7;
+    sources.slice(0, 3).forEach((source, index) => {
+      sourceY = this.drawSourceBox({ ...source, title: `[${index + 1}] ${source.title}` }, x, sourceY, width) - 7;
     });
   }
 
   private drawSourceBox(source: RecommendationSource, x: number, y: number, width: number): number {
-    const height = 70;
+    const height = 84;
     const textX = x + 9;
     const textWidth = width - 18;
     this.drawRect(x, y - height, width, height, [0.992, 0.992, 0.992]);
@@ -521,12 +523,53 @@ class StyledReportPdf {
       font: "bold",
       size: 7,
     });
-    this.drawText(`Ingested ${formatDate(source.ingestionTimestamp)}`, textX, y - 62, {
+    this.drawText(sourceDate(source.publicationDate) ? `Published ${formatDate(source.publicationDate!)}` : "Publication date unavailable", textX, y - 62, {
+      color: MUTED,
+      size: 6,
+    });
+    this.drawText(sourceDate(source.ingestionTimestamp) ? `Ingested ${formatDate(source.ingestionTimestamp!)}` : "Ingestion date unavailable", textX, y - 74, {
       color: MUTED,
       size: 6,
     });
 
     return y - height;
+  }
+
+  private renderEvidenceReferences(): void {
+    this.addPage();
+    this.drawSectionLabel("Evidence References for Counselor Review");
+    for (const recommendation of this.payload.rankedRecommendations.recommendations) {
+      this.ensureSpace(60);
+      this.y = this.drawParagraph(recommendation.careerPath, MARGIN_X, this.y - 10, CONTENT_WIDTH, 11, 14) - 8;
+      const claims = formatReasoningSummary(recommendation, { maxLength: 4000 }).claims;
+      const references = [...new Set(claims.flatMap((claim) => claim.inputReferences))];
+      const lines = [
+        `Approved profile version: ${recommendation.approvedProfileVersion ?? "unavailable"}.`,
+        `Approved input references: ${references.join(", ") || "unavailable"}.`,
+        "AI-generated comparisons support counselor discussion, not educational decisions or probabilities of success.",
+        "Source currency is unverified. Check for outdated or superseding evidence; an ingestion date is not a publication date.",
+      ];
+      const sources = this.payload.auditTrail.find((entry) => entry.recommendationId === recommendation.id)?.sources ?? [];
+      sources.forEach((source, index) => lines.push(
+        `[${index + 1}] ${source.title}. Silo: ${source.siloId ?? "unavailable"}. Chunk: ${source.chunkIndex ?? "unavailable"}.`,
+        `Source URL: ${publicSourceUrl(source.sourceUrl) ?? publicSourceUrl(source.reference) ?? "unavailable"}`,
+        `Source reference: ${formatSourceReference(source.reference)}`,
+        sourceDate(source.publicationDate) ? `Publication date: ${source.publicationDate}` : "Publication date unavailable",
+        sourceDate(source.ingestionTimestamp) ? `Ingestion date: ${source.ingestionTimestamp}` : "Ingestion date unavailable",
+        `Acquisition: ${formatAcquisitionMethod(source.acquisitionMethod)}`,
+      ));
+      for (const value of lines) {
+        // Break long URLs/field paths without dropping their query or fragment.
+        const wrapped = value.replace(/\S{70,}/g, (word) => word.match(/.{1,60}/g)!.join(" "));
+        for (const line of wrapText(wrapped, CONTENT_WIDTH, 8)) {
+          this.ensureSpace(14);
+          this.drawText(line, MARGIN_X, this.y, { size: 8, color: MUTED });
+          this.y -= 12;
+        }
+        this.y -= 5;
+      }
+      this.y -= 12;
+    }
   }
 
   private renderFooter(): void {
@@ -1200,7 +1243,7 @@ function formatDate(value: string): string {
   const timestamp = Date.parse(value);
 
   if (Number.isNaN(timestamp)) {
-    return value;
+    return "unavailable";
   }
 
   return new Date(timestamp).toLocaleDateString("en-US", {

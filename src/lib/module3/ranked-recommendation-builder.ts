@@ -3,6 +3,7 @@ import type { RankedRecommendationList, RecommendationSource } from "@/lib/repor
 import { ALIGNMENT_WEIGHTS, InsufficientEvidenceError } from "./alignment-score-calculator";
 import type { AgentOutput, RankedCareerPath } from "./types";
 import { AGENT_SILO_MAP } from "./types";
+import { sourceDate, publicSourceUrl, evidenceClaims, summaryText } from "@/lib/report/evidence-summary";
 
 export class RankedRecommendationBuilder {
   async build(
@@ -24,7 +25,8 @@ export class RankedRecommendationBuilder {
 
     const recommendations = supportedPaths.map((path) => {
       const hasFailedContributor = failedAgents.length > 0;
-      const hasEmptyReasoning = !path.reasoningSummary.trim();
+      const claims = evidenceClaims(path);
+      const hasEmptyReasoning = !claims.length || path.reasoningSummary !== summaryText(claims);
 
       let status: "complete" | "degraded" | "incomplete" = "complete";
       let degradedReason: string | undefined;
@@ -51,8 +53,12 @@ export class RankedRecommendationBuilder {
           title: ref.title,
           reference: ref.reference,
           acquisitionMethod: ref.acquisitionMethod as RecommendationSource["acquisitionMethod"],
-          ingestionTimestamp: ref.ingestionTimestamp || new Date().toISOString(),
-          relatedSignals: ref.relatedSignals ?? [],
+          ingestionTimestamp: sourceDate(ref.ingestionTimestamp),
+          publicationDate: sourceDate(ref.publicationDate),
+          sourceUrl: publicSourceUrl(ref.sourceUrl) ?? publicSourceUrl(ref.reference),
+          chunkIndex: ref.chunkIndex,
+          siloId: ref.siloId,
+          relatedSignals: claims.filter((claim) => claim.sourceReferences.some((source) => source.reference === ref.reference && source.chunkIndex === ref.chunkIndex && source.siloId === ref.siloId)).map((claim) => claim.text),
         }),
       );
 
@@ -64,12 +70,13 @@ export class RankedRecommendationBuilder {
         aptitudeFit: path.aptitudeScore,
         marketDemand: path.demandScore,
         financialFeasibility: path.feasibilityScore,
-        reasoningSummary: path.reasoningSummary || "Reasoning not available.",
+        reasoningSummary: hasEmptyReasoning ? "Evidence summary unavailable." : path.reasoningSummary,
         approvedProfileVersion,
-        componentEvidence: path.componentEvidence,
+        componentEvidence: Object.fromEntries(Object.entries(path.componentEvidence).map(([dimension, evidence]) => [dimension,
+          evidence ? { ...evidence, explanation: claims.find((claim) => claim.dimension === dimension)?.text ?? "Evidence summary unavailable." } : null])) as typeof path.componentEvidence,
         weights: ALIGNMENT_WEIGHTS,
-        keySignals: path.signals,
-        keySignalDetails: path.keySignalDetails,
+        keySignals: claims.length ? claims.map((claim) => claim.text) : ["Evidence summary unavailable."],
+        keySignalDetails: claims.map((claim) => ({ label: `${claim.dimension[0].toUpperCase()}${claim.dimension.slice(1)} evidence`, value: claim.text, polarity: "neutral" as const })),
         sources,
         status,
         degradedReason,
@@ -129,9 +136,11 @@ export class RankedRecommendationBuilder {
         title: s.title,
         reference: s.reference,
         acquisition_method: s.acquisitionMethod,
-        ingestion_timestamp: isNaN(Date.parse(s.ingestionTimestamp))
-          ? new Date().toISOString()
-          : s.ingestionTimestamp,
+        ingestion_timestamp: s.ingestionTimestamp,
+        publication_date: s.publicationDate,
+        source_url: s.sourceUrl,
+        chunk_index: s.chunkIndex ?? null,
+        silo_id: s.siloId ?? null,
         related_signals: s.relatedSignals,
       })),
     );

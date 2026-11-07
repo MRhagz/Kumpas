@@ -75,7 +75,7 @@ function candidate(aptitudeRef = "academicData.nat.subjects.Mathematics") {
 function generate(key: string, request: { contents: string }) {
   if (key !== "synthesis") return { text: JSON.stringify({ summary: `Valid ${key} output` }) };
   return { text: JSON.stringify(request.contents.includes("Synthesis Interpreter")
-    ? { candidates: [candidate()] } : { rankings: [{ careerPath: "Supported path", reasoningSummary: "Supported comparison" }] }) };
+    ? { candidates: [candidate()] } : { rankings: JSON.parse(request.contents.split("Evidence: ")[1]).map(({ careerPath, claims }: { careerPath: string; claims: unknown[] }) => ({ careerPath, claims })) }) };
 }
 const db = () => m.db!;
 beforeAll(async () => {
