@@ -48,6 +48,7 @@ for (const width of [375, 1280]) test(`keyboard workflow and WCAG 2.1 AA at ${wi
     // Keep axe injection out of the keyboard flow. Scan equivalent server snapshots in a fresh page.
     const audit = await page.context().newPage();
     try {
+      await audit.setViewportSize({width, height: 900});
       await audit.route('**/api/**',handler);
       await audit.goto(stage === 'intake' ? '/' : '/#/analysis');
       await expect(stage === 'intake' ? audit.getByRole('textbox',{name:'Career Goal (required)'})
