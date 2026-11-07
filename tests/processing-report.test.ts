@@ -1,6 +1,7 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { ProcessingBudget, ProviderError } from "@/lib/processing-budget";
-const mocks = vi.hoisted(() => ({ load: vi.fn(), transition: vi.fn(), fail: vi.fn(), profile: vi.fn(), assemble: vi.fn(), render: vi.fn(), upload: vi.fn(), download: vi.fn(), remove: vi.fn(), single: vi.fn(), maybeSingle: vi.fn() }));
+import { reportContentMarker } from "@/lib/report/types";
+const mocks = vi.hoisted(() => ({ load: vi.fn(), transition: vi.fn(), fail: vi.fn(), profile: vi.fn(), assemble: vi.fn(), render: vi.fn(), upload: vi.fn(), download: vi.fn(), remove: vi.fn(), single: vi.fn(), maybeSingle: vi.fn(), queue: vi.fn() }));
 vi.mock("@/lib/auth/api-auth", () => ({ requireUser: async () => ({ id: "owner" }), userOwnsSession: async () => true,
   notFoundResponse: () => Response.json({}, { status: 404 }), unauthorizedResponse: () => Response.json({}, { status: 401 }) }));
 vi.mock("@/lib/module5/processing-run", () => ({ loadProcessingRun: mocks.load, transitionRun: mocks.transition, failRun: mocks.fail,
@@ -8,7 +9,8 @@ vi.mock("@/lib/module5/processing-run", () => ({ loadProcessingRun: mocks.load, 
 vi.mock("@/lib/report/assembler", () => ({ assembleReportData: mocks.assemble, ReportAssemblyError: class extends Error {} }));
 vi.mock("@/lib/report/pdf-renderer", () => ({ renderReportPdf: mocks.render }));
 vi.mock("@/lib/module3/recommendation-provider", () => ({ runRecommendationProvider: vi.fn() }));
-vi.mock("@/lib/report/file-store", () => ({ normalizeReportSessionId: (id: string) => id, pdfFileStore: { uploadReportPdf: mocks.upload, downloadReportPdf: mocks.download, deleteReportPdf: mocks.remove } }));
+vi.mock("@/lib/report/artifact-cleanup", () => ({ queueReportCleanup: mocks.queue }));
+vi.mock("@/lib/report/file-store", () => ({ getReportPdfObjectKey: (id: string, version: number) => `${id}/${version}.pdf`, normalizeReportSessionId: (id: string) => id, pdfFileStore: { uploadReportPdf: mocks.upload, downloadReportPdf: mocks.download, deleteReportPdf: mocks.remove } }));
 vi.mock("@/lib/supabase", () => ({ supabaseAdmin: { from: () => { const query = { select: () => query, eq: () => query, in: () => query, gt: () => query, single: mocks.single, maybeSingle: mocks.maybeSingle }; return query; } } }));
 import { POST } from "@/app/api/reports/route";
 const request = (runId = "run") => POST(new Request("http://localhost/api/reports", { method: "POST", body: JSON.stringify({ sessionId: "session", runId }) }));
@@ -22,10 +24,17 @@ beforeEach(() => {
   mocks.download.mockResolvedValue(new Blob(["%PDF synthetic"])); mocks.remove.mockResolvedValue(undefined);
   mocks.single.mockResolvedValue({ data: { generated_at: "2026-11-05T00:01:00Z", expires_at: "2026-11-06T00:01:00Z" }, error: null });
   mocks.maybeSingle.mockResolvedValue({ data: null, error: null });
+  mocks.queue.mockResolvedValue(undefined);
 });
 afterEach(() => { vi.useRealTimers(); });
 
 describe("SW-15 PDF-ready budget boundary", () => {
+  it("binds assembled content to the reserved report and immutable profile versions", async () => {
+    const response = await request();
+    expect(response.status).toBe(200);
+    expect(mocks.assemble).toHaveBeenCalledWith("session", expect.objectContaining({ reportVersion: 1, approvedProfileVersion: 1 }));
+    expect(await response.json()).toMatchObject({ reportVersion: 1, approvedProfileVersion: 1 });
+  });
   it("retries a transient PDF/storage failure once within the original run", async () => {
     mocks.upload.mockRejectedValueOnce(new ProviderError(503, "5", {}));
     const pending = request();
@@ -78,6 +87,30 @@ describe("SW-15 PDF-ready budget boundary", () => {
       expires_at: "2026-11-06T00:01:00Z" }, error: null });
     expect(await (await request()).json()).toMatchObject({
       reportVersion: 2, downloadUrl: "/api/reports/session?version=2&download=1",
+      studentSummary: null, reviewStatus: "approved",
     });
+  });
+  it("returns a rejected stored report without regenerating or exposing release/preview URLs", async () => {
+    mocks.load.mockResolvedValue({ run: { ...run(), phase: "ready", status: "completed" }, reportVersion: 2 });
+    mocks.single.mockResolvedValue({ data: { status: "rejected", generated_at: "2026-11-05T00:01:00Z",
+      expires_at: "2026-11-06T00:01:00Z", reviewed_at: "2026-11-05T00:02:00Z", reviewed_by: "owner" }, error: null });
+    expect(await (await request()).json()).toMatchObject({
+      reviewStatus: "rejected", runId: "run", reportVersion: 2, downloadUrl: null, previewUrl: null, reviewedBy: "owner",
+    });
+    expect(mocks.render).not.toHaveBeenCalled(); expect(mocks.upload).not.toHaveBeenCalled();
+  });
+  it.each(["current", "legacy", "wrong profile", "wrong report"])("reads %s PDF content without regenerating or claiming a mismatched student summary", async (variant) => {
+    mocks.load.mockResolvedValue({ run: { ...run(), phase: "ready", status: "completed", deadline_at: "2026-11-04T00:00:00Z" }, reportVersion: 2 });
+    const summary = { disclosure: "Synthetic stored content" };
+    mocks.assemble.mockResolvedValue({ rankedRecommendations: { recommendations: [] }, academicEvidence: {}, studentSummary: summary });
+    const marker = variant === "legacy" ? "" : reportContentMarker(variant === "wrong report" ? 99 : 2, variant === "wrong profile" ? 99 : 1);
+    mocks.download.mockResolvedValue(new Blob([`%PDF-1.4\n${marker}synthetic content`]));
+    const response = await request();
+    expect(response.status).toBe(200);
+    expect((await response.json()).studentSummary).toEqual(variant === "current" ? summary : null);
+    expect(mocks.assemble).toHaveBeenCalledWith("session", expect.objectContaining({
+      reportVersion: 2, approvedProfileVersion: 1, generatedAt: "2026-11-05T00:01:00Z",
+    }));
+    expect(mocks.render).not.toHaveBeenCalled(); expect(mocks.upload).not.toHaveBeenCalled(); expect(mocks.transition).not.toHaveBeenCalled();
   });
 });

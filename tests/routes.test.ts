@@ -5,12 +5,13 @@ import { join, relative, sep } from "node:path";
 import { fileURLToPath } from "node:url";
 
 const m = vi.hoisted(() => ({
-  getUser: vi.fn(), rpc: vi.fn(), maybeSingle: vi.fn(), from: vi.fn(),
+  getUser: vi.fn(), rpc: vi.fn(), terminationRpc: vi.fn(), maybeSingle: vi.fn(), from: vi.fn(),
   readState: vi.fn(), downloadPdf: vi.fn(), downloadImage: vi.fn(),
   createSession: vi.fn(), createNotes: vi.fn(), cleanup: vi.fn(), retention: vi.fn(),
+  completeDelivery: vi.fn(),
 }));
 vi.mock("@/lib/supabase/server", () => ({ createClient: async () => ({ auth: { getUser: m.getUser }, rpc: m.rpc }) }));
-vi.mock("@/lib/supabase", () => ({ supabaseAdmin: { from: m.from } }));
+vi.mock("@/lib/supabase", () => ({ supabaseAdmin: { from: m.from, rpc: m.terminationRpc } }));
 vi.mock("@/lib/module2/session-initialization-service", () => ({ sessionInitializationService: {
   createSession: m.createSession, createSessionNotes: m.createNotes,
 } }));
@@ -22,7 +23,7 @@ vi.mock("@/lib/module3/meta-agent-synthesizer", () => ({ metaAgentSynthesizer: {
 vi.mock("@/lib/module5/session-progress", () => ({ sessionProgressTracker: {} }));
 vi.mock("@/lib/module5/session-state-manager", () => ({ sessionStateManager: { getSessionState: m.readState } }));
 vi.mock("@/lib/report/session-termination", () => ({ sessionTerminationHandler: {} }));
-vi.mock("@/lib/report/session-completion", () => ({ sessionCompletionService: {} }));
+vi.mock("@/lib/report/session-completion", () => ({ sessionCompletionService: { markReportDownloaded: m.completeDelivery } }));
 vi.mock("@/lib/report/assembler", () => ({ assembleReportData: vi.fn(), ReportAssemblyError: class extends Error {} }));
 vi.mock("@/lib/report/pdf-renderer", () => ({ renderReportPdf: vi.fn() }));
 vi.mock("@/lib/report/file-store", () => ({
@@ -42,6 +43,8 @@ import * as complete from "@/app/api/sessions/[sessionId]/complete/route";
 import * as upload from "@/app/api/sessions/[sessionId]/upload/route";
 import * as reports from "@/app/api/reports/route";
 import * as pdf from "@/app/api/reports/[sessionId]/route";
+import * as preview from "@/app/api/reports/[sessionId]/preview/route";
+import * as review from "@/app/api/reports/[sessionId]/review/route";
 import * as image from "@/app/api/sessions/[sessionId]/documents/[documentId]/route";
 import * as extractDocument from "@/app/api/extract-document/route";
 import * as extractNotes from "@/app/api/extract-notes/route";
@@ -63,6 +66,7 @@ const ownedRoutes = [
   ["DELETE", "/api/sessions/id/upload", upload.DELETE],
   ["POST", "/api/reports", reports.POST],
   ["GET", "/api/reports/id?version=1", pdf.GET], ["GET", "/api/reports/id?version=1&download=1", pdf.GET],
+  ["GET", "/api/reports/id/preview?version=1", preview.GET], ["POST", "/api/reports/id/review", review.POST],
   ["GET", "/api/sessions/id/documents/id", image.GET],
 ] as const;
 const routes = [...ownedRoutes,
@@ -78,6 +82,7 @@ beforeEach(() => {
   vi.clearAllMocks();
   m.getUser.mockResolvedValue({ data: { user: owner }, error: null });
   m.rpc.mockResolvedValue({ data: "active", error: null });
+  m.terminationRpc.mockResolvedValue({ data: false, error: null });
   m.maybeSingle.mockResolvedValue({ data: { counselor_id: ownerId, status: "active", expires_at: "2099-01-01" }, error: null });
   const query = { select: () => query, eq: () => query, in: () => query,
     not: () => query, gt: () => query, maybeSingle: m.maybeSingle, single: m.maybeSingle };
@@ -143,7 +148,7 @@ describe("F01/I03 protected route inventory", () => {
       const response = await handler(request(method, path), context);
       expect(response.status).toBe(404);
       expect(await response.json()).toEqual({ error: "Session not found" });
-      expect(m.from).toHaveBeenCalledTimes(1);
+      expect(m.from).toHaveBeenCalledTimes(method === "DELETE" && path === "/api/sessions/id" ? 0 : 1);
       expect(m.readState).not.toHaveBeenCalled();
       expect(m.downloadPdf).not.toHaveBeenCalled();
       expect(m.downloadImage).not.toHaveBeenCalled();

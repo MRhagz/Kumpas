@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import type { ReactNode } from "react";
 import {
   BarChart3,
@@ -14,40 +14,41 @@ import {
 } from "lucide-react";
 
 import PdfDownloadButton from "@/components/analysis/pdf-download-button";
-import {
-  AlertDialog,
-  AlertDialogAction,
-  AlertDialogCancel,
-  AlertDialogContent,
-  AlertDialogDescription,
-  AlertDialogFooter,
-  AlertDialogHeader,
-  AlertDialogTitle,
-} from "@/components/ui/alert-dialog";
 import type {
   KeySignalDetail,
+  AcademicEvidenceSummary,
   ReportGenerationResponse,
   ReportRecommendationSummary,
+  StudentReportSummary,
 } from "@/lib/report/types";
 import { publicSourceUrl, sourceDate, inputLabel } from "@/lib/report/evidence-summary";
 
 interface ReportDownloadViewProps {
   report: ReportGenerationResponse;
   onNewSession: () => void | Promise<void>;
-  onReportDownloadStart?: () => void | Promise<void>;
+  onReview?: (decision: "approved" | "rejected" | "regenerate" | "correct") => Promise<void>;
+  onReload?: () => void | Promise<void>;
 }
 
 export default function ReportDownloadView({
   report,
   onNewSession,
-  onReportDownloadStart,
+  onReview,
+  onReload,
 }: ReportDownloadViewProps) {
   const [selectedRecommendationId, setSelectedRecommendationId] = useState(
     report.recommendations[0]?.id ?? "",
   );
-  const [isStartingNewSession, setIsStartingNewSession] = useState(false);
-  const [isNewSessionDialogOpen, setIsNewSessionDialogOpen] = useState(false);
   const [isDownloadExpired, setIsDownloadExpired] = useState(false);
+  const [reviewBusy, setReviewBusy] = useState(false);
+  const [reviewError, setReviewError] = useState("");
+  const [reviewLocked, setReviewLocked] = useState(false);
+  const reviewHeading = useRef<HTMLHeadingElement>(null);
+  const reviewDisabled = reviewBusy || reviewLocked || isDownloadExpired || !report.runId || !onReview;
+  const isApproved = report.reviewStatus === "approved";
+  useEffect(() => {
+    if (report.reviewStatus === "approved" || report.reviewStatus === "rejected") reviewHeading.current?.focus();
+  }, [report.reviewStatus]);
   const selectedRecommendation = useMemo(
     () =>
       report.recommendations.find(
@@ -64,10 +65,8 @@ export default function ReportDownloadView({
     dateStyle: "medium",
     timeStyle: "short",
   }).format(new Date(report.generatedAt));
-  const fileName = `Kumpas_Report_${report.sessionId}.pdf`;
+  const fileName = `Kumpas_Report_${report.sessionId}_v${report.reportVersion}.pdf`;
   const hasMissingDocuments = report.academicEvidence.missingDocuments.length > 0;
-  const topCareerPath =
-    report.recommendations[0]?.careerPath ?? "Career Recommendations";
 
   useEffect(() => {
     const updateExpiryState = () => {
@@ -81,18 +80,16 @@ export default function ReportDownloadView({
     return () => window.clearInterval(intervalId);
   }, [report.expiresAt]);
 
-  const handleConfirmNewSession = async () => {
-    if (isStartingNewSession) {
-      return;
-    }
-
-    setIsStartingNewSession(true);
-
+  const decide = async (decision: "approved" | "rejected" | "regenerate" | "correct") => {
+    if (reviewDisabled) return;
+    setReviewBusy(true);
     try {
-      await onNewSession();
+      await onReview!(decision);
+    } catch (error) {
+      setReviewLocked(true);
+      setReviewError(error instanceof Error ? error.message : "The review result could not be confirmed. Reload the report.");
     } finally {
-      setIsStartingNewSession(false);
-      setIsNewSessionDialogOpen(false);
+      setReviewBusy(false);
     }
   };
 
@@ -105,26 +102,54 @@ export default function ReportDownloadView({
         <div className="mt-2 flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
           <div>
             <h1 className="font-heading text-3xl font-bold leading-tight text-ink sm:text-4xl">
-              Assessment for{" "}
-              <span className="text-forest">{topCareerPath}</span>
+              Career guidance report
             </h1>
             <p className="mt-2 text-sm text-muted-text">
               Career comparisons with academic evidence and a
-              signed PDF report. Scores compare supported options; they are not probabilities of career success.
+              versioned PDF report. Scores compare supported options; they are not probabilities of career success.
+            </p>
+            <p className="mt-2 text-sm text-muted-text">
+              Report version: {report.reportVersion}. Approved profile version: {report.approvedProfileVersion ?? "unavailable"}.
+              {" "}{isApproved ? "Approved report" : report.reviewStatus === "rejected" ? "Rejected report — final release blocked" : "Draft report — counselor review required"}.
             </p>
           </div>
           <button
             type="button"
-            onClick={() => setIsNewSessionDialogOpen(true)}
-            disabled={isStartingNewSession}
-            aria-busy={isStartingNewSession}
+            onClick={() => { void onNewSession(); }}
             className="inline-flex shrink-0 items-center justify-center gap-2 rounded-lg border border-black/10 bg-white px-3.5 py-2 text-xs font-semibold uppercase tracking-wider text-muted-text transition-colors hover:text-ink disabled:cursor-wait disabled:opacity-70"
           >
             <RotateCcw size={14} />
-            {isStartingNewSession ? "Starting..." : "New Session"}
+            New Session
           </button>
         </div>
       </header>
+
+      <section aria-labelledby="report-review-heading" aria-busy={reviewBusy} className="mb-6 space-y-3 rounded-lg border border-black/10 bg-white p-5 shadow-card">
+        <h2 ref={reviewHeading} tabIndex={-1} id="report-review-heading" className="text-lg font-semibold">Counselor review</h2>
+        <p className="text-sm">Review the student summary, counselor evidence and exact PDF before approving report version {report.reportVersion} for profile version {report.approvedProfileVersion ?? "unavailable"}. Recommendations are advisory; you remain responsible for final guidance.</p>
+        <p className="text-sm">The PDF retains its Draft origin marking after approval. Approval is recorded separately and does not change its content or expiry.</p>
+        {report.reviewedAt && <p className="text-sm">{isApproved ? "Approved" : "Rejected"} by the owning counselor on {new Date(report.reviewedAt).toLocaleString()}.</p>}
+        {report.reviewStatus === "rejected" && <p role="status" className="text-sm">This version was rejected. Correct inputs or regenerate, then review the new draft.</p>}
+        {reviewError && <p role="alert" className="text-sm text-red-700">{reviewError}</p>}
+        {reviewBusy && <p role="status" className="text-sm">Confirming report action…</p>}
+        <div className="flex flex-wrap gap-3 text-sm">
+          {report.previewUrl && !reviewLocked && !isDownloadExpired && <a href={report.previewUrl} target="_blank" rel="noopener noreferrer" className="rounded-lg border px-4 py-2 underline">Preview Draft PDF</a>}
+          {isApproved && report.downloadUrl && !reviewLocked && !isDownloadExpired && <a href={report.downloadUrl.replace("&download=1", "")} target="_blank" rel="noopener noreferrer" className="rounded-lg border px-4 py-2 underline">Open approved PDF / Print</a>}
+          {report.reviewStatus === "draft" && <>
+            <button type="button" disabled={reviewDisabled || !report.previewUrl} onClick={() => void decide("approved")} className="rounded-lg bg-forest px-4 py-2 text-white disabled:opacity-50">Approve report v{report.reportVersion}</button>
+            <button type="button" disabled={reviewDisabled} onClick={() => void decide("rejected")} className="rounded-lg border px-4 py-2 disabled:opacity-50">Reject report</button>
+          </>}
+          <button type="button" disabled={reviewDisabled} onClick={() => void decide("correct")} className="rounded-lg border px-4 py-2 disabled:opacity-50">Correct Inputs</button>
+          <button type="button" disabled={reviewDisabled} onClick={() => void decide("regenerate")} className="rounded-lg border px-4 py-2 disabled:opacity-50">Regenerate report</button>
+          {reviewLocked && <button type="button" onClick={() => void onReload?.()} className="rounded-lg border px-4 py-2">Reload current report</button>}
+        </div>
+      </section>
+
+      {report.studentSummary ? <StudentSummaryView summary={report.studentSummary} /> : (
+        <p className="mb-6 rounded-lg border border-amber-200 bg-amber-50 p-4 text-sm">
+          Student summary unavailable for this stored PDF. Return to Confirm Information and regenerate a current report before using the new report layout.
+        </p>
+      )}
 
       {report.agentStatuses?.some((s) => s.status !== "SUCCESS") && (
         <section role="status" className="mb-5 rounded-lg border border-amber-200 bg-amber-50 p-4 text-sm">
@@ -135,6 +160,10 @@ export default function ReportDownloadView({
           </ul>
         </section>
       )}
+      <details open className="mb-6">
+        <summary className="mb-5 cursor-pointer rounded-lg border border-black/10 bg-white p-4 font-semibold focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-forest">
+          <h2 className="inline text-lg">Counselor detail</h2>
+        </summary>
       <div className="mb-5 grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
         {report.recommendations.filter((r) => r.rank !== null).map((recommendation) => (
           <RecommendationCard
@@ -162,8 +191,8 @@ export default function ReportDownloadView({
         <p className="mb-5 text-sm text-muted-text">Fewer than three scored paths are supported by the available evidence. Missing components remain unscored.</p>
       )}
 
-      <section className="grid gap-5 lg:grid-cols-[1fr_340px]">
-        <div className="space-y-5">
+      <section className="grid gap-5 lg:grid-cols-[minmax(0,1fr)_340px]">
+        <div className="min-w-0 space-y-5">
           {selectedRecommendation ? (
             <RecommendationDetail recommendation={selectedRecommendation} />
           ) : (
@@ -181,6 +210,7 @@ export default function ReportDownloadView({
             availableDocuments={report.academicEvidence.availableDocuments}
             missingDocuments={report.academicEvidence.missingDocuments}
             completenessNote={report.academicEvidence.completenessNote}
+            documentStatuses={report.academicEvidence.documentStatuses}
           />
 
           <section className="rounded-lg bg-ink p-5 text-white shadow-card">
@@ -207,49 +237,47 @@ export default function ReportDownloadView({
               />
             </div>
             <div className="mt-5">
-              {report.downloadUrl && <PdfDownloadButton
+              {isApproved && report.downloadUrl && <PdfDownloadButton
                 downloadUrl={report.downloadUrl}
                 fileName={fileName}
-                disabled={isDownloadExpired}
-                onDownloadStart={onReportDownloadStart}
+                disabled={isDownloadExpired || reviewLocked || reviewBusy}
               />}
             </div>
           </section>
         </aside>
       </section>
+      </details>
 
-      <AlertDialog
-        open={isNewSessionDialogOpen}
-        onOpenChange={(open) => {
-          if (!isStartingNewSession) {
-            setIsNewSessionDialogOpen(open);
-          }
-        }}
-      >
-        <AlertDialogContent>
-          <AlertDialogHeader>
-            <AlertDialogTitle>Start a new session?</AlertDialogTitle>
-            <AlertDialogDescription>
-              This will end the current counseling session and run cleanup for
-              temporary report and session artifacts. This action cannot be
-              undone.
-            </AlertDialogDescription>
-          </AlertDialogHeader>
-          <AlertDialogFooter>
-            <AlertDialogCancel disabled={isStartingNewSession}>
-              Keep current session
-            </AlertDialogCancel>
-            <AlertDialogAction
-              onClick={handleConfirmNewSession}
-              disabled={isStartingNewSession}
-              className="bg-red-600 text-white hover:bg-red-700"
-            >
-              {isStartingNewSession ? "Starting..." : "End session"}
-            </AlertDialogAction>
-          </AlertDialogFooter>
-        </AlertDialogContent>
-      </AlertDialog>
     </div>
+  );
+}
+
+function StudentSummaryView({ summary }: { summary: StudentReportSummary }) {
+  return (
+    <section aria-labelledby="student-summary-heading" className="mb-6 space-y-4 rounded-lg border border-black/10 bg-white p-5 shadow-card sm:p-6">
+      <h2 id="student-summary-heading" className="text-2xl font-bold text-ink">Student summary</h2>
+      <p className="text-sm leading-relaxed">{summary.disclosure}</p>
+      <p className="text-sm text-muted-text">{summary.scope}</p>
+      <p className="text-sm leading-relaxed">{summary.scoreExplanation}</p>
+      {summary.options.map((option) => (
+        <article key={option.id} className="space-y-2 border-t border-black/10 pt-4">
+          <h3 className="break-words text-lg font-semibold text-forest">{option.careerPath}</h3>
+          <p className="text-sm">{option.rank === null ? "Unscored option: no total or rank because evidence is missing." : `Rank ${option.rank}. Alignment score: ${option.alignmentScore?.toFixed(2)} out of 100.`}</p>
+          <ul className="list-disc space-y-2 pl-5 text-sm leading-relaxed">
+            {option.reasons.map((reason) => <li key={reason}>{reason}</li>)}
+          </ul>
+          {option.considerations.map((consideration) => <p key={consideration} className="text-sm text-muted-text">{consideration}</p>)}
+        </article>
+      ))}
+      <h3 className="font-semibold">Uncertainty and missing information</h3>
+      <ul className="list-disc space-y-2 pl-5 text-sm">
+        {summary.limitations.map((limitation) => <li key={limitation}>{limitation}</li>)}
+      </ul>
+      <h3 className="font-semibold">Next steps</h3>
+      <ol className="list-decimal space-y-2 pl-5 text-sm leading-relaxed">
+        {summary.nextSteps.map((step) => <li key={step}>{step}</li>)}
+      </ol>
+    </section>
   );
 }
 
@@ -268,7 +296,7 @@ function RecommendationCard({
     <button
       type="button"
       onClick={onSelect}
-      className={`rounded-lg p-4 text-left shadow-card transition-colors ${
+      className={`min-w-0 rounded-lg p-4 text-left shadow-card transition-colors ${
         isSelected
           ? "bg-ink text-white ring-2 ring-forest/30"
           : "border border-black/10 bg-white text-ink hover:border-forest/40"
@@ -291,7 +319,7 @@ function RecommendationCard({
         {formatScore(recommendation.alignmentScore)}
       </p>
       <h2
-        className={`mt-2 text-base font-bold ${
+        className={`mt-2 text-base font-bold [overflow-wrap:anywhere] ${
           isSelected ? "text-forest-light" : "text-ink"
         }`}
       >
@@ -314,17 +342,17 @@ function RecommendationDetail({
   recommendation: ReportRecommendationSummary;
 }) {
   return (
-    <section className="rounded-lg border border-black/10 bg-white p-5 shadow-card sm:p-6">
+    <section className="min-w-0 rounded-lg border border-black/10 bg-white p-5 shadow-card sm:p-6">
       <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
-        <div className="flex items-start gap-4">
-          <div className="flex h-16 w-16 shrink-0 items-center justify-center rounded-full border-2 border-forest/40 text-xl font-bold text-ink">
+        <div className="flex min-w-0 items-start gap-4">
+          <div className="flex h-16 min-w-24 shrink-0 items-center justify-center rounded-lg border-2 border-forest/40 px-2 text-base font-bold text-ink">
             {formatScore(recommendation.alignmentScore)}
           </div>
-          <div>
+          <div className="min-w-0">
             <p className="text-[10px] font-semibold uppercase tracking-widest text-muted-text">
               Selected Recommendation
             </p>
-            <h2 className="mt-1 text-2xl font-bold text-ink">
+            <h2 className="mt-1 text-2xl font-bold text-ink [overflow-wrap:anywhere]">
               {recommendation.careerPath}
             </h2>
             <p className="mt-1 text-sm font-semibold text-forest">
@@ -357,7 +385,7 @@ function RecommendationDetail({
         )}
       </div>
 
-      <div className="mt-6 rounded-lg bg-forest/[0.06] px-4 py-3">
+      <div className="mt-6 rounded-lg bg-forest/[0.06] px-4 py-3 [overflow-wrap:anywhere]">
         <p className="mb-1 text-[10px] font-semibold uppercase tracking-widest text-forest">
           What This Means
         </p>
@@ -390,7 +418,7 @@ function RecommendationDetail({
 
 function KeySignalRow({ signal }: { signal: KeySignalDetail }) {
   return (
-    <div className="grid gap-2 sm:grid-cols-[160px_1fr] sm:gap-4">
+    <div className="grid gap-2 [overflow-wrap:anywhere] sm:grid-cols-[160px_minmax(0,1fr)] sm:gap-4">
       <div className="flex items-start gap-2">
         <SignalIcon polarity={signal.polarity} />
         <p className="text-sm font-semibold text-ink">{signal.label}</p>
@@ -426,6 +454,7 @@ interface AcademicEvidencePanelProps {
   availableDocuments: string[];
   missingDocuments: string[];
   completenessNote: string;
+  documentStatuses?: AcademicEvidenceSummary["documentStatuses"];
 }
 
 function AcademicEvidencePanel({
@@ -433,6 +462,7 @@ function AcademicEvidencePanel({
   availableDocuments,
   missingDocuments,
   completenessNote,
+  documentStatuses,
 }: AcademicEvidencePanelProps) {
   return (
     <section className="rounded-lg border border-black/10 bg-white p-5 shadow-card">
@@ -457,6 +487,9 @@ function AcademicEvidencePanel({
       <p className="mt-4 text-sm leading-relaxed text-muted-text">
         {completenessNote}
       </p>
+      {documentStatuses && <ul className="mt-3 space-y-1 text-sm text-muted-text">
+        {Object.entries(documentStatuses).map(([document, status]) => <li key={document}>{formatAcademicDocument(document)}: {status}</li>)}
+      </ul>}
     </section>
   );
 }
@@ -499,7 +532,7 @@ function MetadataRow({ label, value }: { label: string; value: string }) {
 }
 
 function formatScore(score: number | null): string {
-  return score === null ? "Unscored" : `${score.toFixed(2)}%`;
+  return score === null ? "Unscored" : `${score.toFixed(2)}/100`;
 }
 
 function getRecommendationSubtitle(

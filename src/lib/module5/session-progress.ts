@@ -73,13 +73,6 @@ export class SessionProgressTracker {
     await this.patchModuleStatus(sessionId, { report: "failed" }, "failed");
   }
 
-  async markReportDownloaded(sessionId: string): Promise<void> {
-    await this.patchModuleStatus(sessionId, { report: "complete" }, "downloaded", {
-      status: "completed",
-      completed_at: new Date().toISOString(),
-    });
-  }
-
   private async patchModuleStatus(
     sessionId: string,
     patch: Partial<ModuleStatus>,
@@ -122,7 +115,9 @@ export class SessionProgressTracker {
         ...updates,
         last_activity: new Date().toISOString(),
       })
-      .eq("id", sessionId);
+      .eq("id", sessionId)
+      .in("status", ["active", "completed"])
+      .gt("expires_at", new Date().toISOString());
 
     if (error) {
       throw new Error(`Failed to update session progress: ${error.message}`);
