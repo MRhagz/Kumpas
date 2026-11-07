@@ -3,6 +3,7 @@ import { test } from 'node:test';
 import fs from 'node:fs';
 import path from 'node:path';
 import vm from 'node:vm';
+import * as crypto from 'node:crypto';
 import { fileURLToPath } from 'node:url';
 import ts from 'typescript';
 
@@ -14,6 +15,7 @@ function services({ response = { embeddings: [{ values: Array(768).fill(0.5) }] 
   const cache = new Map();
   const external = {
     'server-only': {},
+    'node:crypto': crypto,
     '@google/genai': { GoogleGenAI: class {
       models = { embedContent: async (request) => {
         calls.embeddings.push(request);
