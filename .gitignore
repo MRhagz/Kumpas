@@ -54,3 +54,7 @@ venv/
 .pytest_cache/
 .mypy_cache/
 .ruff_cache/
+
+# Browser verification artifacts
+/test-results/
+/playwright-report/

@@ -4,6 +4,25 @@ import { useRef, useEffect, useState, useCallback } from "react";
 import { Bold, Italic, List, ListOrdered } from "lucide-react";
 import { WysiwygFieldProps } from "@/types";
 
+function ToolBtn({ active, cmd, children, label, exec }: {
+  active: boolean; cmd: string; children: React.ReactNode; label: string; exec: (cmd: string) => void;
+}) { return (
+    <button
+      type="button"
+      onMouseDown={(e) => e.preventDefault()}
+      onClick={() => exec(cmd)}
+      aria-label={`${label}: ${{ bold: "Bold", italic: "Italic", insertUnorderedList: "Bullet list", insertOrderedList: "Numbered list" }[cmd]}`}
+      aria-pressed={active}
+      className={`flex h-[30px] w-[30px] items-center justify-center rounded transition-colors cursor-pointer ${
+        active ? "bg-charcoal text-white" : "text-charcoal-3 hover:bg-black/5 hover:text-charcoal"
+      }`}
+    >
+      {children}
+    </button>
+  );
+}
+
+
 export default function WysiwygField({
   label, icon, iconBg, iconFg, labelColor,
   placeholder, htmlValue, onChange,
@@ -12,6 +31,7 @@ export default function WysiwygField({
   const [formats, setFormats] = useState({ bold: false, italic: false, ul: false, ol: false });
 
   const checkFormats = useCallback(() => {
+    if (document.activeElement !== editorRef.current) return;
     setFormats({
       bold: document.queryCommandState("bold"),
       italic: document.queryCommandState("italic"),
@@ -26,30 +46,12 @@ export default function WysiwygField({
     }
   }, [htmlValue]);
 
-  const exec = (cmd: string) => { document.execCommand(cmd); checkFormats(); };
+  const exec = (cmd: string) => { editorRef.current?.focus(); document.execCommand(cmd); checkFormats(); };
 
   const handleInput = () => {
     if (editorRef.current) onChange(editorRef.current.innerHTML);
   };
 
-  const handleKeyDown = (e: React.KeyboardEvent) => {
-    if (e.key === "Tab") {
-      e.preventDefault();
-      document.execCommand("insertHTML", false, "&nbsp;&nbsp;&nbsp;&nbsp;");
-    }
-  };
-
-  const ToolBtn = ({ active, cmd, children }: { active: boolean; cmd: string; children: React.ReactNode }) => (
-    <button
-      type="button"
-      onMouseDown={(e) => { e.preventDefault(); exec(cmd); }}
-      className={`flex h-[30px] w-[30px] items-center justify-center rounded transition-colors cursor-pointer ${
-        active ? "bg-charcoal text-white" : "text-charcoal-3 hover:bg-black/5 hover:text-charcoal"
-      }`}
-    >
-      {children}
-    </button>
-  );
 
   return (
     <div className="border-b border-black/[0.06] last:border-b-0">
@@ -61,11 +63,11 @@ export default function WysiwygField({
 
       {/* Toolbar */}
       <div className="flex items-center gap-0.5 px-4 py-1.5 bg-white border-b border-black/[0.03]">
-        <ToolBtn active={formats.bold} cmd="bold"><Bold size={14} /></ToolBtn>
-        <ToolBtn active={formats.italic} cmd="italic"><Italic size={14} /></ToolBtn>
+        <ToolBtn label={label} exec={exec} active={formats.bold} cmd="bold"><Bold size={14} /></ToolBtn>
+        <ToolBtn label={label} exec={exec} active={formats.italic} cmd="italic"><Italic size={14} /></ToolBtn>
         <span className="mx-1.5 h-4 w-px bg-black/10" />
-        <ToolBtn active={formats.ul} cmd="insertUnorderedList"><List size={14} /></ToolBtn>
-        <ToolBtn active={formats.ol} cmd="insertOrderedList"><ListOrdered size={14} /></ToolBtn>
+        <ToolBtn label={label} exec={exec} active={formats.ul} cmd="insertUnorderedList"><List size={14} /></ToolBtn>
+        <ToolBtn label={label} exec={exec} active={formats.ol} cmd="insertOrderedList"><ListOrdered size={14} /></ToolBtn>
       </div>
 
       {/* Editor */}
@@ -75,11 +77,11 @@ export default function WysiwygField({
         aria-label={label}
         aria-multiline="true"
         contentEditable
+        tabIndex={0}
         suppressContentEditableWarning
         data-placeholder={placeholder}
         className="min-h-[80px] px-4 py-3.5 text-sm leading-relaxed text-charcoal-2 outline-none bg-white [&:empty]:before:content-[attr(data-placeholder)] [&:empty]:before:text-black/25 [&:empty]:before:pointer-events-none [&_ul]:pl-5 [&_ul]:list-disc [&_ul]:marker:text-ink [&_ol]:pl-5 [&_ol]:list-decimal [&_ol]:marker:text-ink [&_p]:mb-1 [&_p:last-child]:mb-0"
         onInput={handleInput}
-        onKeyDown={handleKeyDown}
         onKeyUp={checkFormats}
         onMouseUp={checkFormats}
         onSelect={checkFormats}

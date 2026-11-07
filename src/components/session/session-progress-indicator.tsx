@@ -60,7 +60,7 @@ export default function SessionProgressIndicator({ sessionId, fallbackStep, conf
     <ol className="flex flex-wrap gap-x-4 gap-y-2 py-2 text-xs">
       {stages.map((stage, index) => <li key={stage} aria-current={active === index ? "step" : undefined}
         className={active === index ? "font-bold text-forest" : "text-muted-text"}>
-        {index + 1}. {stage} <span className="sr-only">{active === index ? "Current stage" : active > index ? "Complete" : "Pending"}</span>
+        {index + 1}. {stage} <span className="block text-[10px]">{active === index ? "Current stage" : active > index ? "Complete" : "Pending"}</span>
       </li>)}
     </ol>
     {!state ? <p role="status" className="text-xs">{unavailable ? "Progress could not be confirmed. Reconnect or sign in again to resume saved work." : "Checking saved progress…"}</p>

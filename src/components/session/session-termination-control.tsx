@@ -14,6 +14,8 @@ export default function SessionTerminationControl({ sessionId, open, onOpenChang
   label?: string;
 }) {
   const [state, setState] = useState<"working" | "busy" | "pending" | "uncertain" | "complete">("working");
+  const trigger = useRef<HTMLButtonElement>(null);
+  const status = useRef<HTMLParagraphElement>(null);
   const inFlight = useRef(false);
   const terminate = async () => {
     if (inFlight.current) return;
@@ -33,9 +35,9 @@ export default function SessionTerminationControl({ sessionId, open, onOpenChang
   };
 
   return <div className="my-4 space-y-3">
-    {state === "working" ? <button type="button" className="rounded border border-black/20 px-3 py-2 text-sm"
+    {state === "working" ? <button ref={trigger} type="button" className="rounded border border-black/20 px-3 py-2 text-sm"
       onClick={() => onOpenChange(true)}>{label}</button> : <>
-      <p role="status" aria-live="polite">
+      <p ref={status} tabIndex={-1} role="status" aria-live="polite">
         {state === "busy" ? "Ending session and checking cleanup…" :
           state === "complete" ? "Session ended. Session content and server files have been deleted." :
           state === "pending" ? "Session ended. Access is revoked. Cleanup is pending and will retry automatically." :
@@ -48,7 +50,11 @@ export default function SessionTerminationControl({ sessionId, open, onOpenChang
       {(state === "pending" || state === "complete") && <a className="ml-3 underline" href="/input?new=1">Start a new session</a>}
     </>}
     <AlertDialog open={open && state === "working"} onOpenChange={onOpenChange}>
-      <AlertDialogContent>
+      <AlertDialogContent onCloseAutoFocus={event => {
+        event.preventDefault();
+        if (state === "working") trigger.current?.focus();
+        else status.current?.focus();
+      }}>
         <AlertDialogHeader>
           <AlertDialogTitle>End this session?</AlertDialogTitle>
           <AlertDialogDescription>

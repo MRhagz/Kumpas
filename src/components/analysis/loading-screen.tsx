@@ -8,9 +8,9 @@ export default function LoadingScreen({ completedStages, agentStatuses, isPartia
 }) {
   const partial = isPartial || agentStatuses?.some(s => s.status !== "SUCCESS");
   const analyzed = completedStages.includes("synthesis");
-  return <section aria-live="polite" aria-busy="true" className="mx-auto max-w-3xl space-y-5 px-6 py-12">
+  return <section className="mx-auto max-w-3xl space-y-5 px-6 py-12">
     <Loader2 className="animate-spin" aria-hidden="true" />
-    <h1 className="text-2xl font-semibold">{partial ? "Partial Analysis Available" : analyzed ? "Preparing draft report" : "Analyzing approved inputs"}</h1>
+    <h1 className="text-2xl font-semibold"><span role="status">{partial ? "Partial Analysis Available" : analyzed ? "Preparing draft report" : "Analyzing approved inputs"}</span></h1>
     <p>{analyzed ? "Analysis returned. The private PDF must finish before report review opens."
       : "The specialists are using your approved notes and available academic evidence. Missing documents stay unavailable; no upload is required."}</p>
     <p>Extraction and counselor confirmation happen during intake. This step does not extract documents again.</p>
