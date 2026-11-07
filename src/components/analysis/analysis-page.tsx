@@ -52,14 +52,10 @@ function AnalysisContent() {
           { method: "DELETE" },
         );
         if (!response.ok) {
-          const errorBody = await response.json().catch(() => null);
-          console.warn(
-            "[analysis] Session cleanup failed.",
-            errorBody?.error ?? response.statusText,
-          );
+          console.warn("[analysis] Session cleanup failed.");
         }
-      } catch (error) {
-        console.warn("[analysis] Session cleanup failed.", error);
+      } catch {
+        console.warn("[analysis] Session cleanup failed.");
       }
     }
     router.push("/input?new=1");

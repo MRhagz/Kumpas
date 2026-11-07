@@ -10,8 +10,8 @@ export async function POST(_request: NextRequest) {
     const session = await sessionInitializationService.createSession(user.id);
     await sessionInitializationService.createSessionNotes(session.id, user.id);
     return Response.json({ sessionId: session.id, expiresAt: session.expires_at });
-  } catch (err) {
-    console.error("[POST /api/sessions]", err);
+  } catch {
+    console.error("[POST /api/sessions] session_creation_failed");
     return Response.json({ error: "Failed to initialize session" }, { status: 500 });
   }
 }

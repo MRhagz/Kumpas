@@ -1,4 +1,5 @@
 import "server-only";
+import { operationalEvent } from "@/lib/operational-log";
 
 import {
   pdfFileStore,
@@ -21,6 +22,7 @@ export interface ReportRetentionCleanupResult
 export async function runReportRetentionCleanup(
   options: ReportRetentionCleanupOptions = {},
 ): Promise<ReportRetentionCleanupResult> {
+  const startedAt = Date.now();
   const retentionHours = 24;
   if (options.retentionHours !== undefined && options.retentionHours !== retentionHours) {
     throw new Error("PDF retention is fixed at 24 hours.");
@@ -43,6 +45,8 @@ export async function runReportRetentionCleanup(
   const cleanup = await drainReportCleanup();
   result.deletedCount += cleanup.removed;
   if (cleanup.pending) result.warnings.push("Report artifact cleanup is pending retry.");
+  operationalEvent("report_cleanup", cleanup.pending ? "retry" : "success", startedAt,
+    { pending: Number(cleanup.pending), log, ...(cleanup.pending ? { code: "cleanup_pending" as const } : {}) });
   const status =
     result.warnings.length > 0 ? "completed_with_warnings" : "ok";
 

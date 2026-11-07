@@ -88,7 +88,8 @@ jobs:
     runs-on: ubuntu-latest
     env:
       SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
-      SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
+      SUPABASE_INGESTION_TOKEN: ${{ secrets.SUPABASE_INGESTION_TOKEN }}
+      SUPABASE_PUBLISHABLE_KEY: ${{ secrets.SUPABASE_PUBLISHABLE_KEY }}
       GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
       PSA_SOURCE_URL: ${{ vars.PSA_SOURCE_URL }}
       PSA_PUBLICATION_DATE: ${{ vars.PSA_PUBLICATION_DATE }}

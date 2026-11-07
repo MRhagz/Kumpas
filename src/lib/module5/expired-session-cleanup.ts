@@ -1,4 +1,5 @@
 import "server-only";
+import { operationalEvent } from "@/lib/operational-log";
 
 import { drainExtractionCleanup } from "@/lib/module2/extraction-cleanup";
 
@@ -28,6 +29,7 @@ const DEFAULT_LIMIT = 50;
 export async function runExpiredSessionCleanup(
   options: ExpiredSessionCleanupOptions = {},
 ): Promise<ExpiredSessionCleanupResult> {
+  const startedAt = Date.now();
   const limit = options.limit ?? DEFAULT_LIMIT;
 
   if (!Number.isInteger(limit) || limit <= 0) {
@@ -60,6 +62,7 @@ export async function runExpiredSessionCleanup(
     if (cleanup.pending) warnings.push("Temporary artifact cleanup is pending retry.");
   } catch { warnings.push("Temporary artifact cleanup is pending retry."); }
 
+  operationalEvent("session_cleanup", warnings.length ? "retry" : "success", startedAt, { pending: warnings.length, ...(warnings.length ? { code: "cleanup_pending" as const } : {}) });
   console.info("[session-retention] cleanup completed", { scannedCount: sessions.length, expiredCount, warningCount: warnings.length });
 
   return {

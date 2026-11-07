@@ -57,7 +57,7 @@ export class SessionTerminationHandler {
       const message = "Session content cleanup is pending retry.";
 
       warnings.push(message);
-      warn(`[SessionTerminationHandler] sessionId=${sessionId}: ${message}`);
+      warn(`[SessionTerminationHandler] ${message}`);
     }
 
     try {

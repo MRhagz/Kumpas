@@ -1,3 +1,5 @@
+import { operationalEvent } from "@/lib/operational-log";
+import { randomUUID } from "node:crypto";
 import { ANALYSIS_BUDGET_MS } from "@/lib/module5/versioned-contracts";
 
 export class ProcessingError extends Error {
@@ -56,7 +58,7 @@ export function retryDelayMs(error: unknown, now: number): number {
 
 /** One absolute wall-clock deadline; construct from the persisted run, never per stage. */
 export class ProcessingBudget {
-  constructor(readonly deadlineAt = Date.now() + ANALYSIS_BUDGET_MS) {}
+  constructor(readonly deadlineAt = Date.now() + ANALYSIS_BUDGET_MS, readonly runId: string = randomUUID()) {}
 
   assert(stage: string): void {
     if (!Number.isFinite(this.deadlineAt) || Date.now() >= this.deadlineAt) {
@@ -67,6 +69,7 @@ export class ProcessingBudget {
   async run<T>(stage: string, operation: (signal: AbortSignal) => Promise<T>, retry = true): Promise<T> {
     for (let attempt = 0; ; attempt++) {
       this.assert(stage);
+      const startedAt = Date.now();
       const controller = new AbortController();
       let timer: ReturnType<typeof setTimeout> | undefined;
       try {
@@ -78,12 +81,15 @@ export class ProcessingBudget {
         });
         const result = await Promise.race([operation(controller.signal), expired]);
         this.assert(stage); // Includes synchronous work and providers ignoring abort.
+        operationalEvent("processing", "success", startedAt, { id: this.runId, attempt: attempt + 1 });
         return result;
       } catch (error) {
+        operationalEvent("processing", "failure", startedAt, { id: this.runId, attempt: attempt + 1, code: error instanceof ProcessingError ? error.code : "operation_failed" });
         this.assert(stage);
         if (!retry || attempt === 1 || !isTransientFailure(error)) throw error;
         const delay = retryDelayMs(error, Date.now());
         if (delay >= this.deadlineAt - Date.now()) throw new ProcessingError(stage, "retry_delay");
+        operationalEvent("processing", "retry", startedAt, { id: this.runId, attempt: attempt + 1, code: "retry_scheduled" });
         if (timer) clearTimeout(timer);
         await new Promise((resolve) => setTimeout(resolve, delay));
       } finally {

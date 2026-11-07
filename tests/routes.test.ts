@@ -204,3 +204,32 @@ describe("S11 maintenance entry points", () => {
     }
   }
 });
+
+it("S11 session maintenance rejects report credentials, fallback credentials and malformed bounds", async () => {
+  vi.stubEnv("REPORT_RETENTION_SECRET", "report-only");
+  vi.stubEnv("SESSION_CLEANUP_SECRET", "");
+  expect((await cleanup.GET(new Request("https://example.test/api/sessions/expired", { headers: { authorization: "Bearer report-only" } }))).status).toBe(401);
+  vi.stubEnv("SESSION_CLEANUP_SECRET", "session-only");
+  expect((await cleanup.GET(new Request("https://example.test/api/sessions/expired", { headers: { "x-report-retention-secret": "session-only" } }))).status).toBe(401);
+  for (const limit of ["2bad", "101", "1.1"]) {
+    expect((await cleanup.GET(new Request("https://example.test/api/sessions/expired?limit=" + limit,
+      { headers: { "x-session-cleanup-secret": "session-only" } }))).status).toBe(400);
+  }
+  expect(m.cleanup).not.toHaveBeenCalled();
+});
+it("S06 maintenance errors expose only safe codes in diagnostics and responses", async () => {
+  const logs = vi.spyOn(console, "warn").mockImplementation(() => {});
+  for (const [module, work, env, header] of [
+    [cleanup, m.cleanup, "SESSION_CLEANUP_SECRET", "x-session-cleanup-secret"],
+    [retention, m.retention, "REPORT_RETENTION_SECRET", "x-report-retention-secret"],
+  ] as const) {
+    vi.stubEnv(env, "maintenance-only");
+    work.mockRejectedValue(new Error("PRIVATE notes model output signed-url token"));
+    const response = await module.GET(new Request("https://example.test", { headers: { [header]: "maintenance-only" } }));
+    expect(response.status).toBe(500);
+    expect(await response.text()).not.toContain("PRIVATE");
+  }
+  expect(JSON.stringify(logs.mock.calls)).not.toContain("PRIVATE");
+  expect(JSON.stringify(logs.mock.calls)).toContain("operation_failed");
+  logs.mockRestore();
+});

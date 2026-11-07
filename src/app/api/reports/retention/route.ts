@@ -1,3 +1,5 @@
+import { authorizeMaintenance } from "@/lib/auth/maintenance";
+import { operationalEvent } from "@/lib/operational-log";
 import { runReportRetentionCleanup } from "@/lib/report/retention-cleanup";
 
 export const runtime = "nodejs";
@@ -47,15 +49,14 @@ async function runCleanup(retentionHoursValue: unknown): Promise<Response> {
     return retentionJsonResponse({ error: retentionHours.message }, 400);
   }
 
+  const startedAt = Date.now();
   try {
     const result = await runReportRetentionCleanup({ retentionHours });
 
     return retentionJsonResponse(result);
-  } catch (error) {
-    const message =
-      error instanceof Error ? error.message : "Report retention cleanup failed.";
-
-    return retentionJsonResponse({ error: message }, 500);
+  } catch {
+    operationalEvent("report_cleanup", "failure", startedAt, { code: "operation_failed" });
+    return retentionJsonResponse({ error: "Maintenance cleanup failed. Retry the operation." }, 500);
   }
 }
 
@@ -75,28 +76,7 @@ function parseRetentionHours(value: unknown): number | undefined | Error {
 }
 
 function isAuthorizedRetentionRequest(request: Request): boolean {
-  const retentionSecret = process.env.REPORT_RETENTION_SECRET;
-
-  if (!retentionSecret) {
-    return false;
-  }
-
-  const providedSecret =
-    request.headers.get("x-report-retention-secret") ??
-    getBearerToken(request);
-
-  return providedSecret === retentionSecret;
-}
-
-function getBearerToken(request: Request): string | null {
-  const authorization = request.headers.get("authorization");
-
-  if (!authorization?.startsWith("Bearer ")) {
-    return null;
-  }
-
-  const token = authorization.slice("Bearer ".length).trim();
-  return token.length > 0 ? token : null;
+  return authorizeMaintenance(request, process.env.REPORT_RETENTION_SECRET, "x-report-retention-secret");
 }
 
 function retentionJsonResponse(body: unknown, status = 200): Response {

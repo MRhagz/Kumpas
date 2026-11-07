@@ -72,7 +72,11 @@ it("retries cancelled and expired content, includes completed drafts, and never 
 it("continues a sweep after one session fails, exposing only a safe retry warning", async () => {
   m.rows = [{ id: "one", status: "expired" }, { id: "two", status: "active" }];
   m.terminate.mockRejectedValueOnce(new Error("PRIVATE payload"));
+  const logs = vi.spyOn(console, "warn").mockImplementation(() => {});
   const result = await runExpiredSessionCleanup();
+  expect(JSON.stringify(logs.mock.calls)).toContain("cleanup_pending");
+  expect(JSON.stringify(logs.mock.calls)).not.toContain("PRIVATE");
+  logs.mockRestore();
   expect(result).toMatchObject({ scannedCount: 2, expiredCount: 1, warningCount: 1 });
   expect(JSON.stringify(result)).not.toContain("PRIVATE");
 });
