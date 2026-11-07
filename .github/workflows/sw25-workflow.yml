@@ -1,0 +1,18 @@
+name: Five-stage counselor workflow
+on:
+  pull_request:
+permissions:
+  contents: read
+jobs:
+  workflow-contracts:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci --ignore-scripts --no-audit --no-fund
+      - run: npx vitest run --config vitest.config.ts tests/workflow-integration.test.tsx tests/workflow-progress.test.tsx tests/intake-ui.test.tsx tests/report-review.test.tsx tests/analysis-version-ui.test.tsx tests/draft-recovery.test.ts tests/report-delivery.test.ts tests/partial-specialists-ui.test.tsx
+      - run: npx tsc --noEmit
+      - run: npx eslint src/components/session/session-progress-indicator.tsx src/components/input/input-container.tsx src/components/analysis/analysis-page.tsx src/components/analysis/loading-screen.tsx tests/workflow-integration.test.tsx tests/workflow-progress.test.tsx
