@@ -128,9 +128,7 @@ function dispatch(request) {
     }, signals: ["Synthetic supported signal"],
     sourceReferences: [], keySignalDetails: [],
   })) }));
-  if (prompt.includes("Ranking Agent")) return gemini(JSON.stringify({ rankings: ["Engineer", "Technician", "Analyst"].map(careerPath => ({
-    careerPath, reasoningSummary: "Synthetic evidence summary",
-  })) }));
+  if (prompt.includes("Ranking Agent")) return gemini(JSON.stringify({ rankings: JSON.parse(prompt.split("Evidence: ")[1]).map(({ careerPath, claims }) => ({ careerPath, claims })) }));
   return gemini(JSON.stringify({ summary: "Synthetic specialist finding", strengths: ["Mathematics"],
     goal_market_alignment: "high", feasibility_assessment: "moderate", private_debug: forbidden }));
 }

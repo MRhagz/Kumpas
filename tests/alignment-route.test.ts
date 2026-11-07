@@ -37,3 +37,15 @@ it("passes the immutable approved profile/version and the run budget without leg
   expect(m.synthesize).toHaveBeenCalledWith("session", [{ status: "SUCCESS" }], profile, 2, expect.any(ProcessingBudget), false);
   expect(m.transition.mock.calls.map(([, action]) => action)).toEqual(["claim_analysis", "analysis_ready"]);
 });
+
+it("withholds raw legacy explanations when an already-completed analysis is resumed", async () => {
+  const raw = "RAW_REASONING_SHOULD_NOT_BE_EXPOSED";
+  m.load.mockResolvedValue({ run: { ...run, phase: "report_pending", recommendations: { sessionId: "session", generatedAt: "2026-11-07T00:00:00Z",
+    recommendations: [{ id: "legacy", careerPath: "Synthetic option", rank: 1, alignmentScore: 74.5, aptitudeFit: 80, marketDemand: 60, financialFeasibility: 90,
+      reasoningSummary: raw, keySignals: [raw], keySignalDetails: [], sources: [], status: "complete" }] } }, reportVersion: 0 });
+  const response = await request(), body = await response.json();
+  expect(response.status).toBe(200);
+  expect(JSON.stringify(body)).not.toContain(raw);
+  expect(body.rankedRecommendations.recommendations[0].reasoningSummary).toContain("Evidence summary unavailable");
+  expect(m.dispatch).not.toHaveBeenCalled();
+});

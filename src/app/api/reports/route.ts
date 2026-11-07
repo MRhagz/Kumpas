@@ -1,6 +1,7 @@
 import { ReportAssemblyError, assembleReportData } from "@/lib/report/assembler";
 import { normalizeReportSessionId, pdfFileStore } from "@/lib/report/file-store";
 import { renderReportPdf } from "@/lib/report/pdf-renderer";
+import { formatReasoningSummary } from "@/lib/report/reasoning-formatter";
 import type { ReportGenerationResponse } from "@/lib/report/types";
 import { runRecommendationProvider } from "@/lib/module3/recommendation-provider";
 import { approvedRunProfile, failRun, loadProcessingRun, runBudget, transitionRun, type ProcessingRun } from "@/lib/module5/processing-run";
@@ -78,8 +79,11 @@ export async function POST(request: Request): Promise<Response> {
       recommendationCount: reportPayload.rankedRecommendations.recommendations.length,
       academicEvidence: reportPayload.academicEvidence,
       agentStatuses: reportPayload.rankedRecommendations.agentStatuses,
-      recommendations: reportPayload.rankedRecommendations.recommendations.map(({ id, rank, careerPath, alignmentScore, incompleteReason, reasoningSummary, keySignals, keySignalDetails }) =>
-        ({ id, rank, careerPath, alignmentScore, incompleteReason, reasoningSummary, keySignals, keySignalDetails })),
+      recommendations: reportPayload.rankedRecommendations.recommendations.map((recommendation) => {
+        const { id, rank, careerPath, alignmentScore, incompleteReason, keySignals, keySignalDetails, sources } = recommendation;
+        const formatted = formatReasoningSummary(recommendation);
+        return { id, rank, careerPath, alignmentScore, incompleteReason, reasoningSummary: formatted.summary, keySignals, keySignalDetails, sources, evidenceClaims: formatted.claims };
+      }),
     };
     return json(response);
   } catch (error) {

@@ -71,7 +71,7 @@ export interface CandidateCareerPath {
 
 export interface ComponentEvidence {
   inputReferences: string[];
-  sourceReferences: { reference: string; chunkIndex: number }[];
+  sourceReferences: { reference: string; chunkIndex: number; siloId?: string }[];
   explanation: string;
 }
 
@@ -86,7 +86,11 @@ export interface SourceReference {
   title: string;
   reference: string;
   acquisitionMethod: string;
-  ingestionTimestamp: string;
+  ingestionTimestamp: string | null;
+  publicationDate?: string | null;
+  sourceUrl?: string | null;
+  chunkIndex?: number;
+  siloId?: string;
   relatedSignals: string[];
 }
 
