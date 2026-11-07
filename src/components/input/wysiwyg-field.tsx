@@ -80,7 +80,7 @@ export default function WysiwygField({
         tabIndex={0}
         suppressContentEditableWarning
         data-placeholder={placeholder}
-        className="min-h-[80px] px-4 py-3.5 text-sm leading-relaxed text-charcoal-2 outline-none bg-white [&:empty]:before:content-[attr(data-placeholder)] [&:empty]:before:text-black/25 [&:empty]:before:pointer-events-none [&_ul]:pl-5 [&_ul]:list-disc [&_ul]:marker:text-ink [&_ol]:pl-5 [&_ol]:list-decimal [&_ol]:marker:text-ink [&_p]:mb-1 [&_p:last-child]:mb-0"
+        className="min-h-[80px] px-4 py-3.5 text-sm leading-relaxed text-charcoal-2 outline-none bg-white [&:empty]:before:content-[attr(data-placeholder)] [&:empty]:before:text-muted-text [&:empty]:before:pointer-events-none [&_ul]:pl-5 [&_ul]:list-disc [&_ul]:marker:text-ink [&_ol]:pl-5 [&_ol]:list-decimal [&_ol]:marker:text-ink [&_p]:mb-1 [&_p:last-child]:mb-0"
         onInput={handleInput}
         onKeyUp={checkFormats}
         onMouseUp={checkFormats}

@@ -20,13 +20,14 @@ for (const width of [375, 1280]) test(`keyboard workflow and WCAG 2.1 AA at ${wi
     if (url.endsWith('/approve')) approved = true;
     if (url.endsWith('/review')) reviewed = true;
     if (url === '/api/reports') reportReady = true;
-    const body = url.endsWith('/intake') ? { profileVersion: 0, documents: [], notes: {careerGoal:'<p>Undecided</p>', interests:'<p>Mathematics</p>', financial:'', concerns:'', impression:'', revision:0, source:null}, uploadPending:false }
+    const body = route.request().method() === 'DELETE' ? {status:'terminated',cleanupPending:true} : url.endsWith('/intake') ? { profileVersion: 0, documents: [], notes: {careerGoal:'<p>Undecided</p>', interests:'<p>Mathematics</p>', financial:'', concerns:'', impression:'', revision:0, source:null}, uploadPending:false }
       : url.endsWith('/analyze') ? {runId:'run',agentStatuses:[],rankedRecommendations:{recommendations:[]}}
       : url === '/api/reports' ? {sessionId:'fixture',runId:'run',approvedProfileVersion:1,reportVersion:1,reviewStatus:reviewed?'approved':'draft',downloadUrl:reviewed?'/approved.pdf':null,previewUrl:'/preview.pdf',generatedAt:'2026-11-07T00:00:00Z',expiresAt:'2099-01-02T00:00:00Z',recommendations:[{id:'one',rank:1,careerPath:'Mathematics and public engineering pathways with a deliberately long career label',alignmentScore:80,keySignals:[],keySignalDetails:[],reasoningSummary:'Discuss available routes and missing evidence with your counselor. '+ 'Explanation '.repeat(30)}],recommendationCount:1,studentSummary:width===375?{disclosure:'AI-assisted advisory guidance; a counselor makes the final guidance decision.',scope:'Grade 10 and SHS options',scoreExplanation:'Alignment is not a probability of success.',options:[{id:'one',careerPath:'Mathematics pathway',rank:1,alignmentScore:80,reasons:['Based on confirmed interests'],considerations:['Academic evidence is unavailable.']}],limitations:['No academic documents were provided.'],nextSteps:['Discuss options with your counselor.']}:undefined,academicEvidence:{availableDocuments:[],missingDocuments:['form137','ncae','nat'],completenessNote:'Academic evidence unavailable.'}}
       : {sessionId:'fixture',currentRunId:approved?'run':null,profileVersion:approved?1:0,currentReportVersion:reportReady?1:0,reportReviewStatus:reportReady?(reviewed?'approved':'draft'):null,hasApprovedProfile:approved,hasReport:reportReady,nextStep:reportReady?'report':approved?'analysis':'input',expiresAt:'2099-01-01T00:00:00Z',records:[]};
     await route.fulfill({json:body});
   };
   await page.route('**/api/**', handler);
+  await page.route('**/approved.pdf', route => route.fulfill({body:'%PDF-1.4\n%%EOF',headers:{'Content-Type':'application/pdf','Content-Disposition':'attachment; filename=fixture.pdf'}}));
   await page.goto('/');
   const goal = page.getByRole('textbox',{name:'Career Goal (required)'});
   await expect(goal).toBeVisible();
@@ -79,4 +80,15 @@ for (const width of [375, 1280]) test(`keyboard workflow and WCAG 2.1 AA at ${wi
   await expect(approveReport).toBeVisible(); await scan('review');
   await tabTo(page,approveReport); await page.keyboard.press('Enter');
   await expect(page.getByRole('button',{name:'Download PDF'})).toBeVisible(); await scan('download');
+  const download = page.getByRole('button',{name:'Download PDF'});
+  await tabTo(page,download);
+  const saved = page.waitForEvent('download'); await page.keyboard.press('Enter');
+  expect((await saved).suggestedFilename()).toMatch(/\.pdf$/);
+  const end = page.getByRole('button',{name:'End Session',exact:true});
+  await tabTo(page,end); await page.keyboard.press('Enter');
+  const confirmEnd = page.getByRole('button',{name:'End session',exact:true});
+  await tabTo(page,confirmEnd); await page.keyboard.press('Enter');
+  const cleanup = page.getByRole('status').filter({hasText:'Cleanup is pending'});
+  await expect(cleanup).toBeVisible(); await expect(cleanup).toBeFocused();
+  await expect(page.getByRole('button',{name:'Download PDF'})).toBeHidden();
 });

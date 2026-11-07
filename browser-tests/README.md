@@ -33,7 +33,7 @@ than hosted infrastructure. Do not use real student data in these fixtures.
 At 375x900 and 1280x900, tests use Tab/Shift+Tab, Space, Enter and Escape to
 reach notices/editors, choose an invalid upload through the native file picker,
 read its alert, open/cancel termination and verify restored focus, approve inputs,
-review a non-empty long-label recommendation and unlock final download.
+review a non-empty long-label recommendation/student summary, trigger an actual synthetic PDF download, and confirm End Session with focus on pending-cleanup status.
 They assert visible focus, five named stages with textual state, zero horizontal
 page overflow and zero axe WCAG 2.1 A/AA violations at intake/review/download.
 Axe JSON also records incomplete checks; automated checks do not establish full
@@ -44,7 +44,7 @@ WCAG conformance or replace a spoken screen-reader evaluation.
 | Browser | Observed result |
 | --- | --- |
 | Edge 156.0.4314.58 | Both viewport workflows pass; all three scans per workflow have 0 violations and 0 incomplete results. |
-| Firefox 159.0, Playwright build | Initial default axe aggregation crashed at download and was not counted as passing. The documented axe legacy frame-testing mode avoids opening its aggregation page; the fixture asserts zero frames. Final results are recorded in the PR. |
+| Firefox 159.0, Playwright build | Initial default axe aggregation crashed at download and was not counted as passing. The documented axe legacy frame-testing mode avoids opening its aggregation page; the fixture asserts zero frames. Both viewport workflows pass using that documented compatibility mode; all scans have 0 violations and 0 incomplete results. |
 | WebKit 27.2, Playwright engine | Both viewport workflows pass; all three scans per workflow have 0 violations and 0 incomplete results. Supplemental engine coverage, **not Safari**. |
 | Chrome | Not installed locally; launch checks failed. Linux CI is recorded separately in the PR. |
 | Safari 15+ | Not available on this Windows host; no Safari run claimed. Actual Safari/macOS or iOS remains required release verification. |

@@ -13,22 +13,19 @@ export default function PdfDownloadButton({
   fileName,
   disabled = false,
 }: PdfDownloadButtonProps) {
-  const handleDownload = async () => {
+  const handleDownload = () => {
     if (disabled) {
       return;
     }
 
-    const openedTab = window.open(downloadUrl, "_blank", "noopener,noreferrer");
-    if (!openedTab) {
-      const anchor = document.createElement("a");
-      anchor.href = downloadUrl;
-      anchor.download = fileName;
-      anchor.target = "_blank";
-      anchor.rel = "noopener noreferrer";
-      document.body.appendChild(anchor);
-      anchor.click();
-      anchor.remove();
-    }
+    const anchor = document.createElement("a");
+    anchor.href = downloadUrl;
+    anchor.download = fileName;
+    anchor.target = "_blank";
+    anchor.rel = "noopener noreferrer";
+    document.body.appendChild(anchor);
+    anchor.click();
+    anchor.remove();
 
   };
 
