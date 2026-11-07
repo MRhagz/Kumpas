@@ -69,6 +69,7 @@ export interface RankedRecommendationList {
   recommendations: RankedRecommendation[];
   scoreContract?: "0-100-v1";
   limitation?: string;
+  agentStatuses?: import("@/lib/module3/types").SpecialistStatus[];
 }
 
 export interface AcademicEvidenceSummary {
@@ -93,6 +94,7 @@ export interface ReportPayload {
 }
 
 export interface ReportGenerationResponse {
+  agentStatuses?: import("@/lib/module3/types").SpecialistStatus[];
   sessionId: string;
   reportVersion: number;
   downloadUrl: string | null;

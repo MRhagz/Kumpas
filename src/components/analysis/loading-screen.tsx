@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { AgentSpinner } from "./agent-spinner";
+import type { SpecialistStatus } from "@/lib/module3/types";
 import {
     FileText, PenLine, BotMessageSquare, Shield, BarChart3,
     Brain, Sparkles, CheckCircle2, CircleDashed, Loader2,
@@ -100,7 +101,8 @@ function StageRow({
     );
 }
 
-export default function LoadingScreen({ completedStages = [] }: { completedStages?: string[] }) {
+export default function LoadingScreen({ completedStages = [], agentStatuses, isPartial = false }: { completedStages?: string[]; agentStatuses?: SpecialistStatus[]; isPartial?: boolean }) {
+    const partial = isPartial || agentStatuses?.some((s) => s.status !== "SUCCESS");
     /* ─── placebo progress for each stage ─── */
     const [progress, setProgress] = useState<Record<string, number>>({
         documentParsing: 0,
@@ -122,7 +124,7 @@ export default function LoadingScreen({ completedStages = [] }: { completedStage
     const hasDocs = completedStages.includes("documentParsing");
     const hasNotes = completedStages.includes("notesParsing");
     const hasTranscription = completedStages.includes("transcriptionLayer");
-    const hasParallel = completedStages.includes("laborMarket");
+    const hasParallel = agentStatuses !== undefined || completedStages.includes("laborMarket");
     const hasSynthesis = completedStages.includes("synthesis");
 
     /* Placebo timers — each stage ticks up while active, snaps to 100 when completed */
@@ -174,9 +176,9 @@ export default function LoadingScreen({ completedStages = [] }: { completedStage
 
                 {/* Dynamic header */}
                 <h2 className="font-heading text-2xl text-[var(--charcoal)] mb-1 transition-all duration-500">
-                    {header.title}
+                    {partial ? "Partial Analysis Available" : header.title}
                 </h2>
-                <p className="text-sm text-gray-400 mb-2">{header.subtitle}</p>
+                <p className="text-sm text-gray-400 mb-2">{partial ? "Some specialist analysis is unavailable. Supported suggestions remain unscored where dimensions are missing." : header.subtitle}</p>
 
                 {/* Overall progress bar */}
                 <div className="w-full max-w-md mb-8">
@@ -222,7 +224,7 @@ export default function LoadingScreen({ completedStages = [] }: { completedStage
                     {/* 3. Session Intake */}
                     <StageRow
                         label="Session Intake Layer"
-                        sub="Detecting career path and redacting PII"
+                        sub="Using the counselor-approved profile"
                         icon={BotMessageSquare}
                         color="#5B7FA6"
                         pct={progress.transcriptionLayer}
@@ -244,7 +246,7 @@ export default function LoadingScreen({ completedStages = [] }: { completedStage
                                         ? "bg-[var(--sage)]/10 text-[var(--sage)]"
                                         : "bg-gray-200 text-gray-400"
                                 }`}>
-                                {hasParallel ? (
+                                {hasParallel && !partial ? (
                                     <CheckCircle2 size={14} />
                                 ) : hasTranscription ? (
                                     <Loader2 size={14} className="animate-spin" />
@@ -262,7 +264,11 @@ export default function LoadingScreen({ completedStages = [] }: { completedStage
                             )}
                         </div>
                         <div className="pl-[2.5rem] flex flex-col gap-3.5">
-                            {PARALLEL_AGENTS.map(agent => (
+                            {agentStatuses ? agentStatuses.map((specialist) => (
+                                <p key={specialist.agent} className="text-left text-sm">
+                                    {specialist.agent}: {specialist.status === "SUCCESS" ? "Complete" : specialist.status === "FAILED" ? "Failed" : "Unavailable"}
+                                </p>
+                            )) : PARALLEL_AGENTS.map(agent => (
                                 <AgentSubProgress
                                     key={agent.key}
                                     label={agent.label}
