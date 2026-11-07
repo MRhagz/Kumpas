@@ -1,0 +1,39 @@
+name: Diagnostic privacy and access contracts
+on:
+  pull_request:
+permissions:
+  contents: read
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: pgvector/pgvector:pg17
+        env:
+          POSTGRES_PASSWORD: contract-test
+          POSTGRES_DB: sw27
+        ports: ['5432:5432']
+        options: >-
+          --health-cmd pg_isready --health-interval 5s
+          --health-timeout 5s --health-retries 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci --ignore-scripts --no-audit --no-fund
+      - run: npx vitest run --config vitest.config.ts tests/operational-logs.test.ts tests/operational-retention.test.ts tests/maintenance-job.test.ts tests/routes.test.ts tests/retention-cleanup.test.ts
+      - run: psql -X -v ON_ERROR_STOP=1 -f supabase/tests/sw27_operations.sql
+        env:
+          PGHOST: localhost
+          PGPORT: 5432
+          PGUSER: postgres
+          PGDATABASE: sw27
+          PGPASSWORD: contract-test
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - run: pip install -e './ingestion[pdf,psa,fixtures,dev]'
+      - run: python -m unittest discover -s ingestion/tests -p test_operational_logging.py -v
+      - run: ruff check --config ingestion/pyproject.toml ingestion/src/kumpas_ingestion/config.py ingestion/src/kumpas_ingestion/ingestion_logger.py ingestion/src/kumpas_ingestion/pipelines

@@ -34,8 +34,8 @@ export default function PdfDownloadButton({
 
     try {
       await onDownloadStart?.();
-    } catch (error) {
-      console.warn("[PdfDownloadButton] Download status update failed.", error);
+    } catch {
+      console.warn("[PdfDownloadButton] Download status update failed.");
     }
   };
 

@@ -84,8 +84,8 @@ export function useDocumentProcessor({ onStateChange }: UseDocumentProcessorOpti
             if (res.ok) {
               extracted = await res.json() as ExtractedAcademicData;
             }
-          } catch (err) {
-            console.warn("[document-processor] AI extraction failed:", err);
+          } catch {
+            console.warn("[document-processor] AI extraction failed:");
           }
         }
 

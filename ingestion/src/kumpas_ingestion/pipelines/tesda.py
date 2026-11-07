@@ -25,11 +25,11 @@ from urllib.parse import quote
 
 from pydantic import BaseModel, ConfigDict, Field, HttpUrl, ValidationError, field_validator
 
-from supabase import create_client
+from supabase import ClientOptions, create_client
 
 from ..config import IngestionConfig
 from ..embedding_service import EmbeddingService
-from ..ingestion_logger import IngestionLogger
+from ..ingestion_logger import IngestionLogger, run_cli
 from ..models import ChunkInput
 from ..silos import SiloId
 from ..vector_store_repository import VectorStoreRepository
@@ -217,9 +217,7 @@ def load_and_validate(csv_path: Path) -> list[TESDARecord]:
 
 
 def _print_validation_report(csv_path: Path, errors: Iterable[str]) -> None:
-    print(f"TESDA CSV validation FAILED: {csv_path}. Fix the rows and push a new commit:")
-    for line in errors:
-        print(f"  - {line}")
+    print(f"TESDA CSV validation_failed count={sum(1 for _ in errors)}")
 
 
 def run(csv_path: Path | None = None, *, validate_only: bool = False) -> int:
@@ -230,15 +228,16 @@ def run(csv_path: Path | None = None, *, validate_only: bool = False) -> int:
         except ValidationFailure as exc:
             _print_validation_report(csv_path, exc.errors)
             return 1
-        except (OSError, UnicodeError, csv.Error) as exc:
-            print(f"TESDA CSV validation FAILED: {csv_path}: {exc}")
+        except (OSError, UnicodeError, csv.Error):
+            print("TESDA CSV validation_failed")
             return 1
-        print(f"TESDA CSV validated: {csv_path}: {len(records)} records")
+        print(f"TESDA CSV validated: {len(records)} records")
         return 0
 
     cfg = IngestionConfig.from_env()
 
-    supabase = create_client(cfg.supabase_url, cfg.supabase_service_role_key)
+    supabase = create_client(cfg.supabase_url, cfg.supabase_publishable_key,
+                             options=ClientOptions(headers={"Authorization": f"Bearer {cfg.supabase_ingestion_token}"}))
     logger = IngestionLogger(supabase, workflow_name=WORKFLOW_NAME)
     logger.start(silo_id=SiloId.PATH_FEASIBILITY)
     batch_metadata = {"csv_path": str(csv_path), "acquisition_method": "manual_curation"}
@@ -255,7 +254,7 @@ def run(csv_path: Path | None = None, *, validate_only: bool = False) -> int:
         return 1
     except (OSError, UnicodeError, csv.Error) as exc:
         logger.record(run_status="failure", error_message=str(exc), run_metadata=batch_metadata)
-        print(str(exc))
+        print("TESDA CSV read_failed")
         return 1
 
     repository = VectorStoreRepository(supabase)
@@ -281,5 +280,5 @@ if __name__ == "__main__":
     parser.add_argument("--validate-only", action="store_true",
                         help="Validate the semester CSV without credentials, embedding or writes")
     args = parser.parse_args()
-    sys.exit(run(Path(os.environ.get("TESDA_CSV_PATH") or args.csv_path),
-                 validate_only=args.validate_only))
+    sys.exit(run_cli(lambda: run(Path(os.environ.get("TESDA_CSV_PATH") or args.csv_path),
+                 validate_only=args.validate_only)))
