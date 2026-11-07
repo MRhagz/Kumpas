@@ -35,7 +35,13 @@ export async function runExpiredSessionCleanup(
   }
 
   const now = options.now ?? new Date();
-  const sessions = await getExpiredSessions(now, limit);
+  const expiredSessions = await getExpiredSessions(now, limit);
+  const pending = await supabaseAdmin.rpc("pending_session_terminations", { p_limit: limit });
+  if (pending.error) throw new Error("Failed to load pending terminations.");
+  const sessions = [...new Map([
+    ...expiredSessions,
+    ...((pending.data || []) as { id: string }[]).map(({ id }) => ({ id, status: "cancelled" })),
+  ].map(session => [session.id, session])).values()];
   const warnings: string[] = [];
   let expiredCount = 0;
 

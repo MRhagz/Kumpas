@@ -115,7 +115,9 @@ export class SessionProgressTracker {
         ...updates,
         last_activity: new Date().toISOString(),
       })
-      .eq("id", sessionId);
+      .eq("id", sessionId)
+      .in("status", ["active", "completed"])
+      .gt("expires_at", new Date().toISOString());
 
     if (error) {
       throw new Error(`Failed to update session progress: ${error.message}`);

@@ -7,6 +7,7 @@ import Link from "next/link";
 import LoadingScreen from "@/components/analysis/loading-screen";
 import ProtectedHeader from "@/components/auth/protected-header";
 import SessionProgressIndicator from "@/components/session/session-progress-indicator";
+import SessionTerminationControl from "@/components/session/session-termination-control";
 
 import type { StageName } from "@/lib/analysis-types";
 import type { ReportGenerationResponse } from "@/lib/report/types";
@@ -46,26 +47,9 @@ function AnalysisContent() {
   const router = useRouter();
   const sessionId = searchParams.get("session");
 
-  const onNewSession = useCallback(async () => {
-    if (sessionId) {
-      try {
-        const response = await fetch(
-          `/api/sessions/${encodeURIComponent(sessionId)}`,
-          { method: "DELETE" },
-        );
-        if (!response.ok) {
-          const errorBody = await response.json().catch(() => null);
-          console.warn(
-            "[analysis] Session cleanup failed.",
-            errorBody?.error ?? response.statusText,
-          );
-        }
-      } catch (error) {
-        console.warn("[analysis] Session cleanup failed.", error);
-      }
-    }
-    router.push("/input?new=1");
-  }, [router, sessionId]);
+  const [terminationOpen, setTerminationOpen] = useState(false);
+  const [terminating, setTerminating] = useState(false);
+  const onNewSession = () => setTerminationOpen(true);
 
   const generateReport = useCallback(async (runId: string, signal: AbortSignal) => {
     if (!sessionId) {
@@ -198,7 +182,7 @@ function AnalysisContent() {
   }, [runPipeline, sessionId, router]);
 
   useEffect(() => {
-    if (state.phase !== "reportReady" || !sessionId) return;
+    if (terminating || state.phase !== "reportReady" || !sessionId) return;
     const controller = new AbortController();
     const report = state.report;
     const checkCurrentReport = async () => {
@@ -217,10 +201,10 @@ function AnalysisContent() {
     window.addEventListener("focus", checkCurrentReport);
     const timer = window.setInterval(checkCurrentReport, 30_000);
     return () => { controller.abort(); window.removeEventListener("focus", checkCurrentReport); window.clearInterval(timer); };
-  }, [state, sessionId]);
+  }, [state, sessionId, terminating]);
 
   const reviewReport = async (decision: "approved" | "rejected" | "regenerate" | "correct") => {
-    if (state.phase !== "reportReady" || !sessionId) return;
+    if (terminating || state.phase !== "reportReady" || !sessionId) return;
     const report = state.report;
     recoveryRequest.current?.abort();
     const controller = new AbortController();
@@ -246,6 +230,11 @@ function AnalysisContent() {
 
   return (
     <main className="min-h-screen bg-background">
+      {sessionId && <div className="mx-auto max-w-6xl px-4">
+        <SessionTerminationControl sessionId={sessionId} open={terminationOpen} onOpenChange={setTerminationOpen}
+          onTerminating={() => { recoveryRequest.current?.abort(); setTerminating(true); }} />
+      </div>}
+      <div hidden={terminating}>
       <div className="pt-6 pb-2">
         <SessionProgressIndicator
           sessionId={sessionId}
@@ -294,6 +283,7 @@ function AnalysisContent() {
           onReload={() => runPipeline()}
         />
       )}
+      </div>
     </main>
   );
 }
