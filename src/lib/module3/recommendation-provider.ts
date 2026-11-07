@@ -89,6 +89,7 @@ function buildStudentProfile(
     financialStatus,
     concerns: concerns.length > 0 ? concerns : [],
     approvedAt: profile.sessionTimestamp,
+    withheldNoteValues: [profile.counselorNotes.financial, profile.counselorNotes.concerns, profile.counselorNotes.impression].map(stripHtml),
   };
 }
 
@@ -302,6 +303,9 @@ export function runRecommendationProvider(profile: ApprovedProfile, recommendati
     getApprovedStudentProfile: async (sessionId) => buildStudentProfile(sessionId, profile),
     getRankedRecommendations: async () => sanitizeRecommendationList(recommendations),
     getAcademicEvidenceSummary: async () => ({ availableDocuments, missingDocuments,
+      documentStatuses: Object.fromEntries(ALL_ACADEMIC_TYPES.map((type) => [type,
+        profile.inputEvidence?.documents.find((document) => DOC_TYPE_MAP[document.documentType] === type || document.documentType === type)?.status
+          ?? (availableDocuments.includes(type) ? "provided" : "absent") ])),
       completenessNote: missingDocuments.length ? `Missing: ${missingDocuments.join(", ")}. Recommendations use only approved available inputs.` : "All academic documents are available for analysis." }),
   };
 }

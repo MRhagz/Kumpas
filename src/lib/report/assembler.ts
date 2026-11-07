@@ -1,6 +1,7 @@
 ﻿import { buildAuditTrail, validateAuditTrail } from "@/lib/report/audit-trail";
 import { module3RecommendationProvider } from "@/lib/module3/recommendation-provider";
 import type { RecommendationProvider } from "@/lib/report/provider";
+import { buildStudentSummary } from "@/lib/report/reasoning-formatter";
 import type {
   AcademicEvidenceSummary,
   RankedRecommendationList,
@@ -15,6 +16,8 @@ import {
 export interface AssembleReportDataOptions {
   provider?: RecommendationProvider;
   generatedAt?: string;
+  reportVersion?: number;
+  approvedProfileVersion?: number;
 }
 
 export class ReportAssemblyError extends Error {
@@ -44,13 +47,35 @@ export async function assembleReportData(
     rankedRecommendations,
     academicEvidence,
   );
-  const auditTrail = buildAuditTrail(rankedRecommendations);
+  for (const version of [options.reportVersion, options.approvedProfileVersion]) {
+    if (version !== undefined && (!Number.isSafeInteger(version) || version < 1)) {
+      throw new ReportAssemblyError("Report version identity is invalid.");
+    }
+  }
+  if (options.approvedProfileVersion !== undefined && rankedRecommendations.recommendations.some(
+    (recommendation) => recommendation.approvedProfileVersion !== options.approvedProfileVersion,
+  )) throw new ReportAssemblyError("Recommendations do not match the approved profile version.");
+  // Guard titles too: the model may echo a note even when its explanation is safe.
+  // A career name may legitimately match a reviewed goal or interest. Withhold
+  // echoes of confidential context; never copy any of the five note fields.
+  const noteValues = studentProfile.withheldNoteValues ?? studentProfile.concerns;
+  const normalize = (value: string) => value.toLowerCase().replace(/[^\p{L}\p{N}]+/gu, " ").trim();
+  const privatePhrases = noteValues.flatMap((value) => value.split(/[\n.!?;]+/)).map(normalize).filter(Boolean);
+  const reportRecommendations = { ...rankedRecommendations, recommendations: rankedRecommendations.recommendations.map((recommendation, index) => ({
+    ...recommendation,
+    careerPath: privatePhrases.some((phrase) => ` ${normalize(recommendation.careerPath)} `.includes(` ${phrase} `))
+      ? `Option ${index + 1} (title withheld; ask your counselor to review)` : recommendation.careerPath,
+  })) };
+  const auditTrail = buildAuditTrail(reportRecommendations);
   validateReportAuditTrail(auditTrail);
 
   return {
     sessionId,
+    reportVersion: options.reportVersion ?? null,
+    approvedProfileVersion: options.approvedProfileVersion ?? null,
+    studentSummary: buildStudentSummary(reportRecommendations, academicEvidence),
     studentProfile,
-    rankedRecommendations,
+    rankedRecommendations: reportRecommendations,
     academicEvidence,
     auditTrail,
     generatedAt: options.generatedAt ?? new Date().toISOString(),
