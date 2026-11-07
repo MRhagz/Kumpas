@@ -4,6 +4,7 @@ import {
   pdfFileStore,
   type ReportPdfRetentionResult,
 } from "@/lib/report/file-store";
+import { drainReportCleanup, queueReportCleanup } from "@/lib/report/artifact-cleanup";
 import { supabaseAdmin } from "@/lib/supabase";
 
 export interface ReportRetentionCleanupOptions {
@@ -25,12 +26,23 @@ export async function runReportRetentionCleanup(
     throw new Error("PDF retention is fixed at 24 hours.");
   }
   const log = options.log ?? console;
+  const prepared = await supabaseAdmin.rpc("prepare_report_retention");
+  if (prepared.error) throw new Error("Could not prepare report retention.");
   const result = await pdfFileStore.purgeExpiredReportPdfs(async (objectKey) => {
     const { data, error } = await supabaseAdmin.from("report_versions")
       .select("expires_at").eq("object_key", objectKey).maybeSingle();
     if (error) throw new Error("Could not verify the PDF expiry.");
-    return data?.expires_at ?? null;
-  });
+    if (data) return data.expires_at;
+    const sessionId = objectKey.split("/")[0];
+    if (!/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(sessionId)) return null;
+    const tombstone = await supabaseAdmin.from("retention_tombstones")
+      .select("session_id").eq("session_id", sessionId).maybeSingle();
+    if (tombstone.error) throw new Error("Could not verify report deletion state.");
+    return tombstone.data ? new Date(0).toISOString() : null;
+  }, queueReportCleanup);
+  const cleanup = await drainReportCleanup();
+  result.deletedCount += cleanup.removed;
+  if (cleanup.pending) result.warnings.push("Report artifact cleanup is pending retry.");
   const status =
     result.warnings.length > 0 ? "completed_with_warnings" : "ok";
 

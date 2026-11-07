@@ -157,6 +157,21 @@ export class PdfFileStore {
     if (error) throw new Error(`Failed to delete report PDF: ${formatStorageError(error, this.bucketName)}`);
   }
 
+  async deleteObject(objectKey: string): Promise<void> {
+    const { error } = await this.getClient().storage.from(this.bucketName).remove([objectKey]);
+    if (error) throw new Error("Report artifact deletion failed.");
+  }
+
+  async queueSessionReportPdfs(sessionId: string, queueDeletion: (objectKey: string) => Promise<void>): Promise<void> {
+    const prefix = normalizeSessionId(sessionId);
+    const objects = await listAllStorageObjects(this.getClient().storage.from(this.bucketName), this.bucketName, prefix);
+    for (const object of objects) {
+      if (object.name.endsWith(".pdf") && !object.name.includes("/")) {
+        await queueDeletion(`${prefix}/${object.name}`);
+      }
+    }
+  }
+
   // Callers authorize the exact report against persisted metadata before reading bytes.
   async downloadReportPdf(sessionId: string, reportVersion: number): Promise<Blob> {
     const bucket = this.getClient().storage.from(this.bucketName);
@@ -167,6 +182,7 @@ export class PdfFileStore {
 
   async purgeExpiredReportPdfs(
     publishedExpiry: (objectKey: string) => Promise<string | null>,
+    queueDeletion?: (objectKey: string) => Promise<void>,
   ): Promise<ReportPdfRetentionResult> {
     const now = this.now();
     const cutoff = new Date(now.getTime() - REPORT_PDF_ACCESS_TTL_SECONDS * 1000);
@@ -206,14 +222,16 @@ export class PdfFileStore {
           : !(Date.parse(expiresAt) <= now.getTime())) continue;
 
         const objectKey = `${folder.name}/${reportObject.name}`;
+        // Lifecycle callers queue durably, then delete through a leased worker.
+        if (queueDeletion) {
+          await queueDeletion(objectKey);
+          continue;
+        }
         const { error } = await bucket.remove([objectKey]);
 
         if (error) {
           warnings.push(
-            `Failed to delete ${objectKey}: ${formatStorageError(
-              error,
-              this.bucketName,
-            )}`,
+            "Report artifact cleanup is pending retry.",
           );
           continue;
         }
