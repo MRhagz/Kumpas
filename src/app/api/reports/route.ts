@@ -2,7 +2,7 @@ import { ReportAssemblyError, assembleReportData } from "@/lib/report/assembler"
 import { normalizeReportSessionId, pdfFileStore } from "@/lib/report/file-store";
 import { renderReportPdf } from "@/lib/report/pdf-renderer";
 import { formatReasoningSummary } from "@/lib/report/reasoning-formatter";
-import type { ReportGenerationResponse } from "@/lib/report/types";
+import { reportContentMarker, type ReportGenerationResponse } from "@/lib/report/types";
 import { runRecommendationProvider } from "@/lib/module3/recommendation-provider";
 import { approvedRunProfile, failRun, loadProcessingRun, runBudget, transitionRun, type ProcessingRun } from "@/lib/module5/processing-run";
 import { ProcessingError } from "@/lib/processing-budget";
@@ -40,7 +40,7 @@ export async function POST(request: Request): Promise<Response> {
       if (error || !data) throw new ProcessingError("draft publication", "stale");
       return data;
     };
-    if (run.phase === "ready") await loadReport(current.reportVersion);
+    const existingReport = run.phase === "ready" ? await loadReport(current.reportVersion) : null;
     const budget = runBudget(run);
     if (run.phase !== "ready") {
       budget.assert(stage);
@@ -49,13 +49,16 @@ export async function POST(request: Request): Promise<Response> {
       if (!run.candidate_report_version) throw new ProcessingError("PDF reservation", "stale");
       reportVersion = run.candidate_report_version;
     }
+    const version = reportVersion ?? current.reportVersion;
     const assemble = async (signal?: AbortSignal) => {
       const profile = await approvedRunProfile(run!, signal);
-      return assembleReportData(sessionId, { provider: runRecommendationProvider(profile, run!.recommendations!) });
+      return assembleReportData(sessionId, { provider: runRecommendationProvider(profile, run!.recommendations!),
+        reportVersion: version, approvedProfileVersion: run!.approved_profile_version,
+        generatedAt: existingReport?.generated_at });
     };
     const reportPayload = claimed ? await budget.run("report assembly", assemble, false) : await assemble();
-    const version = reportVersion ?? current.reportVersion;
     let byteLength: number;
+    let hasStudentSummary = claimed;
     if (claimed) {
       stage = "PDF generation and storage";
       const stored = await budget.run(stage, async (signal) => {
@@ -68,11 +71,17 @@ export async function POST(request: Request): Promise<Response> {
       await transitionRun(run, "report_ready");
     } else {
       // An already-ready draft is read back, never regenerated with a new clock.
-      byteLength = (await pdfFileStore.downloadReportPdf(sessionId, current.reportVersion)).size;
+      const storedPdf = await pdfFileStore.downloadReportPdf(sessionId, current.reportVersion);
+      byteLength = storedPdf.size;
+      const header = Buffer.from(await storedPdf.slice(0, 256).arrayBuffer()).toString("utf8");
+      hasStudentSummary = header.startsWith(`%PDF-1.4\n${reportContentMarker(version, run.approved_profile_version)}`);
     }
     const report = await loadReport(version);
     const response: ReportGenerationResponse = {
       sessionId, reportVersion: version,
+      approvedProfileVersion: run.approved_profile_version,
+      reviewStatus: report.status,
+      studentSummary: hasStudentSummary ? reportPayload.studentSummary : null,
       downloadUrl: report.status === "approved"
         ? `/api/reports/${encodeURIComponent(sessionId)}?version=${version}&download=1` : null,
       expiresAt: report.expires_at, generatedAt: report.generated_at, byteLength,

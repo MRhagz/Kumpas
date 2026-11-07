@@ -1,10 +1,9 @@
 import { formatReasoningSummary } from "@/lib/report/reasoning-formatter";
 import { publicSourceUrl, sourceDate } from "./evidence-summary";
+import { documentLabel } from "./reasoning-formatter";
+import { reportContentMarker } from "./types";
 import type {
-  AcademicDocumentType,
-  KeySignalDetail,
   RankedRecommendation,
-  RecommendationSource,
   ReportPayload,
 } from "@/lib/report/types";
 
@@ -27,7 +26,6 @@ const MARGIN_BOTTOM = 38;
 const CONTENT_WIDTH = PAGE_WIDTH - MARGIN_X * 2;
 const SPACE_1 = 8;
 const SPACE_3 = 24;
-const HEADER_FONT_SIZES = [25, 22, 19, 17, 15];
 const OVERVIEW_TITLE_SIZES = [11, 10, 9, 8];
 const INK: Rgb = [0.067, 0.094, 0.153];
 const MUTED: Rgb = [0.42, 0.447, 0.502];
@@ -46,7 +44,7 @@ export async function renderReportPdf(
 
 export function buildReportPdf(payload: ReportPayload): Buffer {
   const builder = new StyledReportPdf(payload);
-  return createPdfDocument(builder.render());
+  return createPdfDocument(builder.render(), payload.studentSummary ? reportContentMarker(payload.reportVersion, payload.approvedProfileVersion) : "");
 }
 
 class StyledReportPdf {
@@ -60,7 +58,11 @@ class StyledReportPdf {
   render(): PdfPage[] {
     this.addPage();
     this.renderCoverHeader();
-    this.renderStudentProfile();
+    this.renderStudentSummary();
+    this.addPage();
+    this.drawSectionLabel("Counselor detail");
+    this.flowText(`Report version: ${this.payload.reportVersion ?? "unavailable"}. Approved profile version: ${this.payload.approvedProfileVersion ?? "unavailable"}.`);
+    this.flowText(`Inputs approved: ${formatDate(this.payload.studentProfile.approvedAt)}. Confidential note text is not reproduced automatically.`);
     this.renderAcademicEvidence();
     this.renderRecommendationOverview();
     this.renderRecommendations();
@@ -79,157 +81,62 @@ class StyledReportPdf {
   }
 
   private renderCoverHeader(): void {
-    const profile = this.payload.studentProfile;
-    const title =
-      this.payload.rankedRecommendations.recommendations[0]?.careerPath ??
-      profile.targetCareer ??
-      "Career Recommendation";
-
-    this.drawText("Kumpas Career Recommendation Report", MARGIN_X, this.y, {
-      color: MUTED,
-      font: "bold",
-      size: 9,
-    });
-    this.drawText(formatDate(this.payload.generatedAt), PAGE_WIDTH - MARGIN_X - 112, this.y, {
-      color: MUTED,
-      font: "bold",
-      size: 9,
-    });
-    this.y -= 24;
-
-    const headerText = `Assessment for ${title}`;
-    const { lines: headerLines, size: headerSize } = fitHeadingToBox(
-      headerText,
-      CONTENT_WIDTH,
-      HEADER_FONT_SIZES,
-      3,
-    );
-    const headerLineHeight = Math.ceil(headerSize * 1.15);
-    headerLines.forEach((headerLine) => {
-      this.drawText(headerLine, MARGIN_X, this.y, {
-        color: INK,
-        font: "bold",
-        size: headerSize,
-      });
-      this.y -= headerLineHeight;
-    });
-    this.y -= 4;
-    this.drawText(`Session ID: ${this.payload.sessionId}`, MARGIN_X, this.y, {
-      color: MUTED,
-      size: 9,
-    });
-    this.y -= 16;
-    this.drawLine(MARGIN_X, this.y, PAGE_WIDTH - MARGIN_X, this.y, INK, 1.4);
-    this.y -= 18;
+    this.drawText("Kumpas Career Guidance Report", MARGIN_X, this.y, { color: INK, font: "bold", size: 22 });
+    this.y -= 28;
+    this.flowText(`Generated ${formatDate(this.payload.generatedAt)}. Report version: ${this.payload.reportVersion ?? "unavailable"}. Approved profile version: ${this.payload.approvedProfileVersion ?? "unavailable"}.`, 9, MUTED);
+    this.flowText("Generated as Draft for counselor review. Current approval status is recorded separately.", 9, AMBER);
   }
 
-  private renderStudentProfile(): void {
-    const profile = this.payload.studentProfile;
-    const leftX = MARGIN_X + 16;
-    const rightX = MARGIN_X + CONTENT_WIDTH / 2 + 8;
-    const columnWidth = CONTENT_WIDTH / 2 - 24;
-
-    const targetText = profile.targetCareer ?? "Not specified";
-    const interestsText = formatList(profile.interests);
-    const strengthsText = formatList(profile.strengths);
-    const sharedInterests =
-      normalizeForCompare(interestsText) === normalizeForCompare(strengthsText);
-
-    const row2Lines = Math.max(
-      wrapText(targetText, columnWidth, 9).length,
-      1,
-    );
-    const row3Lines = sharedInterests
-      ? wrapText(interestsText, CONTENT_WIDTH - 32, 9).length
-      : Math.max(
-          wrapText(interestsText, columnWidth, 9).length,
-          wrapText(strengthsText, columnWidth, 9).length,
-        );
-
-    const topPad = 20;
-    const bottomPad = 16;
-    const rowGap = 12;
-    const row1Height = 26;
-    const row2Height = 13 + row2Lines * 11;
-    const row3Height = 13 + Math.max(1, row3Lines) * 11;
-    const panelHeight = topPad + row1Height + rowGap + row2Height + rowGap + row3Height + bottomPad;
-
-    this.ensureSpace(panelHeight + 30);
-    this.drawSectionLabel("Student Profile");
-    this.drawRoundedPanel(MARGIN_X, this.y - panelHeight, CONTENT_WIDTH, panelHeight, PANEL);
-
-    let cursorY = this.y - topPad;
-    this.drawLabelValue("Student", profile.displayName ?? "Not specified", leftX, cursorY);
-    this.drawLabelValue("Financial Status", capitalize(profile.financialStatus), rightX, cursorY);
-    cursorY -= row1Height + rowGap;
-
-    this.drawLabelWrapped("Target Career", targetText, leftX, cursorY, columnWidth);
-    this.drawLabelValue("Approved At", formatDate(profile.approvedAt), rightX, cursorY);
-    cursorY -= row2Height + rowGap;
-
-    if (sharedInterests) {
-      this.drawLabelWrapped(
-        "Interests & Strengths",
-        interestsText,
-        leftX,
-        cursorY,
-        CONTENT_WIDTH - 32,
-      );
-    } else {
-      this.drawLabelWrapped("Interests", interestsText, leftX, cursorY, columnWidth);
-      this.drawLabelWrapped("Strengths", strengthsText, rightX, cursorY, columnWidth);
+  private renderStudentSummary(): void {
+    this.drawSectionLabel("Student summary");
+    const summary = this.payload.studentSummary;
+    if (!summary) {
+      this.flowText("Student summary unavailable for this report. Generate a current report and review it with your counselor.");
+      return;
     }
-
-    this.y -= panelHeight + 20;
+    this.flowText(summary.disclosure);
+    this.flowText(summary.scope, 9, MUTED);
+    this.flowText(summary.scoreExplanation, 9);
+    for (const option of summary.options) {
+      this.ensureSpace(60);
+      this.flowText(`${option.rank === null ? "Unscored option" : `Rank ${option.rank}`}: ${option.careerPath}`, 12, SAGE_DARK, "bold");
+      this.flowText(option.alignmentScore === null ? "No total or rank: partial evidence." : `Alignment score: ${option.alignmentScore.toFixed(2)} out of 100.`, 10, MUTED);
+      for (const reason of option.reasons) this.flowText(reason, 10);
+      for (const consideration of option.considerations) this.flowText(consideration, 9, MUTED);
+    }
+    this.ensureSpace(50);
+    this.drawSectionLabel("Uncertainty and missing information");
+    for (const limitation of summary.limitations) this.flowText(limitation, 10, AMBER);
+    this.ensureSpace(50);
+    this.drawSectionLabel("Next steps");
+    summary.nextSteps.forEach((step, index) => this.flowText(`${index + 1}. ${step}`, 10));
   }
 
   private renderAcademicEvidence(): void {
+    this.ensureSpace(60);
+    this.drawSectionLabel("Academic evidence completeness");
     const evidence = this.payload.academicEvidence;
-    const completenessNote = evidence.completenessNote + " Scores compare supported options; they are not probabilities of career success." + (this.payload.rankedRecommendations.recommendations.filter((r) => r.rank !== null).length < 3 ? " Fewer than three scored paths are supported. Partial comparisons remain unscored." : "");
-    const noteLines = Math.max(
-      1,
-      wrapText(completenessNote, CONTENT_WIDTH - 32, 9).length,
-    );
-    const topPad = 20;
-    const bottomPad = 14;
-    const documentsRowHeight = 26;
-    const rowGap = 18;
-    const noteHeight = noteLines * 11;
-    const panelHeight = topPad + documentsRowHeight + rowGap + noteHeight + bottomPad;
+    this.flowText(`Available documents: ${evidence.availableDocuments.map(documentLabel).join(", ") || "None"}.`, 9);
+    this.flowText(`Missing usable documents: ${evidence.missingDocuments.map(documentLabel).join(", ") || "None"}.`, 9, AMBER);
+    for (const [document, status] of Object.entries(evidence.documentStatuses ?? {})) {
+      this.flowText(`${documentLabel(document)}: ${status}.`, 9, MUTED);
+    }
+    this.flowText(evidence.completenessNote, 9);
+    this.flowText("Scores compare supported options; they are not probabilities of career success. Missing components remain unavailable and are not treated as zero.", 9, MUTED);
+  }
 
-    this.ensureSpace(panelHeight + 30);
-    this.drawSectionLabel("Academic Evidence Completeness");
-    this.drawRoundedPanel(MARGIN_X, this.y - panelHeight, CONTENT_WIDTH, panelHeight, PANEL);
-
-    const leftX = MARGIN_X + 16;
-    const rightX = MARGIN_X + CONTENT_WIDTH / 2 + 8;
-    const topY = this.y - topPad;
-
-    this.drawLabelValue(
-      "Available Documents",
-      formatAcademicDocuments(evidence.availableDocuments),
-      leftX,
-      topY,
-      48,
-    );
-    this.drawLabelValue(
-      "Missing Documents",
-      formatAcademicDocuments(evidence.missingDocuments),
-      rightX,
-      topY,
-      48,
-    );
-    this.drawParagraph(
-      completenessNote,
-      leftX,
-      topY - documentsRowHeight - rowGap + 8,
-      CONTENT_WIDTH - 32,
-      9,
-      11,
-      evidence.missingDocuments.length > 0 ? AMBER : MUTED,
-    );
-
-    this.y -= panelHeight + 20;
+  /** Flow full-width text line by line so long content can span pages. */
+  private flowText(value: string, size = 10, color: Rgb = INK, font: TextOptions["font"] = "regular"): void {
+    const lineHeight = Math.ceil(size * 1.4);
+    const lines = wrapText(value, CONTENT_WIDTH, size);
+    const height = lines.length * lineHeight + 6;
+    if (height <= PAGE_HEIGHT - 38 - MARGIN_BOTTOM) this.ensureSpace(height);
+    for (const wrapped of lines) {
+      this.ensureSpace(lineHeight);
+      this.drawText(wrapped, MARGIN_X, this.y, { size, color, font });
+      this.y -= lineHeight;
+    }
+    this.y -= 6;
   }
 
   private renderRecommendationOverview(): void {
@@ -293,7 +200,7 @@ class StyledReportPdf {
         });
       });
       const scoreY = titleTop - titleAreaHeight - 18;
-      this.drawText(formatPercent(recommendation.alignmentScore), x + SPACE_1, scoreY, {
+      this.drawText(formatScore(recommendation.alignmentScore), x + SPACE_1, scoreY, {
         color: SAGE_DARK,
         font: "bold",
         size: 18,
@@ -326,213 +233,15 @@ class StyledReportPdf {
   }
 
   private renderRecommendation(recommendation: RankedRecommendation): void {
-    const leftX = MARGIN_X + 16;
-    const rightX = MARGIN_X + 342;
-    const leftWidth = 300;
-    const rightWidth = 164;
-    const headerHeight = 46;
-    const scoreBlockHeight = 90;
-    const bodyBottomPad = 14;
-
-    const formattedReasoning = formatReasoningSummary(recommendation, { maxLength: 4000 });
-
-    const signalsHeight = measureKeySignalRows(
-      recommendation.keySignalDetails,
-      recommendation.keySignals,
-      leftWidth,
-      4,
-    );
-    const reasoningLines = Math.max(
-      1,
-      wrapText(formattedReasoning.summary, leftWidth, 9).length,
-    );
-    const reasoningHeight = reasoningLines * 11;
-    const concernsBlockHeight =
-      formattedReasoning.concerns.length > 0 ? 52 : 0;
-
-    const leftBodyHeight =
-      16 + signalsHeight + 10 + 16 + reasoningHeight + concernsBlockHeight;
-
-    const auditTrail = this.payload.auditTrail.find(
-      (entry) => entry.recommendationId === recommendation.id,
-    );
-    const sources = auditTrail?.sources ?? [];
-    const sourceCount = Math.max(1, Math.min(3, sources.length));
-    const sourcesHeight = 84 + (sourceCount - 1) * 91;
-    const rightBodyHeight = 16 + sourcesHeight;
-
-    const bodyHeight = Math.max(leftBodyHeight, rightBodyHeight);
-    const cardHeight = headerHeight + scoreBlockHeight + bodyHeight + bodyBottomPad;
-
-    this.ensureSpace(cardHeight + 18);
-
-    const cardTop = this.y;
-    this.drawRoundedPanel(MARGIN_X, cardTop - cardHeight, CONTENT_WIDTH, cardHeight, [1, 1, 1]);
-    this.drawRect(MARGIN_X, cardTop - headerHeight, CONTENT_WIDTH, headerHeight, SAGE_DARK);
-
-    this.drawText(recommendation.rank === null ? "Unscored partial comparison" : `Recommendation ${recommendation.rank}`, MARGIN_X + 16, cardTop - 15, {
-      color: [0.82, 0.92, 0.88],
-      font: "bold",
-      size: 7,
-    });
-    const pillX = PAGE_WIDTH - MARGIN_X - 96;
-    const titleX = MARGIN_X + 16;
-    const titleMaxWidth = pillX - titleX - 12;
-    const { text: titleText, size: titleSize } = fitTitleToWidth(
-      recommendation.careerPath,
-      titleMaxWidth,
-      [15, 13, 11],
-    );
-    this.drawText(titleText, titleX, cardTop - 31, {
-      color: [1, 1, 1],
-      font: "bold",
-      size: titleSize,
-    });
-    this.drawStatusPill(recommendation.status, pillX, cardTop - 26);
-
-    this.renderScoreCards(recommendation, cardTop - 64);
-
-    const bodyTop = cardTop - headerHeight - scoreBlockHeight;
-
-    this.drawMiniHeading("Key Signals", leftX, bodyTop);
-    const signalsEndY = this.drawKeySignalDetails(
-      recommendation.keySignalDetails,
-      recommendation.keySignals,
-      leftX,
-      bodyTop - 16,
-      leftWidth,
-      4,
-    );
-
-    this.drawMiniHeading("Evidence Summary", leftX, signalsEndY - 10);
-    const reasoningEndY = this.drawParagraph(
-      formattedReasoning.summary,
-      leftX,
-      signalsEndY - 26,
-      leftWidth,
-      9,
-      11,
-    );
-
-    if (formattedReasoning.concerns.length > 0) {
-      this.drawRect(leftX, reasoningEndY - 52, leftWidth, 42, [1, 0.984, 0.922]);
-      this.drawMiniHeading("Review Notes", leftX + 8, reasoningEndY - 22, AMBER);
-      this.drawBullets(
-        formattedReasoning.concerns,
-        leftX + 8,
-        reasoningEndY - 37,
-        leftWidth - 16,
-        2,
-        AMBER,
-      );
-    }
-
-    this.drawMiniHeading("Audit Trail", rightX, bodyTop);
-    this.renderAuditTrailSources(recommendation.id, rightX, bodyTop - 16, rightWidth);
-
-    this.y = cardTop - cardHeight - 18;
-  }
-
-  private renderScoreCards(recommendation: RankedRecommendation, topY: number): void {
-    const gap = 10;
-    const cardWidth = (CONTENT_WIDTH - 32 - gap * 3) / 4;
-    const x = MARGIN_X + 16;
-    const cards = [
-      ["Alignment", recommendation.alignmentScore],
-      ["Aptitude", recommendation.aptitudeFit],
-      ["Market", recommendation.marketDemand],
-      ["Financial", recommendation.financialFeasibility],
-    ] as const;
-
-    cards.forEach(([label, value], index) => {
-      const cardX = x + index * (cardWidth + gap);
-      this.drawRect(cardX, topY - 54, cardWidth, 54, PANEL);
-      this.drawLine(cardX, topY - 54, cardX + cardWidth, topY - 54, LINE);
-      this.drawText(label, cardX + 8, topY - 15, {
-        color: MUTED,
-        font: "bold",
-        size: 7,
-      });
-      this.drawText(formatPercent(value), cardX + 8, topY - 34, {
-        color: INK,
-        font: "bold",
-        size: 16,
-      });
-      this.drawScoreBar(cardX + 8, topY - 45, cardWidth - 16, value);
-    });
-  }
-
-  private renderAuditTrailSources(
-    recommendationId: string,
-    x: number,
-    y: number,
-    width: number,
-  ): void {
-    const auditTrail = this.payload.auditTrail.find(
-      (entry) => entry.recommendationId === recommendationId,
-    );
-    const sources = auditTrail?.sources ?? [];
-
-    if (sources.length === 0) {
-      this.drawSourceBox(
-        {
-          id: "source-unavailable",
-          title: "Source unavailable",
-          reference: "source-unavailable",
-          acquisitionMethod: "unknown",
-          ingestionTimestamp: null,
-          relatedSignals: [],
-        },
-        x,
-        y,
-        width,
-      );
-      return;
-    }
-
-    let sourceY = y;
-    sources.slice(0, 3).forEach((source, index) => {
-      sourceY = this.drawSourceBox({ ...source, title: `[${index + 1}] ${source.title}` }, x, sourceY, width) - 7;
-    });
-  }
-
-  private drawSourceBox(source: RecommendationSource, x: number, y: number, width: number): number {
-    const height = 84;
-    const textX = x + 9;
-    const textWidth = width - 18;
-    this.drawRect(x, y - height, width, height, [0.992, 0.992, 0.992]);
-    this.drawRect(x, y - height, 3, height, SAGE);
-    this.drawLine(x, y - height, x + width, y - height, LINE);
-    this.drawLine(x, y, x + width, y, LINE);
-
-    const titleLines = wrapHeading(source.title, textWidth, 8, 2);
-    titleLines.forEach((titleLine, index) => {
-      this.drawText(titleLine, textX, y - 14 - index * 10, {
-        color: INK,
-        font: "bold",
-        size: 8,
-      });
-    });
-
-    this.drawText(fitToWidth(formatSourceReference(source.reference), textWidth, 7), textX, y - 38, {
-      color: MUTED,
-      size: 7,
-    });
-    this.drawText(formatAcquisitionMethod(source.acquisitionMethod), textX, y - 50, {
-      color: SAGE_DARK,
-      font: "bold",
-      size: 7,
-    });
-    this.drawText(sourceDate(source.publicationDate) ? `Published ${formatDate(source.publicationDate!)}` : "Publication date unavailable", textX, y - 62, {
-      color: MUTED,
-      size: 6,
-    });
-    this.drawText(sourceDate(source.ingestionTimestamp) ? `Ingested ${formatDate(source.ingestionTimestamp!)}` : "Ingestion date unavailable", textX, y - 74, {
-      color: MUTED,
-      size: 6,
-    });
-
-    return y - height;
+    this.ensureSpace(70);
+    this.flowText(`${recommendation.rank === null ? "Unscored partial comparison" : `Recommendation ${recommendation.rank}`}: ${recommendation.careerPath}`, 13, SAGE_DARK, "bold");
+    this.flowText(`Status: ${recommendation.status}. Alignment: ${formatScore(recommendation.alignmentScore)}. Aptitude: ${formatScore(recommendation.aptitudeFit)}. Demand: ${formatScore(recommendation.marketDemand)}. Feasibility: ${formatScore(recommendation.financialFeasibility)}.`, 9);
+    const weights = recommendation.weights;
+    this.flowText(weights ? `Applied weights: aptitude ${weights.aptitude}, demand ${weights.demand}, feasibility ${weights.feasibility}.` : "Applied weights unavailable.", 9, MUTED);
+    const formatted = formatReasoningSummary(recommendation, { maxLength: Number.MAX_SAFE_INTEGER });
+    this.flowText(formatted.summary, 10);
+    for (const concern of formatted.concerns) this.flowText(concern, 9, AMBER);
+    this.flowText("See Evidence References for Counselor Review for the supporting inputs and full sources.", 9, MUTED);
   }
 
   private renderEvidenceReferences(): void {
@@ -540,8 +249,8 @@ class StyledReportPdf {
     this.drawSectionLabel("Evidence References for Counselor Review");
     for (const recommendation of this.payload.rankedRecommendations.recommendations) {
       this.ensureSpace(60);
-      this.y = this.drawParagraph(recommendation.careerPath, MARGIN_X, this.y - 10, CONTENT_WIDTH, 11, 14) - 8;
-      const claims = formatReasoningSummary(recommendation, { maxLength: 4000 }).claims;
+      this.flowText(recommendation.careerPath, 11, INK, "bold");
+      const claims = formatReasoningSummary(recommendation, { maxLength: Number.MAX_SAFE_INTEGER }).claims;
       const references = [...new Set(claims.flatMap((claim) => claim.inputReferences))];
       const lines = [
         `Approved profile version: ${recommendation.approvedProfileVersion ?? "unavailable"}.`,
@@ -576,7 +285,7 @@ class StyledReportPdf {
     this.pages.forEach((page, index) => {
       page.commands.push(
         line(MARGIN_X, 28, PAGE_WIDTH - MARGIN_X, 28, LINE),
-        text("Kumpas Career Recommendation Report", MARGIN_X, 16, {
+        text("Kumpas | Generated as Draft; approval recorded separately", MARGIN_X, 16, {
           color: MUTED,
           size: 7,
         }),
@@ -588,45 +297,6 @@ class StyledReportPdf {
     });
   }
 
-  private drawLabelValue(
-    label: string,
-    value: string,
-    x: number,
-    y: number,
-    maxChars = 44,
-  ): void {
-    this.drawText(label, x, y, {
-      color: MUTED,
-      font: "bold",
-      size: 7,
-    });
-    this.drawText(truncateText(value, maxChars), x, y - 13, {
-      color: INK,
-      size: 9,
-    });
-  }
-
-  private drawLabelWrapped(
-    label: string,
-    value: string,
-    x: number,
-    y: number,
-    width: number,
-  ): void {
-    this.drawText(label, x, y, {
-      color: MUTED,
-      font: "bold",
-      size: 7,
-    });
-    const lines = wrapText(value, width, 9);
-    lines.forEach((line, index) => {
-      this.drawText(line, x, y - 13 - index * 11, {
-        color: INK,
-        size: 9,
-      });
-    });
-  }
-
   private drawSectionLabel(label: string): void {
     this.drawText(label.toUpperCase(), MARGIN_X, this.y, {
       color: MUTED,
@@ -634,165 +304,6 @@ class StyledReportPdf {
       size: 8,
     });
     this.y -= 14;
-  }
-
-  private drawMiniHeading(label: string, x: number, y: number, color: Rgb = MUTED): void {
-    this.drawText(label.toUpperCase(), x, y, {
-      color,
-      font: "bold",
-      size: 7,
-    });
-  }
-
-  private drawBullets(
-    values: string[],
-    x: number,
-    y: number,
-    width: number,
-    maxItems: number,
-    color: Rgb = INK,
-  ): number {
-    let currentY = y;
-    values.slice(0, maxItems).forEach((value) => {
-      this.drawText("-", x, currentY, { color: SAGE, font: "bold", size: 8 });
-      currentY = this.drawParagraph(value, x + 9, currentY, width - 9, 8, 10, color);
-      currentY -= 3;
-    });
-
-    if (values.length === 0) {
-      currentY = this.drawParagraph("None listed", x, currentY, width, 8, 10, MUTED);
-    }
-
-    return currentY;
-  }
-
-  private drawKeySignalDetails(
-    details: KeySignalDetail[],
-    fallbackSignals: string[],
-    x: number,
-    y: number,
-    width: number,
-    maxItems: number,
-  ): number {
-    const rows: KeySignalDetail[] =
-      details.length > 0
-        ? details.slice(0, maxItems)
-        : fallbackSignals.slice(0, maxItems).map((signal, index) => ({
-            label: `Signal ${index + 1}`,
-            value: signal,
-            polarity: "neutral" as const,
-          }));
-
-    if (rows.length === 0) {
-      return this.drawParagraph("None listed", x, y, width, 8, 10, MUTED);
-    }
-
-    let currentY = y;
-    rows.forEach((row) => {
-      const color = signalPolarityColor(row.polarity);
-      this.drawText(signalPolarityGlyph(row.polarity), x, currentY, {
-        color,
-        font: "bold",
-        size: 8,
-      });
-      this.drawText(truncateText(row.label, 22), x + 10, currentY, {
-        color: INK,
-        font: "bold",
-        size: 8,
-      });
-      currentY = this.drawParagraph(
-        row.value,
-        x + 92,
-        currentY,
-        width - 92,
-        8,
-        10,
-        INK,
-      );
-
-      if (row.subNote) {
-        currentY = this.drawParagraph(
-          row.subNote,
-          x + 92,
-          currentY - 1,
-          width - 92,
-          7,
-          9,
-          MUTED,
-        );
-      }
-
-      currentY -= 4;
-    });
-
-    return currentY;
-  }
-
-  private drawParagraph(
-    value: string,
-    x: number,
-    y: number,
-    width: number,
-    size: number,
-    lineHeight: number,
-    color: Rgb = INK,
-    justify: boolean = true,
-  ): number {
-    const lines = wrapText(value, width, size);
-    let currentY = y;
-
-    lines.forEach((wrappedLine, index) => {
-      const isLast = index === lines.length - 1;
-      const shouldJustify = justify && !isLast && lines.length > 1;
-      if (shouldJustify) {
-        this.drawJustifiedLine(wrappedLine, x, currentY, width, { color, size });
-      } else {
-        this.drawText(wrappedLine, x, currentY, { color, size });
-      }
-      currentY -= lineHeight;
-    });
-
-    return currentY;
-  }
-
-  private drawJustifiedLine(
-    value: string,
-    x: number,
-    y: number,
-    width: number,
-    options: TextOptions = {},
-  ): void {
-    const size = options.size ?? 10;
-    const words = value.split(" ").filter(Boolean);
-
-    if (words.length < 2) {
-      this.drawText(value, x, y, options);
-      return;
-    }
-
-    const wordsWidth = words.reduce((total, word) => total + estimateTextWidth(word, size), 0);
-    const gap = (width - wordsWidth) / (words.length - 1);
-
-    if (gap <= 0) {
-      this.drawText(value, x, y, options);
-      return;
-    }
-
-    let currentX = x;
-    words.forEach((word, index) => {
-      this.drawText(word, currentX, y, options);
-      currentX += estimateTextWidth(word, size) + (index === words.length - 1 ? 0 : gap);
-    });
-  }
-
-  private drawStatusPill(status: RankedRecommendation["status"], x: number, y: number): void {
-    const color = statusColor(status);
-    this.drawRect(x, y - 14, 74, 18, color);
-    this.drawText(status.toUpperCase(), x + 9, y - 8, {
-      color: [1, 1, 1],
-      font: "bold",
-      size: 7,
-    });
   }
 
   private drawScoreBar(x: number, y: number, width: number, value: number | null): void {
@@ -834,7 +345,7 @@ class StyledReportPdf {
   }
 }
 
-function createPdfDocument(pages: PdfPage[]): Buffer {
+function createPdfDocument(pages: PdfPage[], contentMarker: string): Buffer {
   const objects: string[] = [];
   const pageRefs = pages.map((_, index) => 5 + index * 2);
 
@@ -856,7 +367,7 @@ function createPdfDocument(pages: PdfPage[]): Buffer {
       `<< /Length ${Buffer.byteLength(stream, "utf8")} >>\nstream\n${stream}\nendstream`;
   });
 
-  const parts = ["%PDF-1.4\n"];
+  const parts = ["%PDF-1.4\n", contentMarker];
   const offsets = [0];
 
   for (let objectNumber = 1; objectNumber < objects.length; objectNumber += 1) {
@@ -893,30 +404,6 @@ function statusColor(status: RankedRecommendation["status"]): Rgb {
   }
 
   return RED;
-}
-
-function signalPolarityColor(polarity: KeySignalDetail["polarity"]): Rgb {
-  if (polarity === "positive") {
-    return SAGE;
-  }
-
-  if (polarity === "negative") {
-    return RED;
-  }
-
-  return MUTED;
-}
-
-function signalPolarityGlyph(polarity: KeySignalDetail["polarity"]): string {
-  if (polarity === "positive") {
-    return "+";
-  }
-
-  if (polarity === "negative") {
-    return "-";
-  }
-
-  return "=";
 }
 
 function text(value: string, x: number, y: number, options: TextOptions = {}): string {
@@ -971,7 +458,17 @@ function wrapText(value: string, width: number, size: number): string[] {
   }
 
   const lines: string[] = [];
-  const words = sanitized.split(" ");
+  const words = sanitized.split(" ").flatMap((word) => {
+    if (estimateTextWidth(word, size) <= width) return [word];
+    const pieces: string[] = [];
+    let piece = "";
+    for (const character of word) {
+      if (piece && estimateTextWidth(piece + character, size) > width) { pieces.push(piece); piece = ""; }
+      piece += character;
+    }
+    if (piece) pieces.push(piece);
+    return pieces;
+  });
   let currentLine = "";
 
   words.forEach((word) => {
@@ -994,20 +491,6 @@ function wrapText(value: string, width: number, size: number): string[] {
   return lines;
 }
 
-function truncateText(value: string, maxLength: number): string {
-  const sanitized = sanitizePdfText(value);
-
-  if (sanitized.length <= maxLength) {
-    return sanitized;
-  }
-
-  return `${sanitized.slice(0, maxLength - 3).trimEnd()}...`;
-}
-
-function maxCharsForWidth(width: number, size: number): number {
-  return Math.max(4, Math.floor(width / (size * 0.52)));
-}
-
 function estimateTextWidth(value: string, size: number): number {
   const units = Array.from(value).reduce(
     (total, character) => total + estimateCharacterWidth(character),
@@ -1016,133 +499,19 @@ function estimateTextWidth(value: string, size: number): number {
   return (units / 1000) * size;
 }
 
+// Maximum standard Helvetica/Helvetica-Bold widths for ASCII 32 through 126.
+// Conservative metrics keep both fonts inside the measured text column.
+const HELVETICA_WIDTHS = [
+  278, 333, 474, 556, 556, 889, 722, 278, 333, 333, 389, 584, 278, 333, 278, 278,
+  556, 556, 556, 556, 556, 556, 556, 556, 556, 556, 333, 333, 584, 584, 584, 611,
+  1015, 722, 722, 722, 722, 667, 611, 778, 722, 278, 556, 722, 611, 833, 722, 778,
+  667, 778, 722, 667, 611, 722, 667, 944, 667, 667, 611, 333, 278, 333, 584, 556,
+  278, 556, 611, 556, 611, 556, 333, 611, 611, 278, 278, 556, 278, 889, 611, 611,
+  611, 611, 389, 556, 333, 611, 556, 778, 556, 556, 500, 389, 280, 389, 584,
+];
+
 function estimateCharacterWidth(character: string): number {
-  if (character === " ") {
-    return 278;
-  }
-
-  if ("il.,'`!:;|".includes(character)) {
-    return 222;
-  }
-
-  if ("fjt()[]{}".includes(character)) {
-    return 333;
-  }
-
-  if ("r-/\\".includes(character)) {
-    return 389;
-  }
-
-  if ("I".includes(character)) {
-    return 278;
-  }
-
-  if ("mw".includes(character)) {
-    return 778;
-  }
-
-  if ("MW".includes(character)) {
-    return 889;
-  }
-
-  if (/[A-Z]/.test(character)) {
-    return 667;
-  }
-
-  if (/[0-9]/.test(character)) {
-    return 556;
-  }
-
-  return 500;
-}
-
-function fitToWidth(value: string, width: number, size: number): string {
-  return truncateText(value, maxCharsForWidth(width, size));
-}
-
-function fitTitleToWidth(
-  value: string,
-  width: number,
-  sizes: number[],
-): { text: string; size: number } {
-  const sanitized = sanitizePdfText(value);
-  for (const size of sizes) {
-    if (sanitized.length <= maxCharsForWidth(width, size)) {
-      return { text: sanitized, size };
-    }
-  }
-  const smallest = sizes[sizes.length - 1];
-  return { text: fitToWidth(sanitized, width, smallest), size: smallest };
-}
-
-function fitHeadingToBox(
-  value: string,
-  width: number,
-  sizes: number[],
-  maxLines: number,
-): { lines: string[]; size: number } {
-  for (const size of sizes) {
-    const lines = wrapText(value, width, size);
-    if (lines.length <= maxLines) {
-      return { lines, size };
-    }
-  }
-  const smallest = sizes[sizes.length - 1];
-  return { lines: wrapHeading(value, width, smallest, maxLines), size: smallest };
-}
-
-function measureKeySignalRows(
-  details: KeySignalDetail[],
-  fallbackSignals: string[],
-  width: number,
-  maxItems: number,
-): number {
-  const rows: KeySignalDetail[] =
-    details.length > 0
-      ? details.slice(0, maxItems)
-      : fallbackSignals.slice(0, maxItems).map((signal, index) => ({
-          label: `Signal ${index + 1}`,
-          value: signal,
-          polarity: "neutral" as const,
-        }));
-
-  if (rows.length === 0) {
-    return 10;
-  }
-
-  let total = 0;
-  rows.forEach((row) => {
-    const valueLines = Math.max(1, wrapText(row.value, width - 92, 8).length);
-    total += valueLines * 10;
-    if (row.subNote) {
-      const subNoteLines = Math.max(1, wrapText(row.subNote, width - 92, 7).length);
-      total += 1 + subNoteLines * 9;
-    }
-    total += 4;
-  });
-  return total;
-}
-
-function wrapHeading(
-  value: string,
-  width: number,
-  size: number,
-  maxLines: number,
-): string[] {
-  const lines = wrapText(value, width, size);
-
-  if (lines.length <= maxLines) {
-    return lines;
-  }
-
-  const kept = lines.slice(0, maxLines - 1);
-  const remaining = lines.slice(maxLines - 1).join(" ");
-  const maxChars = maxCharsForWidth(width, size);
-  const lastLine = remaining.length > maxChars
-    ? `${remaining.slice(0, maxChars - 3).trimEnd()}...`
-    : remaining;
-  kept.push(lastLine);
-  return kept;
+  return HELVETICA_WIDTHS[character.charCodeAt(0) - 32] ?? 1000;
 }
 
 function escapePdfText(value: string): string {
@@ -1167,33 +536,6 @@ function rgb(color: Rgb): string {
 
 function formatNumber(value: number): string {
   return Number(value.toFixed(3)).toString();
-}
-
-function formatList(values: string[]): string {
-  return values.length > 0 ? values.join(", ") : "None listed";
-}
-
-function normalizeForCompare(value: string): string {
-  return value.trim().toLowerCase().replace(/\s+/g, " ");
-}
-
-function capitalize(value: string): string {
-  if (!value) return value;
-  return value.charAt(0).toUpperCase() + value.slice(1);
-}
-
-function formatAcademicDocuments(documents: AcademicDocumentType[]): string {
-  return documents.length > 0
-    ? documents.map(formatAcademicDocument).join(", ")
-    : "None";
-}
-
-function formatAcademicDocument(document: AcademicDocumentType): string {
-  if (document === "form137") {
-    return "Form 137";
-  }
-
-  return document.toUpperCase();
 }
 
 function formatSourceReference(reference: string): string {
@@ -1235,8 +577,8 @@ function formatAcquisitionMethod(method: string): string {
   return ACQUISITION_METHOD_LABELS[method] ?? method;
 }
 
-function formatPercent(value: number | null): string {
-  return value === null ? "Unavailable" : `${value.toFixed(2)}%`;
+function formatScore(value: number | null): string {
+  return value === null ? "Unavailable" : `${value.toFixed(2)}/100`;
 }
 
 function formatDate(value: string): string {
