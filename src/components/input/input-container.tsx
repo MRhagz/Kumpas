@@ -538,6 +538,7 @@ export default function InputContainer() {
       }
       if (!terminationStarted.current) router.push(`/analysis?session=${sessionId}`);
     } catch (err) {
+      setDraftError(err instanceof Error ? err.message : "Approval failed. Reload before retrying.");
       toast.error("Failed to start analysis", {
         description: err instanceof Error ? err.message : "Unknown error",
         position: "top-center",
@@ -565,9 +566,17 @@ export default function InputContainer() {
         label="Cancel session" onTerminating={() => { terminationStarted.current = true; setTerminating(true); }} />}
       <div hidden={terminating}>
       <div className="mb-6 -mx-4 sm:-mx-6">
-        <SessionProgressIndicator sessionId={sessionId} fallbackStep="upload" />
+        <SessionProgressIndicator sessionId={sessionId} fallbackStep="upload" confirming={requiredNotesFilled(sectionHtml) && !dirtyDraft && !savingDraft && !scanning} />
       </div>
 
+      <details className="mx-auto mb-4 max-w-4xl rounded-lg border p-4">
+        <summary className="cursor-pointer font-semibold">How this counselor workflow works</summary>
+        <p>1. Intake: type the two required note fields or extract a photograph. Academic documents and the other three note fields are optional. Undecided is a valid career goal.</p>
+        <p>2. Confirm Information: review and save notes, academic values and missing evidence, then approve the exact inputs.</p>
+        <p>3. Analysis: AI assists with advisory suggestions; unavailable evidence and partial failures remain visible.</p>
+        <p>4. Review Report: check the summary, limitations and sources. Approve the exact report version before 5. Download.</p>
+        <p>Drafts expire 24 hours after creation; PDFs have their own fixed deadline. Sign in as the same counselor to resume eligible work. End Session revokes access and shows cleanup status. Downloaded copies follow school policy.</p>
+      </details>
       <ProcessingNotice confirmed={processingConfirmed} onConfirm={setProcessingConfirmed} />
       <fieldset disabled={savingDraft || isSubmitting} className="min-w-0">
       <div className="overflow-hidden rounded-2xl border border-black/[0.06] bg-cream-light shadow-card">
@@ -804,8 +813,7 @@ export default function InputContainer() {
                     {scanError && (
                       <div className="flex items-start gap-3 p-4 bg-red-light text-red-soft text-[13px] leading-snug">
                         <AlertTriangle size={18} className="shrink-0 mt-0.5" />
-                        Could not read the notes. Please ensure the image is clear and well-lit,
-                        then try again.
+                        {scanError} Select a clearer photograph to retry, or switch to typed notes.
                       </div>
                     )}
                     {imageSectionsReady && <SessionNotesForm value={imageSectionHtml} onChange={updateImageNotes} />}
@@ -878,6 +886,7 @@ export default function InputContainer() {
           </button>
         </div>
 
+        <h2 className="px-6 text-lg font-semibold">Confirm Information</h2>
         {/* Part 3: ConfirmationApprovalBar */}
         {sessionId && processingConfirmed && (
           <ConfirmationApprovalBar
