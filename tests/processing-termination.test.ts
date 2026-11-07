@@ -8,7 +8,15 @@ vi.mock("@/lib/report/artifact-cleanup", () => ({ drainReportCleanup: () => {
 }, queueReportCleanup: vi.fn() }));
 vi.mock("@/lib/module2/extraction-cleanup", () => ({ drainExtractionCleanup: vi.fn(async () => ({ removed: 0, failed: 0, pending: false })) }));
 vi.mock("@/lib/supabase", () => ({ supabaseAdmin: {
-  rpc: () => { boundary.events.push("purge content"); return boundary.purge(); },
+  rpc: async (name: string, args: { p_inventory_completed?: boolean }) => {
+    if (name === "queue_legacy_document_cleanup") return { error: null };
+    if (name === "session_termination_state") {
+      const purge = await boundary.purge();
+      const clean = args.p_inventory_completed && !purge.error && !(await boundary.removePdf().catch(() => ({ pending: true }))).pending;
+      return { data: { cleanupPending: !clean, reportPdfPurged: !!clean }, error: null };
+    }
+    boundary.events.push("purge content"); return boundary.purge();
+  },
   from: () => {
     const query = {
       update: () => { boundary.events.push("revoke"); return query; },

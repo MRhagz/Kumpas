@@ -31,7 +31,8 @@ beforeAll(async () => {
     "20261104132302_sw01_invited_counselor_access", "20261104144015_sw03_academic_upload_validation",
     "20261105030355_sw02_versioned_contracts", "20261105081447_sw15_processing_budget",
     "20261106110326_sw06_extraction_drafts_cleanup", "20261106124126_sw07_reviewed_profile_approval",
-    "20261106132602_sw08_restricted_correction_logs", "20261106140122_sw23_retention_cleanup_restore"]) {
+    "20261106132602_sw08_restricted_correction_logs", "20261106140122_sw23_retention_cleanup_restore", "20261107105108_sw21_report_review",
+    "20261107112111_sw24_reliable_termination"]) {
     // Test-only clock replacement; production has no time override.
     await db.exec(migration(name).replaceAll("clock_timestamp()", "public.sw23_test_clock()")
       .replaceAll("statement_timestamp()", "public.sw23_test_clock()"));
@@ -39,7 +40,7 @@ beforeAll(async () => {
 }, 30000);
 afterAll(async () => { await db.close(); });
 beforeEach(async () => {
-  await db.exec("truncate sessions, report_versions, report_artifact_cleanup, extraction_artifact_cleanup, correction_logs, retention_tombstones cascade");
+  await db.exec("truncate sessions, report_versions, report_artifact_cleanup, extraction_artifact_cleanup, correction_logs, retention_tombstones, session_termination_requests cascade");
   await clock("2026-11-05T00:04:00Z");
 });
 
@@ -50,7 +51,7 @@ async function seed() {
   await db.query(`insert into extraction_results(session_id,counselor_id,document_type,structured_data,redacted_image_path)
     values ($1,$2,'nat','{}',$3)`, [id, owner, `${id}/legacy.jpg`]);
   await db.query(`insert into profile_versions values ($1,1,$2,'{"notes":"PRIVATE"}',$3,$3)`, [id, owner, created]);
-  await db.query(`insert into report_versions select id,1,counselor_id,1,current_run_id,
+  await db.query(`insert into report_versions(session_id,report_version,counselor_id,approved_profile_version,run_id,object_key,generated_at,expires_at,status,approved_at) select id,1,counselor_id,1,current_run_id,
     id::text||'/1.pdf','2026-11-05T00:04:00Z','2026-11-06T00:04:00Z','approved','2026-11-05T00:05:00Z'
     from sessions where id=$1`, [id]);
   await db.query(`insert into correction_logs(session_id,field_name,extracted_value,corrected_value)
@@ -152,7 +153,7 @@ it("leases cleanup exclusively, recovers killed workers and preserves minimum fa
 });
 
 it("denies counselor and anonymous lifecycle/ledger access", async () => {
-  for (const role of ["anon", "authenticated"]) for (const sql of ["select * from retention_tombstones", "select * from report_artifact_cleanup", "select prepare_report_retention()", "select reapply_retention_tombstones('[]')", "select * from claim_report_cleanup(50)"]) {
+  for (const role of ["anon", "authenticated"]) for (const sql of ["select * from retention_tombstones", "select * from report_artifact_cleanup", "select prepare_report_retention()", "select reapply_retention_tombstones('[]')", "select * from claim_report_cleanup(50)", "select * from session_termination_requests", "select * from pending_session_terminations(50)", "select begin_session_termination(gen_random_uuid(),gen_random_uuid())", "select session_termination_state(gen_random_uuid(),true)"]) {
     await db.exec(`set role ${role}`);
     await expect(db.exec(sql)).rejects.toThrow(/permission denied/);
     await db.exec("reset role");
@@ -164,4 +165,52 @@ it("inventories legacy images even after their extraction/session references are
   await db.exec("select queue_legacy_document_cleanup(); select queue_legacy_document_cleanup()");
   expect((await db.query("select object_path from extraction_artifact_cleanup")).rows).toEqual([{ object_path: "orphan/image.jpg" }]);
   await db.exec("delete from storage.objects");
+});
+
+
+it("SW-24 keeps retries owner-bound after deletion and finishes only after all queued files are removed", async () => {
+  const id = await seed();
+  const begin = async (who = owner) => (await db.query<{ ok: boolean }>("select begin_session_termination($1,$2) ok", [id, who])).rows[0].ok;
+  const state = async (inventory: boolean | null = null) => (await db.query<{ state: { cleanupPending: boolean; reportPdfPurged: boolean } }>("select session_termination_state($1,$2) state", [id, inventory])).rows[0].state;
+  expect(await begin("22222222-2222-4222-8222-222222222222")).toBe(false);
+  expect((await db.query("select status from sessions where id=$1", [id])).rows[0]).toEqual({ status: "active" });
+  expect(await begin()).toBe(true);
+  await purge(id);
+  expect(await count("sessions")).toBe(0);
+  expect(await count("correction_logs")).toBe(1);
+  expect(await state()).toMatchObject({ cleanupPending: true, reportPdfPurged: false });
+  expect((await db.query("select * from pending_session_terminations(50)")).rows).toEqual([{ id }]);
+  expect(await begin()).toBe(true);
+  expect(await begin("22222222-2222-4222-8222-222222222222")).toBe(false);
+  // A failed Storage delete retains its leased/backoff object reference.
+  await db.exec("update report_artifact_cleanup set last_error='storage_delete_failed', next_attempt_at='2026-11-05T01:00:00Z'");
+  expect((await state(true)).cleanupPending).toBe(true);
+  await db.exec("delete from report_artifact_cleanup; delete from extraction_artifact_cleanup");
+  expect(await state()).toEqual({ cleanupPending: false, reportPdfPurged: true });
+  expect((await db.query("select * from pending_session_terminations(50)")).rows).toEqual([]);
+  expect(await begin()).toBe(true);
+});
+
+it("SW-24 retains failed inventory after parent purge and scopes completion to this session", async () => {
+  const id = await seed();
+  await db.query("select begin_session_termination($1,$2)", [id, owner]);
+  await purge(id);
+  await db.exec("delete from report_artifact_cleanup; delete from extraction_artifact_cleanup");
+  expect((await db.query<{ state: { cleanupPending: boolean } }>("select session_termination_state($1,false) state", [id])).rows[0].state.cleanupPending).toBe(true);
+  await db.query("insert into report_artifact_cleanup(object_key) values ('another-session/1.pdf')");
+  expect((await db.query<{ state: unknown }>("select session_termination_state($1,true) state", [id])).rows[0].state).toEqual({ cleanupPending: false, reportPdfPurged: true });
+});
+
+it("SW-24 blocks late analysis publication, PDF completion and delivery immediately on termination", async () => {
+  const id = await seed();
+  const run = (await db.query<{ current_run_id: string }>("select current_run_id from sessions where id=$1", [id])).rows[0].current_run_id;
+  await db.query("insert into analysis_runs(run_id,session_id,approved_profile_version,counselor_id,analysis_started_at,deadline_at) values ($1,$2,1,$3,'2026-11-05T00:03:00Z','2026-11-05T00:08:00Z')", [run,id,owner]);
+  await db.query("select begin_session_termination($1,$2)", [id,owner]);
+  for (const action of ["analysis_ready", "report_ready"]) {
+    await expect(db.query("select transition_processing_run($1,$2,$3,1,$4,'{}',null)", [id,owner,run,action])).rejects.toThrow(/unavailable/);
+  }
+  await expect(db.query("select complete_report_delivery($1,$2,1,1,$3)", [id,owner,run])).rejects.toThrow(/unavailable/);
+  expect((await db.query("select approved_profile,status from sessions where id=$1", [id])).rows[0]).toEqual({ approved_profile: null, status: "cancelled" });
+  await purge(id);
+  expect(await count("analysis_runs")).toBe(0);
 });
