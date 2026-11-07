@@ -1,4 +1,4 @@
-import { test, expect, type Page, type Locator } from '@playwright/test';
+import { test, expect, type Page, type Locator, type Route } from '@playwright/test';
 import AxeBuilder from '@axe-core/playwright';
 async function tabTo(page: Page, target: Locator) {
   const trail: string[] = [];
@@ -15,17 +15,18 @@ for (const width of [375, 1280]) test(`keyboard workflow and WCAG 2.1 AA at ${wi
   console.log(`${info.project.name}: ${browser.version()} viewport=${width}`);
   await page.setViewportSize({width, height: 900});
   let approved = false, reviewed = false, reportReady = false;
-  await page.route('**/api/**', async route => {
+  const handler = async (route: Route) => {
     const url = new URL(route.request().url()).pathname;
     if (url.endsWith('/approve')) approved = true;
     if (url.endsWith('/review')) reviewed = true;
     if (url === '/api/reports') reportReady = true;
     const body = url.endsWith('/intake') ? { profileVersion: 0, documents: [], notes: {careerGoal:'<p>Undecided</p>', interests:'<p>Mathematics</p>', financial:'', concerns:'', impression:'', revision:0, source:null}, uploadPending:false }
       : url.endsWith('/analyze') ? {runId:'run',agentStatuses:[],rankedRecommendations:{recommendations:[]}}
-      : url === '/api/reports' ? {sessionId:'fixture',runId:'run',approvedProfileVersion:1,reportVersion:1,reviewStatus:reviewed?'approved':'draft',downloadUrl:reviewed?'/approved.pdf':null,previewUrl:'/preview.pdf',generatedAt:'2026-11-07T00:00:00Z',expiresAt:'2099-01-02T00:00:00Z',recommendations:[{id:'one',rank:1,careerPath:'Mathematics and public engineering pathways with a deliberately long career label',alignmentScore:80,keySignals:[],keySignalDetails:[],reasoningSummary:'Discuss available routes and missing evidence with your counselor. '+ 'Explanation '.repeat(30)}],recommendationCount:1,academicEvidence:{availableDocuments:[],missingDocuments:['form137','ncae','nat'],completenessNote:'Academic evidence unavailable.'}}
+      : url === '/api/reports' ? {sessionId:'fixture',runId:'run',approvedProfileVersion:1,reportVersion:1,reviewStatus:reviewed?'approved':'draft',downloadUrl:reviewed?'/approved.pdf':null,previewUrl:'/preview.pdf',generatedAt:'2026-11-07T00:00:00Z',expiresAt:'2099-01-02T00:00:00Z',recommendations:[{id:'one',rank:1,careerPath:'Mathematics and public engineering pathways with a deliberately long career label',alignmentScore:80,keySignals:[],keySignalDetails:[],reasoningSummary:'Discuss available routes and missing evidence with your counselor. '+ 'Explanation '.repeat(30)}],recommendationCount:1,studentSummary:width===375?{disclosure:'AI-assisted advisory guidance; a counselor makes the final guidance decision.',scope:'Grade 10 and SHS options',scoreExplanation:'Alignment is not a probability of success.',options:[{id:'one',careerPath:'Mathematics pathway',rank:1,alignmentScore:80,reasons:['Based on confirmed interests'],considerations:['Academic evidence is unavailable.']}],limitations:['No academic documents were provided.'],nextSteps:['Discuss options with your counselor.']}:undefined,academicEvidence:{availableDocuments:[],missingDocuments:['form137','ncae','nat'],completenessNote:'Academic evidence unavailable.'}}
       : {sessionId:'fixture',currentRunId:approved?'run':null,profileVersion:approved?1:0,currentReportVersion:reportReady?1:0,reportReviewStatus:reportReady?(reviewed?'approved':'draft'):null,hasApprovedProfile:approved,hasReport:reportReady,nextStep:reportReady?'report':approved?'analysis':'input',expiresAt:'2099-01-01T00:00:00Z',records:[]};
     await route.fulfill({json:body});
-  });
+  };
+  await page.route('**/api/**', handler);
   await page.goto('/');
   const goal = page.getByRole('textbox',{name:'Career Goal (required)'});
   await expect(goal).toBeVisible();
@@ -43,11 +44,27 @@ for (const width of [375, 1280]) test(`keyboard workflow and WCAG 2.1 AA at ${wi
   await expect(page.getByRole('alert')).toContainText('Choose a JPEG');
   const scan = async (stage: string) => {
     expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
-    const result = await new AxeBuilder({page}).withTags(['wcag2a','wcag2aa','wcag21a','wcag21aa']).analyze();
-    console.log(`${stage}: violations=${result.violations.length}, needs-review=${result.incomplete.length}`);
-    await info.attach(`${stage}-axe`,{body:JSON.stringify(result,null,2),contentType:'application/json'});
-    expect(result.violations.map(v=>({id:v.id,nodes:v.nodes.map(n=>n.target)}))).toEqual([]);
-    await page.screenshot({path:info.outputPath(`${stage}.png`),fullPage:true});
+    // Keep axe injection out of the keyboard flow. Scan equivalent server snapshots in a fresh page.
+    const audit = await page.context().newPage();
+    try {
+      await audit.route('**/api/**',handler);
+      await audit.goto(stage === 'intake' ? '/' : '/#/analysis');
+      await expect(stage === 'intake' ? audit.getByRole('textbox',{name:'Career Goal (required)'})
+        : audit.getByRole('heading',{name:'Counselor review',exact:true})).toBeVisible();
+      if (stage === 'intake') {
+        await audit.getByRole('checkbox',{name:/I have read this notice/}).check();
+        await expect(audit.locator('.animate-fade-in').first()).toHaveCSS('opacity','1');
+      }
+      expect(await audit.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
+      // Firefox's default axe results-aggregation page crashes this engine. Legacy mode
+      // disables cross-origin frame traversal only; there are no frames in this fixture.
+      expect(await audit.locator('iframe, frame').count()).toBe(0);
+      const result = await new AxeBuilder({page:audit}).setLegacyMode(info.project.name === 'firefox').withTags(['wcag2a','wcag2aa','wcag21a','wcag21aa']).analyze();
+      console.log(`${stage}: violations=${result.violations.length}, needs-review=${result.incomplete.length}`);
+      await info.attach(`${stage}-axe`,{body:JSON.stringify(result,null,2),contentType:'application/json'});
+      expect(result.violations.map(v=>({id:v.id,nodes:v.nodes.map(n=>n.target)}))).toEqual([]);
+      await audit.screenshot({path:info.outputPath(`${stage}.png`),fullPage:true});
+    } finally { await audit.close(); }
   };
   await scan('intake');
   const cancel = page.getByRole('button',{name:'Cancel session',exact:true});

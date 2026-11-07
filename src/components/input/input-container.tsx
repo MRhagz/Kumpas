@@ -696,7 +696,7 @@ export default function InputContainer() {
                     handleNotesSelect(e.dataTransfer.files?.[0] || null);
                   }}
                   role="button"
-                  aria-label="Choose notes photograph"
+                  aria-label="Upload photo of your notes"
                   aria-disabled={!processingConfirmed}
                   tabIndex={processingConfirmed ? 0 : -1}
                   onKeyDown={event => {

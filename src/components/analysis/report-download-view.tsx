@@ -82,6 +82,7 @@ export default function ReportDownloadView({
 
   const decide = async (decision: "approved" | "rejected" | "regenerate" | "correct") => {
     if (reviewDisabled) return;
+    reviewHeading.current?.focus();
     setReviewBusy(true);
     try {
       await onReview!(decision);
