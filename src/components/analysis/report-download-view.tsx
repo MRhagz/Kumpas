@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import type { ReactNode } from "react";
 import {
   BarChart3,
@@ -36,13 +36,15 @@ import { publicSourceUrl, sourceDate, inputLabel } from "@/lib/report/evidence-s
 interface ReportDownloadViewProps {
   report: ReportGenerationResponse;
   onNewSession: () => void | Promise<void>;
-  onReportDownloadStart?: () => void | Promise<void>;
+  onReview?: (decision: "approved" | "rejected" | "regenerate" | "correct") => Promise<void>;
+  onReload?: () => void | Promise<void>;
 }
 
 export default function ReportDownloadView({
   report,
   onNewSession,
-  onReportDownloadStart,
+  onReview,
+  onReload,
 }: ReportDownloadViewProps) {
   const [selectedRecommendationId, setSelectedRecommendationId] = useState(
     report.recommendations[0]?.id ?? "",
@@ -50,6 +52,15 @@ export default function ReportDownloadView({
   const [isStartingNewSession, setIsStartingNewSession] = useState(false);
   const [isNewSessionDialogOpen, setIsNewSessionDialogOpen] = useState(false);
   const [isDownloadExpired, setIsDownloadExpired] = useState(false);
+  const [reviewBusy, setReviewBusy] = useState(false);
+  const [reviewError, setReviewError] = useState("");
+  const [reviewLocked, setReviewLocked] = useState(false);
+  const reviewHeading = useRef<HTMLHeadingElement>(null);
+  const reviewDisabled = reviewBusy || reviewLocked || isDownloadExpired || !report.runId || !onReview;
+  const isApproved = report.reviewStatus === "approved";
+  useEffect(() => {
+    if (report.reviewStatus === "approved" || report.reviewStatus === "rejected") reviewHeading.current?.focus();
+  }, [report.reviewStatus]);
   const selectedRecommendation = useMemo(
     () =>
       report.recommendations.find(
@@ -66,7 +77,7 @@ export default function ReportDownloadView({
     dateStyle: "medium",
     timeStyle: "short",
   }).format(new Date(report.generatedAt));
-  const fileName = `Kumpas_Report_${report.sessionId}.pdf`;
+  const fileName = `Kumpas_Report_${report.sessionId}_v${report.reportVersion}.pdf`;
   const hasMissingDocuments = report.academicEvidence.missingDocuments.length > 0;
 
   useEffect(() => {
@@ -96,6 +107,19 @@ export default function ReportDownloadView({
     }
   };
 
+  const decide = async (decision: "approved" | "rejected" | "regenerate" | "correct") => {
+    if (reviewDisabled) return;
+    setReviewBusy(true);
+    try {
+      await onReview!(decision);
+    } catch (error) {
+      setReviewLocked(true);
+      setReviewError(error instanceof Error ? error.message : "The review result could not be confirmed. Reload the report.");
+    } finally {
+      setReviewBusy(false);
+    }
+  };
+
   return (
     <div className="mx-auto min-h-screen w-full max-w-6xl px-4 pt-2 pb-6 sm:px-6 sm:pt-3 sm:pb-10">
       <header className="mb-6">
@@ -113,7 +137,7 @@ export default function ReportDownloadView({
             </p>
             <p className="mt-2 text-sm text-muted-text">
               Report version: {report.reportVersion}. Approved profile version: {report.approvedProfileVersion ?? "unavailable"}.
-              {" "}{report.reviewStatus === "approved" ? "Approved report" : "Draft report — counselor review required"}.
+              {" "}{isApproved ? "Approved report" : report.reviewStatus === "rejected" ? "Rejected report — final release blocked" : "Draft report — counselor review required"}.
             </p>
           </div>
           <button
@@ -128,6 +152,27 @@ export default function ReportDownloadView({
           </button>
         </div>
       </header>
+
+      <section aria-labelledby="report-review-heading" aria-busy={reviewBusy} className="mb-6 space-y-3 rounded-lg border border-black/10 bg-white p-5 shadow-card">
+        <h2 ref={reviewHeading} tabIndex={-1} id="report-review-heading" className="text-lg font-semibold">Counselor review</h2>
+        <p className="text-sm">Review the student summary, counselor evidence and exact PDF before approving report version {report.reportVersion} for profile version {report.approvedProfileVersion ?? "unavailable"}. Recommendations are advisory; you remain responsible for final guidance.</p>
+        <p className="text-sm">The PDF retains its Draft origin marking after approval. Approval is recorded separately and does not change its content or expiry.</p>
+        {report.reviewedAt && <p className="text-sm">{isApproved ? "Approved" : "Rejected"} by the owning counselor on {new Date(report.reviewedAt).toLocaleString()}.</p>}
+        {report.reviewStatus === "rejected" && <p role="status" className="text-sm">This version was rejected. Correct inputs or regenerate, then review the new draft.</p>}
+        {reviewError && <p role="alert" className="text-sm text-red-700">{reviewError}</p>}
+        {reviewBusy && <p role="status" className="text-sm">Confirming report action…</p>}
+        <div className="flex flex-wrap gap-3 text-sm">
+          {report.previewUrl && !reviewLocked && !isDownloadExpired && <a href={report.previewUrl} target="_blank" rel="noopener noreferrer" className="rounded-lg border px-4 py-2 underline">Preview Draft PDF</a>}
+          {isApproved && report.downloadUrl && !reviewLocked && !isDownloadExpired && <a href={report.downloadUrl.replace("&download=1", "")} target="_blank" rel="noopener noreferrer" className="rounded-lg border px-4 py-2 underline">Open approved PDF / Print</a>}
+          {report.reviewStatus === "draft" && <>
+            <button type="button" disabled={reviewDisabled || !report.previewUrl} onClick={() => void decide("approved")} className="rounded-lg bg-forest px-4 py-2 text-white disabled:opacity-50">Approve report v{report.reportVersion}</button>
+            <button type="button" disabled={reviewDisabled} onClick={() => void decide("rejected")} className="rounded-lg border px-4 py-2 disabled:opacity-50">Reject report</button>
+          </>}
+          <button type="button" disabled={reviewDisabled} onClick={() => void decide("correct")} className="rounded-lg border px-4 py-2 disabled:opacity-50">Correct Inputs</button>
+          <button type="button" disabled={reviewDisabled} onClick={() => void decide("regenerate")} className="rounded-lg border px-4 py-2 disabled:opacity-50">Regenerate report</button>
+          {reviewLocked && <button type="button" onClick={() => void onReload?.()} className="rounded-lg border px-4 py-2">Reload current report</button>}
+        </div>
+      </section>
 
       {report.studentSummary ? <StudentSummaryView summary={report.studentSummary} /> : (
         <p className="mb-6 rounded-lg border border-amber-200 bg-amber-50 p-4 text-sm">
@@ -221,11 +266,10 @@ export default function ReportDownloadView({
               />
             </div>
             <div className="mt-5">
-              {report.downloadUrl && <PdfDownloadButton
+              {isApproved && report.downloadUrl && <PdfDownloadButton
                 downloadUrl={report.downloadUrl}
                 fileName={fileName}
-                disabled={isDownloadExpired}
-                onDownloadStart={onReportDownloadStart}
+                disabled={isDownloadExpired || reviewLocked || reviewBusy}
               />}
             </div>
           </section>

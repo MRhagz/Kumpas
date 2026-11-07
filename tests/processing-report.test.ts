@@ -88,6 +88,15 @@ describe("SW-15 PDF-ready budget boundary", () => {
       studentSummary: null, reviewStatus: "approved",
     });
   });
+  it("returns a rejected stored report without regenerating or exposing release/preview URLs", async () => {
+    mocks.load.mockResolvedValue({ run: { ...run(), phase: "ready", status: "completed" }, reportVersion: 2 });
+    mocks.single.mockResolvedValue({ data: { status: "rejected", generated_at: "2026-11-05T00:01:00Z",
+      expires_at: "2026-11-06T00:01:00Z", reviewed_at: "2026-11-05T00:02:00Z", reviewed_by: "owner" }, error: null });
+    expect(await (await request()).json()).toMatchObject({
+      reviewStatus: "rejected", runId: "run", reportVersion: 2, downloadUrl: null, previewUrl: null, reviewedBy: "owner",
+    });
+    expect(mocks.render).not.toHaveBeenCalled(); expect(mocks.upload).not.toHaveBeenCalled();
+  });
   it.each(["current", "legacy", "wrong profile", "wrong report"])("reads %s PDF content without regenerating or claiming a mismatched student summary", async (variant) => {
     mocks.load.mockResolvedValue({ run: { ...run(), phase: "ready", status: "completed", deadline_at: "2026-11-04T00:00:00Z" }, reportVersion: 2 });
     const summary = { disclosure: "Synthetic stored content" };

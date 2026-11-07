@@ -17,10 +17,13 @@ beforeAll(async () => {
       file_size_limit bigint, allowed_mime_types text[]);
     create table storage.objects(bucket_id text);`);
   await db.exec(baseline);
+  await db.exec(readFileSync(new URL("../supabase/migrations/20260524000002_module5_session_progress.sql", import.meta.url), "utf8"));
   await db.exec(`grant all on public.sessions to service_role;
     insert into public.sessions(id, counselor_id, approved_profile, created_at, expires_at)
     values ('${legacy}', '${owner}', '{"legacy":true}', '2026-01-01T00:00:00Z', '2030-01-01T00:00:00Z');`);
   await db.exec(migration);
+  await db.exec(readFileSync(new URL("../supabase/migrations/20261105081447_sw15_processing_budget.sql", import.meta.url), "utf8"));
+  await db.exec(readFileSync(new URL("../supabase/migrations/20261107105108_sw21_report_review.sql", import.meta.url), "utf8"));
 }, 30000);
 afterAll(async () => { await db.close(); });
 
@@ -41,11 +44,55 @@ async function review(id: string, decision = "approved", profile = 1, report = 1
 }
 
 describe("SW-02 database version transitions", () => {
+  it("retains SW-21 review history and artifact identity after explicit regeneration", async () => {
+    const id = await session(); await save(id); const run = await start(id);
+    const draft = await publish(id, run.run_id);
+    const approved = (await db.query<Record<string, unknown>>("select * from public.decide_report_version($1,$2,1,1,$3,'approved')", [id, owner, run.run_id])).rows[0];
+    expect(approved).toMatchObject({ review_decision: "approved", reviewed_by: owner });
+    expect(approved.reviewed_at).not.toBeNull();
+    for (const key of ["object_key", "generated_at", "expires_at", "report_version"]) expect(approved[key]).toEqual(draft[key]);
+    const deliver = () => db.query<Record<string, unknown>>("select * from public.complete_report_delivery($1,$2,1,1,$3)", [id, owner, run.run_id]);
+    const first = (await deliver()).rows[0];
+    expect(first.downloaded_at).not.toBeNull();
+    expect((await deliver()).rows[0].downloaded_at).toEqual(first.downloaded_at);
+    await db.query("select public.prepare_report_correction($1,$2,1,1,$3)", [id, owner, run.run_id]);
+    expect((await db.query<Record<string, unknown>>("select status from sessions where id=$1", [id])).rows[0].status).toBe("active");
+    await deliver();
+    await db.query("select public.regenerate_report_version($1,$2,1,1,$3)", [id, owner, run.run_id]);
+    const old = (await db.query<Record<string, unknown>>("select * from public.report_versions where session_id=$1", [id])).rows[0];
+    expect(old).toMatchObject({ status: "out_of_date", approved_at: null, review_decision: "approved", reviewed_by: owner });
+    expect(old.reviewed_at).toEqual(approved.reviewed_at);
+    await expect(db.query("update report_versions set review_decision='rejected' where session_id=$1", [id])).rejects.toThrow(/immutable/);
+    await expect(deliver()).rejects.toThrow(/Stale/);
+    await expect(db.query("select public.decide_report_version($1,$2,1,1,$3,'approved')", [id, owner, run.run_id])).rejects.toThrow(/Stale/);
+    const current = (await db.query<Record<string, unknown>>("select * from public.sessions where id=$1", [id])).rows[0];
+    expect(current).toMatchObject({ status: "active", report_status: "not_started", completed_at: null });
+    await expect(db.query("select public.regenerate_report_version($1,$2,1,1,$3)", [id, owner, run.run_id])).rejects.toThrow(/Stale/);
+  });
+
+  it("blocks rejected and expired delivery, while approved PDFs outlive their draft", async () => {
+    const id = await session(); await save(id); const run = await start(id); await publish(id, run.run_id);
+    const deliver = () => db.query<Record<string, unknown>>("select * from public.complete_report_delivery($1,$2,1,1,$3)", [id, owner, run.run_id]);
+    await expect(deliver()).rejects.toThrow(/Approved report unavailable/);
+    await review(id, "rejected");
+    await expect(deliver()).rejects.toThrow(/Approved report unavailable/);
+    expect((await db.query<Record<string, unknown>>("select * from report_versions where session_id=$1", [id])).rows[0]).toMatchObject({ review_decision: "rejected", reviewed_by: owner });
+
+    const late = (await db.query<{ id: string }>("insert into sessions(counselor_id,created_at) values ($1,clock_timestamp()-interval '23 hours 59 minutes') returning id", [owner])).rows[0].id;
+    await save(late); const lateRun = await start(late); await publish(late, lateRun.run_id); await review(late);
+    await db.query("update sessions set status='expired' where id=$1", [late]);
+    const value = (await db.query<Record<string, unknown>>("select * from complete_report_delivery($1,$2,1,1,$3)", [late, owner, lateRun.run_id])).rows[0];
+    expect(value.downloaded_at).not.toBeNull();
+    expect((await db.query<Record<string, unknown>>("select status,completed_at from sessions where id=$1", [late])).rows[0]).toEqual({ status: "expired", completed_at: null });
+    await db.query("update report_versions set generated_at=statement_timestamp()-interval '24 hours',expires_at=statement_timestamp() where session_id=$1", [late]);
+    await expect(db.query("select complete_report_delivery($1,$2,1,1,$3)", [late, owner, lateRun.run_id])).rejects.toThrow(/unavailable/);
+  });
+
   it("retains legacy payloads without inventing approval and repairs expiry from creation", async () => {
     const { rows } = await db.query<Record<string, unknown>>(`select current_profile_version, current_report_version, current_run_id,
       approved_profile, expires_at = created_at + interval '24 hours' as fixed from public.sessions where id = $1`, [legacy]);
     expect(rows[0]).toEqual({ current_profile_version: 0, current_report_version: 0, current_run_id: null, approved_profile: { legacy: true }, fixed: true });
-    expect((await db.query<Record<string, unknown>>("select * from public.profile_versions")).rows).toHaveLength(0);
+    expect((await db.query<Record<string, unknown>>("select * from public.profile_versions where session_id=$1", [legacy])).rows).toHaveLength(0);
   });
   it("uses fixed UTC hours even across DST, activity and attempted expiry changes", async () => {
     await db.exec("set timezone = 'America/New_York'");
@@ -152,11 +199,17 @@ describe("SW-02 database version transitions", () => {
       try {
         await expect(db.query<Record<string, unknown>>("select * from public.profile_versions")).rejects.toThrow(/permission denied/);
         await expect(db.query<Record<string, unknown>>("select public.start_analysis_run($1,$2,1,null)", [legacy, owner])).rejects.toThrow(/permission denied/);
+        for (const operation of ["prepare_report_correction", "regenerate_report_version", "complete_report_delivery"]) {
+          await expect(db.query(`select public.${operation}($1,$2,1,1,null)`, [legacy, owner])).rejects.toThrow(/permission denied/);
+        }
+        await expect(db.query("select public.decide_report_version($1,$2,1,1,null,'approved')", [legacy, owner])).rejects.toThrow(/permission denied/);
       } finally { await db.exec("reset role"); }
     }
     await db.exec("set role service_role");
     try {
       const id = await session(); await save(id); const run = await start(id); await publish(id, run.run_id);
+      await db.query("select public.decide_report_version($1,$2,1,1,$3,'approved')", [id, owner, run.run_id]);
+      expect((await db.query<Record<string, unknown>>("select * from public.complete_report_delivery($1,$2,1,1,$3)", [id, owner, run.run_id])).rows[0].downloaded_at).not.toBeNull();
       await expect(db.query<Record<string, unknown>>("update public.report_versions set generated_at=now(),expires_at=now()+interval '24 hours' where session_id=$1", [id])).rejects.toThrow(/permission denied/);
       await expect(db.query<Record<string, unknown>>("update public.analysis_runs set deadline_at=now() where run_id=$1", [run.run_id])).rejects.toThrow(/permission denied/);
     }

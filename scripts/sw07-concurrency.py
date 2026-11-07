@@ -75,7 +75,7 @@ sql("""create role anon; create role authenticated; create role service_role byp
 for name in ["20260523000000_module2_sessions", "20260524000002_module5_session_progress",
              "20261104144015_sw03_academic_upload_validation", "20261105030355_sw02_versioned_contracts",
              "20261105081447_sw15_processing_budget", "20261106110326_sw06_extraction_drafts_cleanup",
-             "20261106124126_sw07_reviewed_profile_approval"]:
+             "20261106124126_sw07_reviewed_profile_approval", "20261107105108_sw21_report_review"]:
     sql((ROOT / f"supabase/migrations/{name}.sql").read_text())
 sql("grant select,insert,update,delete on all tables in schema public to service_role")
 
@@ -116,6 +116,31 @@ for stage in ["analysis_ready", "report_ready"]:
     print(f"PASS: {stage}/edit races and late old completions cannot restore current outputs")
 
 flags = sql("""select count(*) from pg_proc where proname in
-  ('approve_reviewed_inputs','invalidate_reviewed_inputs') and prosecdef""").stdout.strip()
+  ('approve_reviewed_inputs','invalidate_reviewed_inputs','decide_report_version',
+   'prepare_report_correction','regenerate_report_version','complete_report_delivery',
+   'record_report_review') and prosecdef""").stdout.strip()
 assert flags == "0"
 print("PASS: new functions remain security invoker")
+
+# SW-21 uses the same parent lock as SW-07. Either ordering must end with
+# the old report ineligible; approval may commit before its invalidation.
+for change in ["regenerate", "edit"]:
+    for _ in range(5):
+        sid = session()
+        sql(approval(sid))
+        rid = run(sid)
+        for stage in ["claim_analysis", "analysis_ready", "claim_report", "report_ready"]:
+            sql(transition(sid, rid, stage))
+        version = sql(f"select current_report_version from sessions where id='{sid}'").stdout.strip()
+        decide = f"set role service_role; select decide_report_version('{sid}','{OWNER}',1,{version},'{rid}','approved')"
+        replace = (f"set role service_role; select regenerate_report_version('{sid}','{OWNER}',1,{version},'{rid}')"
+                   if change == "regenerate" else edit(sid))
+        results = race(decide, replace)
+        assert results[1].returncode == 0, results[1].stderr
+        assert results[0].returncode == 0 or "Stale" in results[0].stderr, results[0].stderr
+        assert sql(f"select count(*) from report_versions where session_id='{sid}' and (status<>'out_of_date' or approved_at is not null)").stdout.strip() == "0"
+        history = sql(f"select coalesce(review_decision,'none') from report_versions where session_id='{sid}'").stdout.strip()
+        assert history == ("approved" if results[0].returncode == 0 else "none"), history
+        assert sql(decide, False).returncode != 0
+        assert sql(f"set role service_role; select complete_report_delivery('{sid}','{OWNER}',1,{version},'{rid}')", False).returncode != 0
+    print(f"PASS: SW-21 approve/{change} races invalidate old approval and delivery")
