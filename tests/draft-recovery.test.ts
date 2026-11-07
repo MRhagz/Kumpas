@@ -82,6 +82,15 @@ afterEach(() => {
 });
 
 describe("S03 and S04 draft recovery", () => {
+  it("restores a rejected report for explicit correction/regeneration without restarting analysis", async () => {
+    tables.report_versions[0].status = "rejected";
+    for (let refresh = 0; refresh < 2; refresh++) {
+      expect(await (await resume()).json()).toMatchObject({
+        nextStep: "report", hasReport: true, analysisRestartRequired: false,
+        reportReviewStatus: "rejected", currentReportVersion: 3,
+      });
+    }
+  });
   it("resumes the same completed report stage on refresh and owner reauthentication", async () => {
     for (let request = 0; request < 2; request++) {
       const response = await resume();

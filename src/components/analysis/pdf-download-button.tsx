@@ -6,14 +6,12 @@ interface PdfDownloadButtonProps {
   downloadUrl: string;
   fileName: string;
   disabled?: boolean;
-  onDownloadStart?: () => void | Promise<void>;
 }
 
 export default function PdfDownloadButton({
   downloadUrl,
   fileName,
   disabled = false,
-  onDownloadStart,
 }: PdfDownloadButtonProps) {
   const handleDownload = async () => {
     if (disabled) {
@@ -32,11 +30,6 @@ export default function PdfDownloadButton({
       anchor.remove();
     }
 
-    try {
-      await onDownloadStart?.();
-    } catch (error) {
-      console.warn("[PdfDownloadButton] Download status update failed.", error);
-    }
   };
 
   return (

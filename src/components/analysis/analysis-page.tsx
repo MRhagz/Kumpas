@@ -23,6 +23,8 @@ type AnalysisPageState =
 
 interface SessionStateResponse {
   profileVersion: number;
+  currentReportVersion: number;
+  reportReviewStatus: "draft" | "approved" | "rejected" | null;
   currentRunId?: string | null;
   analysisRetryRequired?: boolean;
   processingInProgress?: boolean;
@@ -65,20 +67,6 @@ function AnalysisContent() {
     router.push("/input?new=1");
   }, [router, sessionId]);
 
-  const onReportDownloadStart = useCallback(async () => {
-    if (!sessionId) return;
-    const response = await fetch(
-      `/api/sessions/${encodeURIComponent(sessionId)}/complete`,
-      { method: "POST" },
-    );
-    if (!response.ok) {
-      const errorBody = await response.json().catch(() => null);
-      throw new Error(
-        errorBody?.error ?? "Failed to mark report download complete.",
-      );
-    }
-  }, [sessionId]);
-
   const generateReport = useCallback(async (runId: string, signal: AbortSignal) => {
     if (!sessionId) {
       throw new Error("No session ID found. Please start a new session.");
@@ -100,13 +88,15 @@ function AnalysisContent() {
 
     const current = await fetchSessionState(sessionId, signal);
     if (signal.aborted) return;
-    if (current?.currentRunId !== runId || !current.hasApprovedProfile || current.nextStep !== "report") {
+    if (current?.currentRunId !== runId || !current.hasApprovedProfile ||
+      !["report", "complete"].includes(current.nextStep) || current.currentReportVersion !== reportBody.reportVersion ||
+      current.reportReviewStatus !== reportBody.reviewStatus) {
       throw new Error("Inputs changed. Return to Confirm Information and approve the current values.");
     }
     setState({ phase: "reportReady", report: reportBody });
   }, [sessionId]);
 
-  const runPipeline = useCallback(async (retry = false) => {
+  const runPipeline = useCallback(async (retry = false, expectedRunId?: string) => {
     if (!sessionId) {
       setState({ phase: "error", message: "No session ID found. Please start a new session." });
       return;
@@ -141,16 +131,12 @@ function AnalysisContent() {
         return;
       }
 
-      if (sessionState.nextStep === "input" || !sessionState.hasApprovedProfile) {
-        router.replace(`/input?session=${encodeURIComponent(sessionId)}`);
-        return;
+      if (expectedRunId && sessionState.currentRunId !== expectedRunId) {
+        throw new Error("This regeneration was superseded. Reload the current report before continuing.");
       }
 
-      if (sessionState.reportStatus === "downloaded") {
-        setState({
-          phase: "error",
-          message: "This session has already been completed. Start a new session for the next student.",
-        });
+      if (sessionState.nextStep === "input" || !sessionState.hasApprovedProfile) {
+        router.replace(`/input?session=${encodeURIComponent(sessionId)}`);
         return;
       }
 
@@ -158,7 +144,7 @@ function AnalysisContent() {
         throw new Error("The previous analysis stopped. Your approved inputs are saved. Retry analysis or return to Confirm Information.");
       }
 
-      if (sessionState.nextStep === "report") {
+      if (sessionState.nextStep === "report" || sessionState.nextStep === "complete") {
         if (!sessionState.currentRunId) throw new Error("Return to Confirm Information and approve inputs to start a timed analysis.");
         await generateReport(sessionState.currentRunId, signal);
         return;
@@ -211,6 +197,53 @@ function AnalysisContent() {
     };
   }, [runPipeline, sessionId, router]);
 
+  useEffect(() => {
+    if (state.phase !== "reportReady" || !sessionId) return;
+    const controller = new AbortController();
+    const report = state.report;
+    const checkCurrentReport = async () => {
+      try {
+        const current = await fetchSessionState(sessionId, controller.signal);
+        if (controller.signal.aborted) return;
+        if (!current || current.currentRunId !== report.runId ||
+          current.profileVersion !== report.approvedProfileVersion || current.currentReportVersion !== report.reportVersion ||
+          current.reportReviewStatus !== report.reviewStatus) {
+          setState({ phase: "error", message: "This report changed or expired. Reload the current report before reviewing or downloading." });
+        }
+      } catch {
+        if (!controller.signal.aborted) setState({ phase: "error", message: "The current report could not be confirmed. Reload before reviewing or downloading." });
+      }
+    };
+    window.addEventListener("focus", checkCurrentReport);
+    const timer = window.setInterval(checkCurrentReport, 30_000);
+    return () => { controller.abort(); window.removeEventListener("focus", checkCurrentReport); window.clearInterval(timer); };
+  }, [state, sessionId]);
+
+  const reviewReport = async (decision: "approved" | "rejected" | "regenerate" | "correct") => {
+    if (state.phase !== "reportReady" || !sessionId) return;
+    const report = state.report;
+    recoveryRequest.current?.abort();
+    const controller = new AbortController();
+    recoveryRequest.current = controller;
+    try {
+      const response = await fetch(`/api/reports/${encodeURIComponent(sessionId)}/review`, {
+        method: "POST", headers: { "Content-Type": "application/json" }, signal: controller.signal,
+        body: JSON.stringify({ decision, runId: report.runId, profileVersion: report.approvedProfileVersion, reportVersion: report.reportVersion }),
+      });
+      if (response.status === 401) redirectToLogin(sessionId);
+      const body = await response.json();
+      if (!response.ok) throw new Error(body.error ?? "Report review could not be confirmed.");
+      if (controller.signal.aborted) return;
+      if (decision === "correct") router.push(`/input?session=${encodeURIComponent(sessionId)}&edit=1`);
+      else if (decision === "regenerate") await runPipeline(false, body.runId);
+      else await generateReport(report.runId!, controller.signal);
+    } catch (error) {
+      if (controller.signal.aborted) return;
+      // An ambiguous review may have committed. Reload server state before retry.
+      throw error;
+    }
+  };
+
   return (
     <main className="min-h-screen bg-background">
       <div className="pt-6 pb-2">
@@ -220,7 +253,12 @@ function AnalysisContent() {
           className="max-w-6xl"
         />
         {sessionId && <div className="mx-auto max-w-6xl px-4 pt-3 text-sm">
-          <Link className="underline" href={`/input?session=${encodeURIComponent(sessionId)}&edit=1`}>
+          <Link className="underline" href={`/input?session=${encodeURIComponent(sessionId)}&edit=1`} onClick={(event) => {
+            if (state.phase === "reportReady") {
+              event.preventDefault();
+              void reviewReport("correct").catch(() => setState({ phase: "error", message: "This report changed. Reload before correcting inputs." }));
+            }
+          }}>
             Review or correct inputs
           </Link>
         </div>}
@@ -249,9 +287,11 @@ function AnalysisContent() {
       )}
       {state.phase === "reportReady" && (
         <ReportDownloadView
+          key={`${state.report.runId}-${state.report.reportVersion}-${state.report.reviewStatus}`}
           report={state.report}
           onNewSession={onNewSession}
-          onReportDownloadStart={onReportDownloadStart}
+          onReview={reviewReport}
+          onReload={() => runPipeline()}
         />
       )}
     </main>
