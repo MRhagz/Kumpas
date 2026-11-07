@@ -44,7 +44,7 @@ WCAG conformance or replace a spoken screen-reader evaluation.
 | Browser | Observed result |
 | --- | --- |
 | Edge 156.0.4314.58 | Both viewport workflows pass; all three scans per workflow have 0 violations and 0 incomplete results. |
-| Firefox 159.0, Playwright build | Intake/review scans have 0 violations and 0 incomplete results; the process crashes during download-stage axe evaluation. Local complete browser check is **not passed**. Linux CI is recorded separately in the PR. |
+| Firefox 159.0, Playwright build | Initial default axe aggregation crashed at download and was not counted as passing. The documented axe legacy frame-testing mode avoids opening its aggregation page; the fixture asserts zero frames. Final results are recorded in the PR. |
 | WebKit 27.2, Playwright engine | Both viewport workflows pass; all three scans per workflow have 0 violations and 0 incomplete results. Supplemental engine coverage, **not Safari**. |
 | Chrome | Not installed locally; launch checks failed. Linux CI is recorded separately in the PR. |
 | Safari 15+ | Not available on this Windows host; no Safari run claimed. Actual Safari/macOS or iOS remains required release verification. |
@@ -53,8 +53,7 @@ Early fixture attempts needed a public-config stub and stable Next navigation
 adapter. Browser measurements exposed the Tab-consuming editor, unlabeled
 selectors/format buttons, missing dialog return focus, a Firefox tab-list loop
 and the report warning contrast failure. These were corrected. Optional semantic
-snapshot collection also crashed Firefox and was removed; axe still exposes a
-local download-stage engine crash, which remains an explicit limitation.
+snapshot collection also crashed Firefox and was removed; the final runner uses isolated audit pages and Firefox-only axe legacy mode. No axe rules are disabled; a zero-frame assertion prevents untested cross-origin frames. Measurements wait for the intake fade-in to settle. The keyboard-flow page is not modified by axe instrumentation. The initial local and Linux aggregation crashes remain recorded in the PR.
 
 Not executed: real NVDA/Narrator/VoiceOver spoken-announcement tests, every
 historical minimum browser version, five-student comprehension assessment or
