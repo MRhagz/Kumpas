@@ -53,7 +53,7 @@ class EmbeddingContractTests(unittest.TestCase):
             with self.subTest(options=options), self.assertRaisesRegex(ConfigError, "Incompatible"):
                 IngestionConfig("https://db.example", "key", "key", **options)
         with patch.dict(os.environ, {
-            "SUPABASE_URL": "db", "SUPABASE_SERVICE_ROLE_KEY": "key", "GEMINI_API_KEY": "key",
+            "SUPABASE_URL": "db", "SUPABASE_INGESTION_TOKEN": "key", "SUPABASE_PUBLISHABLE_KEY": "public-key", "GEMINI_API_KEY": "key",
             "EMBEDDING_DIMENSIONS": "invalid",
         }), self.assertRaisesRegex(ConfigError, "768"):
             IngestionConfig.from_env()

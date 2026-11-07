@@ -1,3 +1,5 @@
+import { authorizeMaintenance } from "@/lib/auth/maintenance";
+import { operationalEvent } from "@/lib/operational-log";
 import { runExpiredSessionCleanup } from "@/lib/module5/expired-session-cleanup";
 
 export const runtime = "nodejs";
@@ -51,19 +53,16 @@ async function runCleanup(
     return sessionCleanupJsonResponse({ error: limit.message }, 400);
   }
 
+  const startedAt = Date.now();
   try {
     const result = await runExpiredSessionCleanup({
       limit,
     });
 
     return sessionCleanupJsonResponse(result);
-  } catch (error) {
-    const message =
-      error instanceof Error
-        ? error.message
-        : "Expired session cleanup failed.";
-
-    return sessionCleanupJsonResponse({ error: message }, 500);
+  } catch {
+    operationalEvent("session_cleanup", "failure", startedAt, { code: "operation_failed" });
+    return sessionCleanupJsonResponse({ error: "Maintenance cleanup failed. Retry the operation." }, 500);
   }
 }
 
@@ -76,7 +75,7 @@ function parsePositiveNumber(
   }
 
   const parsedValue =
-    typeof value === "number" ? value : Number.parseFloat(String(value));
+    typeof value === "number" ? value : Number(value);
 
   if (!Number.isFinite(parsedValue) || parsedValue <= 0) {
     return new Error(`${fieldName} must be a number greater than zero.`);
@@ -95,38 +94,15 @@ function parsePositiveInteger(
     return parsedValue;
   }
 
-  if (!Number.isInteger(parsedValue)) {
-    return new Error(`${fieldName} must be a positive integer.`);
+  if (!Number.isInteger(parsedValue) || parsedValue > 100) {
+    return new Error(`${fieldName} must be an integer between 1 and 100.`);
   }
 
   return parsedValue;
 }
 
 function isAuthorizedSessionCleanupRequest(request: Request): boolean {
-  const cleanupSecret =
-    process.env.SESSION_CLEANUP_SECRET ?? process.env.REPORT_RETENTION_SECRET;
-
-  if (!cleanupSecret) {
-    return false;
-  }
-
-  const providedSecret =
-    request.headers.get("x-session-cleanup-secret") ??
-    request.headers.get("x-report-retention-secret") ??
-    getBearerToken(request);
-
-  return providedSecret === cleanupSecret;
-}
-
-function getBearerToken(request: Request): string | null {
-  const authorization = request.headers.get("authorization");
-
-  if (!authorization?.startsWith("Bearer ")) {
-    return null;
-  }
-
-  const token = authorization.slice("Bearer ".length).trim();
-  return token.length > 0 ? token : null;
+  return authorizeMaintenance(request, process.env.SESSION_CLEANUP_SECRET, "x-session-cleanup-secret");
 }
 
 function sessionCleanupJsonResponse(body: unknown, status = 200): Response {

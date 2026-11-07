@@ -1,0 +1,24 @@
+name: Operational log retention
+on:
+  schedule:
+    - cron: '20 3 * * *'
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  prune:
+    if: github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    environment: maintenance
+    steps:
+      - name: Delete ingestion logs at the fixed 90-day cutoff
+        env:
+          PGDATABASE: ${{ secrets.INGESTION_LOG_MAINTENANCE_DATABASE_URL }}
+        run: |
+          set -euo pipefail
+          test -n "$PGDATABASE"
+          if ! result=$(psql -X -qAt -v ON_ERROR_STOP=1 -c 'select public.prune_ingestion_logs()' 2>/dev/null); then
+            echo '::error::ingestion_log_cleanup_failed; retry required'
+            exit 1
+          fi
+          echo "ingestion_log_cleanup_success removed=$result"

@@ -37,7 +37,7 @@ export default function ReportView({ report, sessionIntake, counselorNotes, agen
         setIsGeneratingPdf(true);
         try {
             // Dynamically import html2pdf to avoid SSR issues
-            // @ts-ignore
+            // @ts-expect-error html2pdf.js has no installed type declarations.
             const html2pdf = (await import("html2pdf.js")).default;
             const element = pdfContentRef.current;
 
@@ -60,8 +60,8 @@ export default function ReportView({ report, sessionIntake, counselorNotes, agen
 
             const pdfBlobUrl = await html2pdf().set(opt).from(element).output('bloburl');
             setPdfBlobUrl(pdfBlobUrl);
-        } catch (error) {
-            console.error("PDF generation failed:", error);
+        } catch {
+            console.error("PDF generation failed:");
             alert("Failed to generate PDF. Please try again.");
         } finally {
             setIsGeneratingPdf(false);

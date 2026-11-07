@@ -37,11 +37,12 @@ from decimal import Decimal, InvalidOperation
 import httpx
 import pandas as pd
 from pydantic import BaseModel, Field, ValidationError, field_validator
-from supabase import create_client
+
+from supabase import ClientOptions, create_client
 
 from ..config import IngestionConfig, require_https
 from ..embedding_service import EmbeddingService
-from ..ingestion_logger import IngestionLogger
+from ..ingestion_logger import IngestionLogger, run_cli
 from ..models import ChunkInput
 from ..silos import SiloId
 from ..vector_store_repository import VectorStoreRepository
@@ -213,7 +214,8 @@ def run(*, validate_only: bool = False) -> int:
     logger = None
     if not validate_only:
         cfg = IngestionConfig.from_env()
-        supabase = create_client(cfg.supabase_url, cfg.supabase_service_role_key)
+        supabase = create_client(cfg.supabase_url, cfg.supabase_publishable_key,
+                             options=ClientOptions(headers={"Authorization": f"Bearer {cfg.supabase_ingestion_token}"}))
         logger = IngestionLogger(supabase, workflow_name=WORKFLOW_NAME)
         logger.start(silo_id=SiloId.MARKET_ANALYTICS)
 
@@ -227,8 +229,8 @@ def run(*, validate_only: bool = False) -> int:
         chunk_inputs = validate_batch(
             download_csv(dataset_url), official_url, os.environ.get("PSA_PUBLICATION_DATE") or None
         )
-    except (IngestionFailure, OSError, httpx.HTTPError, ValidationError) as exc:
-        message = f"PSA batch {dataset_url}: {exc}"
+    except (IngestionFailure, OSError, httpx.HTTPError, ValidationError):
+        message = "PSA validation_failed"
         print(message)
         if logger is not None:
             logger.record(run_status="failure", error_message=message,
@@ -236,7 +238,7 @@ def run(*, validate_only: bool = False) -> int:
         return 1
 
     if validate_only:
-        print(f"PSA batch {dataset_url}: validated {len(chunk_inputs)} records (no writes)")
+        print(f"PSA batch: validated {len(chunk_inputs)} records (no writes)")
         return 0
 
     repository = VectorStoreRepository(supabase)
@@ -247,7 +249,7 @@ def run(*, validate_only: bool = False) -> int:
             logger.prepare(run_metadata={"total_records": len(chunk_inputs), "dataset_url": dataset_url}),
             replace_all=True
         )
-    except Exception as exc:
+    except Exception as exc:  # noqa: BLE001 -- sanitize failures at the operational boundary
         logger.record(run_status="failure", error_message=f"PSA refresh failed: {exc}")
         return 1
     finally:
@@ -260,4 +262,5 @@ if __name__ == "__main__":
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--validate-only", action="store_true",
                         help="Validate CSV and provenance without credentials, embeddings, or writes")
-    sys.exit(run(validate_only=parser.parse_args().validate_only))
+    args = parser.parse_args()
+    sys.exit(run_cli(lambda: run(validate_only=args.validate_only)))

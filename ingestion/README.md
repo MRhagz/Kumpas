@@ -26,7 +26,8 @@ shared services.
 | Variable | Used by | Source |
 | --- | --- | --- |
 | `SUPABASE_URL` | repository, logger | Supabase project settings |
-| `SUPABASE_SERVICE_ROLE_KEY` | repository, logger | Supabase project settings (RLS-bypass key) |
+| `SUPABASE_INGESTION_TOKEN` | repository, logger | Short-lived, project-signed JWT with role `ingestion_worker` (never a service-role key) |
+| `SUPABASE_PUBLISHABLE_KEY` | API gateway | Project publishable/anon key |
 | `GEMINI_API_KEY` | embedding service | Google AI Studio |
 
 In GitHub Actions these come from repository secrets. Locally, export them in
@@ -77,12 +78,14 @@ jobs:
           extras: psa     # or 'pdf' / 'tesda' / '' for shared-only
         env:
           SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
-          SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
+          SUPABASE_INGESTION_TOKEN: ${{ secrets.SUPABASE_INGESTION_TOKEN }}
+          SUPABASE_PUBLISHABLE_KEY: ${{ secrets.SUPABASE_PUBLISHABLE_KEY }}
           GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
       - run: python -m kumpas_ingestion.pipelines.psa
         env:
           SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
-          SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
+          SUPABASE_INGESTION_TOKEN: ${{ secrets.SUPABASE_INGESTION_TOKEN }}
+          SUPABASE_PUBLISHABLE_KEY: ${{ secrets.SUPABASE_PUBLISHABLE_KEY }}
           GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
 ```
 
@@ -175,3 +178,48 @@ psql "$TEST_DATABASE_URL" -v ON_ERROR_STOP=1 -f supabase/tests/sw09_embedding_co
 `supabase/tests/sw09_bootstrap.sql` is only for a new disposable database; it creates
 roles and the audited ingestion schema. Never run that bootstrap against a deployed
 project. See [SW-09 review evidence](../docs/sw09-review.md) for actual local outcomes.
+
+
+### Operational privacy and deployment (SW-27)
+
+Apply `20261107102120_sw27_safe_operations.sql` before deploying these workflows.
+It sanitizes existing ingestion error/metadata history, restricts knowledge ingestion
+and log maintenance to separate roles, and deletes logs at the fixed 90-day cutoff.
+Cache/freshness references become null when the referenced log expires; successful
+publication/provenance records remain intact. Log sanitization/deletion is intentional
+and cannot be reversed. It does not delete knowledge chunks or student drafts/PDFs.
+
+Provision `SUPABASE_INGESTION_TOKEN` using the project's trusted JWT signer with
+`role: ingestion_worker` and a bounded future `exp`. Keep signing credentials outside
+CI and the application. Rotate the worker token before expiry. Supabase verifies its
+signature; the importer additionally rejects missing/expired/wrong-role payloads.
+Supply `SUPABASE_PUBLISHABLE_KEY` for the API gateway. There is no service-role
+fallback. This worker can read/write public knowledge and operational metadata; it
+has no student-session or private Storage privileges. The trusted application backend
+keeps its existing server-only service credential for owner-checked workflows.
+
+Create a dedicated database login with membership only in `ingestion_log_maintenance`
+(and the connection/schema usage needed to call the function). Do not grant service_role,
+student tables, Storage or schema creation. Store its TLS connection URL as the
+`maintenance` environment secret `INGESTION_LOG_MAINTENANCE_DATABASE_URL`.
+The daily **Operational log retention** job can only invoke the no-argument,
+fixed-cutoff pruning function. Run it immediately after deployment and monitor failed
+Actions runs; retry via workflow_dispatch. Both lifecycle cleanup and log cleanup jobs
+use the protected `maintenance` environment on main. Configure its deployment branch
+rule to main and team-required approvals. Keep `SESSION_CLEANUP_SECRET` and
+`REPORT_RETENTION_SECRET` distinct; session cleanup no longer accepts the report key.
+Neither credential is a counselor token or a public/browser environment variable.
+
+Set GitHub repository Actions log retention to **90 days** (or less), including any
+external log sinks. Delete pre-deployment Actions/app logs that contain raw exceptions
+or model content according to the incident procedure; sanitizing database rows cannot
+remove already-exported logs. Monitor `operation_failed`, `cleanup_pending`,
+`cleanup_retry_required`, `log_write_failed` and `ingestion_log_cleanup_failed` events.
+Logs intentionally omit filenames, source URLs, exception bodies and validation values;
+use local public fixtures to reproduce a failed import. Never add private content to
+logs for diagnosis. Keep failed cleanup jobs visible until retry succeeds.
+
+The SW-05 paid-extraction decision is preserved: no local masking is added here.
+These changes do not verify production billing or external retention. Reconcile the
+SRS/SDD/STD/RTM logging/extraction wording in the later document handoff; no submission
+PDFs or approved source documents are edited by this software change.

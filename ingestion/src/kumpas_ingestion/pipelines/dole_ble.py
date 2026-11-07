@@ -36,11 +36,11 @@ from pathlib import Path
 
 from pydantic import BaseModel, ConfigDict, HttpUrl, ValidationError, field_validator
 
-from supabase import create_client
+from supabase import ClientOptions, create_client
 
 from ..config import IngestionConfig
 from ..embedding_service import EmbeddingService
-from ..ingestion_logger import IngestionLogger
+from ..ingestion_logger import IngestionLogger, run_cli
 from ..models import ChunkInput
 from ..pdf_downloader import PDFDownloader, PDFDownloadError
 from ..pdf_text_extractor import PDFTextExtractionError, PDFTextExtractor
@@ -185,15 +185,15 @@ def _process_pdf(
 
 def _print_failure_report(failures: Iterable[tuple[str, str]]) -> None:
     print("DOLE BLE PDFs skipped due to per-file errors:")
-    for name, message in failures:
-        print(f"  - {name}: {message}")
+    print(f"ingestion_failed count={sum(1 for _ in failures)}")
 
 
 def run() -> int:
     cfg = IngestionConfig.from_env()
     directory = _resolve_directory()
 
-    supabase = create_client(cfg.supabase_url, cfg.supabase_service_role_key)
+    supabase = create_client(cfg.supabase_url, cfg.supabase_publishable_key,
+                             options=ClientOptions(headers={"Authorization": f"Bearer {cfg.supabase_ingestion_token}"}))
     logger = IngestionLogger(supabase, workflow_name=WORKFLOW_NAME)
     logger.start(silo_id=SiloId.LIVE_LABOR_DEMAND)
 
@@ -202,7 +202,7 @@ def run() -> int:
         pdfs = _list_pdfs(directory)
         if not pdfs:
             logger.record(run_status="no_op", run_metadata={"directory": str(directory)})
-            print(f"No PDFs found in {directory}. Logging no-op.")
+            print("No public PDFs found. Logging no-op.")
             return 0
 
         extractor = PDFTextExtractor()
@@ -237,8 +237,8 @@ def run() -> int:
                 })
             )
         return 0
-    except Exception as exc:
-        _logger.exception("DOLE BLE ingestion failed")
+    except Exception as exc:  # noqa: BLE001 -- sanitize failures at the operational boundary
+        _logger.error("DOLE BLE ingestion failed")
         logger.record(run_status="failure", error_message=str(exc), run_metadata={
             "directory": str(directory),
             "failures": [{"file": name, "error": error} for name, error in failures],
@@ -247,4 +247,4 @@ def run() -> int:
 
 
 if __name__ == "__main__":
-    sys.exit(run())
+    sys.exit(run_cli(run))

@@ -1,7 +1,9 @@
+import base64
+import json
 import os
+import time
 from dataclasses import dataclass, field
 from urllib.parse import urlsplit
-
 
 EMBEDDING_MODEL = "gemini-embedding-001"
 EMBEDDING_DIMENSIONS = 768
@@ -30,13 +32,14 @@ def _require(*names: str) -> str:
 @dataclass(frozen=True)
 class IngestionConfig:
     supabase_url: str
-    supabase_service_role_key: str = field(repr=False)
+    supabase_ingestion_token: str = field(repr=False)
     gemini_api_key: str = field(repr=False)
+    supabase_publishable_key: str = field(default="", repr=False)
     embedding_model: str = EMBEDDING_MODEL
     embedding_dimensions: int = EMBEDDING_DIMENSIONS
 
     def __post_init__(self) -> None:
-        for name in ("supabase_service_role_key", "gemini_api_key"):
+        for name in ("supabase_ingestion_token", "gemini_api_key"):
             value = getattr(self, name).strip()
             if not value:
                 raise ConfigError(f"{name} is required")
@@ -69,13 +72,26 @@ class IngestionConfig:
 
     @classmethod
     def from_env(cls) -> "IngestionConfig":
-        return cls(
+        config = cls(
             supabase_url=_require("SUPABASE_URL", "NEXT_PUBLIC_SUPABASE_URL"),
-            supabase_service_role_key=_require("SUPABASE_SERVICE_ROLE_KEY"),
+            supabase_ingestion_token=_require("SUPABASE_INGESTION_TOKEN"),
+            supabase_publishable_key=_require("SUPABASE_PUBLISHABLE_KEY"),
             gemini_api_key=_require("GEMINI_API_KEY"),
             embedding_model=os.environ.get("EMBEDDING_MODEL", EMBEDDING_MODEL),
             embedding_dimensions=_dimensions_from_env(),
         )
+        # This is a fail-closed configuration check, not signature verification.
+        # Supabase verifies the JWT signature; a service-role key must never be used here.
+        try:
+            encoded = config.supabase_ingestion_token.split(".")[1]
+            claims = json.loads(base64.urlsafe_b64decode(encoded + "=" * (-len(encoded) % 4)))
+            if not isinstance(claims, dict):
+                raise TypeError
+            if claims.get("role") != "ingestion_worker" or float(claims.get("exp", 0)) <= time.time():
+                raise ValueError
+        except (ValueError, TypeError, IndexError, KeyError):
+            raise ConfigError("SUPABASE_INGESTION_TOKEN must be an unexpired ingestion_worker JWT") from None
+        return config
 
 
 def _dimensions_from_env() -> int:

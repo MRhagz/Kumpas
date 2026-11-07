@@ -20,7 +20,7 @@ class PipelineRefreshTests(unittest.TestCase):
         importlib.import_module("pandas")
         # These tests exercise orchestration, not the PDF parser or SDK internals.
         sdk = ModuleType("supabase")
-        sdk.Client, sdk.create_client = Mock, Mock()
+        sdk.Client, sdk.create_client, sdk.ClientOptions = Mock, Mock(), Mock
         pdf = ModuleType("pdfplumber")
         soup = ModuleType("bs4")
         soup.BeautifulSoup = Mock()

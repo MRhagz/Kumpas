@@ -141,12 +141,13 @@ class CuratedTests(unittest.TestCase):
 
     def test_cli_entrypoint_fails_with_missing_configuration(self):
         environment = {key: value for key, value in os.environ.items() if key not in {
-            "SUPABASE_URL", "NEXT_PUBLIC_SUPABASE_URL", "SUPABASE_SERVICE_ROLE_KEY", "GEMINI_API_KEY",
+            "SUPABASE_URL", "NEXT_PUBLIC_SUPABASE_URL", "SUPABASE_INGESTION_TOKEN", "SUPABASE_PUBLISHABLE_KEY", "GEMINI_API_KEY",
         }}
         result = subprocess.run([sys.executable, "-m", "kumpas_ingestion.pipelines.dole_ble"],
                                 env=environment, capture_output=True, text=True, check=False)
         self.assertNotEqual(result.returncode, 0)
-        self.assertIn("required but not set", result.stderr)
+        self.assertIn("ingestion_failed", result.stdout)
+        self.assertNotIn("Traceback", result.stderr)
 
     @unittest.skipUnless(os.environ.get("SW12_REQUIRE_OCR") == "1" or (
         shutil.which("tesseract") and (shutil.which("gs") or shutil.which("gswin64c"))

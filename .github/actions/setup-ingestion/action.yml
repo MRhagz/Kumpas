@@ -53,13 +53,15 @@ runs:
       shell: bash
       env:
         SUPABASE_URL: ${{ env.SUPABASE_URL }}
-        SUPABASE_SERVICE_ROLE_KEY: ${{ env.SUPABASE_SERVICE_ROLE_KEY }}
+        SUPABASE_INGESTION_TOKEN: ${{ env.SUPABASE_INGESTION_TOKEN }}
+        SUPABASE_PUBLISHABLE_KEY: ${{ env.SUPABASE_PUBLISHABLE_KEY }}
         GEMINI_API_KEY: ${{ env.GEMINI_API_KEY }}
       run: |
         set -euo pipefail
         missing=()
         [ -z "${SUPABASE_URL:-}" ] && missing+=("SUPABASE_URL")
-        [ -z "${SUPABASE_SERVICE_ROLE_KEY:-}" ] && missing+=("SUPABASE_SERVICE_ROLE_KEY")
+        [ -z "${SUPABASE_INGESTION_TOKEN:-}" ] && missing+=("SUPABASE_INGESTION_TOKEN")
+        [ -z "${SUPABASE_PUBLISHABLE_KEY:-}" ] && missing+=("SUPABASE_PUBLISHABLE_KEY")
         [ -z "${GEMINI_API_KEY:-}" ] && missing+=("GEMINI_API_KEY")
         if [ ${#missing[@]} -gt 0 ]; then
           echo "Missing required environment variables: ${missing[*]}" >&2

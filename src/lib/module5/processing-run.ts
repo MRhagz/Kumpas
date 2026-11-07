@@ -51,7 +51,7 @@ export async function approvedRunProfile(run: ProcessingRun, signal?: AbortSigna
 }
 
 export function runBudget(run: ProcessingRun): ProcessingBudget {
-  return new ProcessingBudget(Date.parse(run.deadline_at));
+  return new ProcessingBudget(Date.parse(run.deadline_at), run.run_id);
 }
 
 export async function failRun(run: ProcessingRun, stage: string): Promise<void> {

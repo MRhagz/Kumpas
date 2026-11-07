@@ -1,3 +1,4 @@
+import { operationalEvent } from "@/lib/operational-log";
 import { ProcessingBudget, ProcessingError } from "@/lib/processing-budget";
 import { academicAuditorAgent } from "./academic-auditor-agent";
 import { industryAnalystAgent } from "./industry-analyst-agent";
@@ -33,7 +34,20 @@ export class AgentDispatcher {
       process.env.FEASIBILITY_STRATEGIST_API_KEY?.trim() ?? "";
 
     const runSpecialist = async (fn: () => Promise<AgentOutput>, name: AgentOutput["agentName"]) => {
-      try { return await fn(); } catch (error) {
+      const stages = {
+        AcademicAuditor: "academic_audit",
+        IndustryAnalyst: "industry_analysis",
+        FeasibilityStrategist: "feasibility_analysis",
+      } as const;
+      const stage = stages[name];
+      const startedAt = Date.now();
+      try {
+        const result = await fn();
+        operationalEvent(stage, result.status === "FAILED" ? "failure" : "success", startedAt,
+          { id: budget.runId, ...(result.status === "FAILED" ? { code: "operation_failed" as const } : {}) });
+        return result;
+      } catch (error) {
+        operationalEvent(stage, "failure", startedAt, { id: budget.runId, code: "operation_failed" });
         if (error instanceof ProcessingError && (error.code === "deadline" || error.code === "stale")) throw error;
         return createFailedOutput(name, error);
       }
