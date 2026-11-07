@@ -22,7 +22,7 @@ jobs:
       - uses: actions/setup-python@v5
         with:
           python-version: "3.12"
-      - run: pip install -e './ingestion[psa]'
+      - run: pip install -e './ingestion[psa,pdf]'
       - run: python -m unittest discover -s ingestion/tests -v
       - uses: actions/setup-node@v4
         with:
