@@ -5,13 +5,13 @@ import { join, relative, sep } from "node:path";
 import { fileURLToPath } from "node:url";
 
 const m = vi.hoisted(() => ({
-  getUser: vi.fn(), rpc: vi.fn(), maybeSingle: vi.fn(), from: vi.fn(),
+  getUser: vi.fn(), rpc: vi.fn(), terminationRpc: vi.fn(), maybeSingle: vi.fn(), from: vi.fn(),
   readState: vi.fn(), downloadPdf: vi.fn(), downloadImage: vi.fn(),
   createSession: vi.fn(), createNotes: vi.fn(), cleanup: vi.fn(), retention: vi.fn(),
   completeDelivery: vi.fn(),
 }));
 vi.mock("@/lib/supabase/server", () => ({ createClient: async () => ({ auth: { getUser: m.getUser }, rpc: m.rpc }) }));
-vi.mock("@/lib/supabase", () => ({ supabaseAdmin: { from: m.from } }));
+vi.mock("@/lib/supabase", () => ({ supabaseAdmin: { from: m.from, rpc: m.terminationRpc } }));
 vi.mock("@/lib/module2/session-initialization-service", () => ({ sessionInitializationService: {
   createSession: m.createSession, createSessionNotes: m.createNotes,
 } }));
@@ -82,6 +82,7 @@ beforeEach(() => {
   vi.clearAllMocks();
   m.getUser.mockResolvedValue({ data: { user: owner }, error: null });
   m.rpc.mockResolvedValue({ data: "active", error: null });
+  m.terminationRpc.mockResolvedValue({ data: false, error: null });
   m.maybeSingle.mockResolvedValue({ data: { counselor_id: ownerId, status: "active", expires_at: "2099-01-01" }, error: null });
   const query = { select: () => query, eq: () => query, in: () => query,
     not: () => query, gt: () => query, maybeSingle: m.maybeSingle, single: m.maybeSingle };
@@ -147,7 +148,7 @@ describe("F01/I03 protected route inventory", () => {
       const response = await handler(request(method, path), context);
       expect(response.status).toBe(404);
       expect(await response.json()).toEqual({ error: "Session not found" });
-      expect(m.from).toHaveBeenCalledTimes(1);
+      expect(m.from).toHaveBeenCalledTimes(method === "DELETE" && path === "/api/sessions/id" ? 0 : 1);
       expect(m.readState).not.toHaveBeenCalled();
       expect(m.downloadPdf).not.toHaveBeenCalled();
       expect(m.downloadImage).not.toHaveBeenCalled();

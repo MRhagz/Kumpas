@@ -111,3 +111,49 @@ it("does not start analysis from a regeneration response superseded by another t
   expect(screen.getByText(/This regeneration was superseded/)).toBeTruthy();
   expect(vi.mocked(fetch).mock.calls.some(([url]) => String(url).endsWith("/analyze"))).toBe(false);
 });
+
+it("SW-24 confirms loss, keeps working without deletion, and retries pending cleanup without reopening the report", async () => {
+  const existing = vi.mocked(fetch).getMockImplementation()!;
+  let deletes = 0;
+  vi.mocked(fetch).mockImplementation(async (url, options) => {
+    if (options?.method === "DELETE") return Response.json({ status: "terminated", cleanupPending: ++deletes === 1 }, { status: deletes === 1 ? 202 : 200 });
+    return existing(url, options);
+  });
+  await mount();
+  await requestDecision("New Session");
+  expect(screen.getByRole("alertdialog").textContent).toContain("unsaved changes");
+  await requestDecision("Keep Working");
+  expect(deletes).toBe(0);
+  expect(screen.getByRole("button", { name: "Approve report v2" })).toBeTruthy();
+  await requestDecision("End Session");
+  await requestDecision("End session");
+  expect(deletes).toBe(1);
+  expect(screen.getByRole("status").textContent).toContain("Access is revoked");
+  expect(screen.queryByRole("button", { name: "Approve report v2" })).toBeNull();
+  expect(screen.queryByRole("button", { name: "Download PDF" })).toBeNull();
+  expect(m.router.push).not.toHaveBeenCalled();
+  await requestDecision("Retry cleanup");
+  expect(deletes).toBe(2);
+  expect(screen.getByRole("status").textContent).toContain("have been deleted");
+  expect(screen.getByRole("link", { name: "Start a new session" })).toBeTruthy();
+});
+
+it("SW-24 locks the workflow after a lost termination response until an idempotent retry confirms it", async () => {
+  const existing = vi.mocked(fetch).getMockImplementation()!;
+  let deletes = 0;
+  vi.mocked(fetch).mockImplementation(async (url, options) => {
+    if (options?.method === "DELETE") {
+      if (++deletes === 1) throw new Error("Network disconnected");
+      return Response.json({ status: "terminated", cleanupPending: false });
+    }
+    return existing(url, options);
+  });
+  await mount();
+  await requestDecision("End Session"); await requestDecision("End session");
+  expect(screen.getByRole("status").textContent).toContain("could not be confirmed");
+  expect(screen.queryByRole("button", { name: "Approve report v2" })).toBeNull();
+  expect(screen.queryByRole("link", { name: "Start a new session" })).toBeNull();
+  expect(m.router.push).not.toHaveBeenCalled();
+  await requestDecision("Retry ending session");
+  expect(screen.getByRole("status").textContent).toContain("Session ended");
+});

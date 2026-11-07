@@ -29,6 +29,7 @@ import EditableFieldForm from "./editable-field-form";
 import ConfirmationApprovalBar from "./confirmation-approval-bar";
 import IngestionFreshnessPanel from "./ingestion-freshness-panel";
 import SessionProgressIndicator from "@/components/session/session-progress-indicator";
+import SessionTerminationControl from "@/components/session/session-termination-control";
 import { toast } from "sonner";
 import { EMPTY_NOTES } from "@/lib/analysis-types";
 import type { ExtractedNotes } from "@/lib/analysis-types";
@@ -127,6 +128,9 @@ export default function InputContainer() {
   const [sessionId, setSessionId] = useState<string | null>(null);
   const [sessionError, setSessionError] = useState<string | null>(null);
   const [guideOpen, setGuideOpen] = useState(false);
+  const [terminationOpen, setTerminationOpen] = useState(false);
+  const [terminating, setTerminating] = useState(false);
+  const terminationStarted = useRef(false);
 
   const [slotTypes, setSlotTypes] = useState<Record<SlotKey, string>>({
     1: "",
@@ -532,7 +536,7 @@ export default function InputContainer() {
         const e = await res.json().catch(() => ({}));
         throw new Error(e.error || "Approval failed");
       }
-      router.push(`/analysis?session=${sessionId}`);
+      if (!terminationStarted.current) router.push(`/analysis?session=${sessionId}`);
     } catch (err) {
       toast.error("Failed to start analysis", {
         description: err instanceof Error ? err.message : "Unknown error",
@@ -557,6 +561,9 @@ export default function InputContainer() {
 
   return (
     <section className="mx-auto w-full max-w-4xl px-4 sm:px-6 relative animate-fade-in">
+      {sessionId && <SessionTerminationControl sessionId={sessionId} open={terminationOpen} onOpenChange={setTerminationOpen}
+        label="Cancel session" onTerminating={() => { terminationStarted.current = true; setTerminating(true); }} />}
+      <div hidden={terminating}>
       <div className="mb-6 -mx-4 sm:-mx-6">
         <SessionProgressIndicator sessionId={sessionId} fallbackStep="upload" />
       </div>
@@ -913,6 +920,7 @@ export default function InputContainer() {
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
+      </div>
     </section>
   );
 }
