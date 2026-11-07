@@ -147,12 +147,13 @@ class PSATests(unittest.TestCase):
         for filename, expected in [("valid_lfs.csv", 0), ("invalid_values.csv", 1),
                                    ("malformed_rows.csv", 1), ("missing_columns.csv", 1)]:
             env = {k: v for k, v in os.environ.items() if k not in
-                   {"SUPABASE_URL", "SUPABASE_SERVICE_ROLE_KEY", "GEMINI_API_KEY"}}
+                   {"SUPABASE_URL", "SUPABASE_INGESTION_TOKEN", "SUPABASE_PUBLISHABLE_KEY", "GEMINI_API_KEY"}}
             env.update(ENV, PSA_OPENSTAT_URL=(FIXTURES / filename).as_uri())
             result = subprocess.run([sys.executable, "-m", "kumpas_ingestion.pipelines.psa",
                                      "--validate-only"], env=env, capture_output=True, text=True)
             self.assertEqual(result.returncode, expected, result.stdout + result.stderr)
-            self.assertIn(filename, result.stdout)
+            self.assertNotIn(filename, result.stdout)
+            self.assertIn("validated" if expected == 0 else "validation_failed", result.stdout)
 
 
 if __name__ == "__main__":
