@@ -82,6 +82,7 @@ export default function ReportDownloadView({
 
   const decide = async (decision: "approved" | "rejected" | "regenerate" | "correct") => {
     if (reviewDisabled) return;
+    reviewHeading.current?.focus();
     setReviewBusy(true);
     try {
       await onReview!(decision);
@@ -513,7 +514,7 @@ function EvidenceList({
       </div>
       <p
         className={`mt-1 text-sm font-semibold ${
-          tone === "warning" ? "text-amber-700" : "text-ink"
+          tone === "warning" ? "text-amber-800" : "text-ink"
         }`}
       >
         {value}

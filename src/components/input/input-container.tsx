@@ -145,6 +145,7 @@ export default function InputContainer() {
   );
 
   const [activeTab, setActiveTab] = useState<InputMode>("image");
+  const switchOrigin = useRef<HTMLElement | null>(null);
   const [pendingTab, setPendingTab] = useState<InputMode | null>(null);
   const [showSwitchDialog, setShowSwitchDialog] = useState(false);
   const [notesFile, setNotesFile] = useState<File | null>(null);
@@ -300,6 +301,7 @@ export default function InputContainer() {
     if (target === activeTab || scanning || savingDraft) return;
     setNotesReviewed(false);
     if (tabHasData(activeTab)) {
+      switchOrigin.current = document.activeElement as HTMLElement;
       setPendingTab(target);
       setShowSwitchDialog(true);
     } else {
@@ -605,6 +607,7 @@ export default function InputContainer() {
           <div className="mb-5 rounded-xl border border-sage/20 overflow-hidden">
             <button
               type="button"
+              aria-expanded={guideOpen}
               onClick={() => setGuideOpen(!guideOpen)}
               className="flex w-full items-center justify-between px-4 py-3 bg-sage/[0.07] text-sage text-[13px] font-medium cursor-pointer hover:bg-sage/[0.12] transition-colors"
             >
@@ -657,7 +660,7 @@ export default function InputContainer() {
           </div>
 
           <Tabs value={activeTab} onValueChange={handleTabChange} className="gap-0">
-            <TabsList className="w-full h-auto p-1 rounded-xl bg-cream-dark/80 border border-black/[0.06] mb-4">
+            <TabsList tabIndex={-1} className="w-full h-auto p-1 rounded-xl bg-cream-dark/80 border border-black/[0.06] mb-4">
               <TabsTrigger
                 value="image"
                 className="flex-1 gap-2 rounded-lg px-4 py-2.5 text-[13px] font-semibold transition-all data-[state=active]:bg-white data-[state=active]:text-sage data-[state=active]:shadow-sm data-[state=inactive]:text-muted-text"
@@ -691,6 +694,15 @@ export default function InputContainer() {
                     e.preventDefault();
                     setDrag(false);
                     handleNotesSelect(e.dataTransfer.files?.[0] || null);
+                  }}
+                  role="button"
+                  aria-label="Upload photo of your notes"
+                  aria-disabled={!processingConfirmed}
+                  tabIndex={processingConfirmed ? 0 : -1}
+                  onKeyDown={event => {
+                    if (processingConfirmed && (event.key === "Enter" || event.key === " ")) {
+                      event.preventDefault(); document.getElementById("notes-file-input")?.click();
+                    }
                   }}
                   onClick={() => document.getElementById("notes-file-input")?.click()}
                 >
@@ -902,7 +914,7 @@ export default function InputContainer() {
 
       </fieldset>
       <AlertDialog open={showSwitchDialog} onOpenChange={setShowSwitchDialog}>
-        <AlertDialogContent>
+        <AlertDialogContent onCloseAutoFocus={event => { event.preventDefault(); switchOrigin.current?.focus(); }}>
           <AlertDialogHeader>
             <AlertDialogTitle>Switch input method?</AlertDialogTitle>
             <AlertDialogDescription>
