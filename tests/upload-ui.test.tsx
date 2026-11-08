@@ -6,6 +6,8 @@ import DocumentUploadPanel from "@/components/input/document-upload-panel";
 import ConfirmationApprovalBar from "@/components/input/confirmation-approval-bar";
 import { MAX_ACADEMIC_FILE_BYTES } from "@/lib/academic-upload-policy";
 import type { UploadedDocument } from "@/types";
+import { uploadIntakeFile } from "@/lib/intake-file-upload";
+vi.mock("@/lib/intake-file-upload", () => ({ uploadIntakeFile: vi.fn().mockResolvedValue("temporary-id") }));
 
 afterEach(() => { cleanup(); vi.unstubAllGlobals(); });
 it("offers single-file replacement for every type and reports invalid selections before upload", () => {
@@ -44,7 +46,8 @@ it("sends explicit replacement and removal IDs, preserving local selection until
   const { container } = render(<DocumentUploadPanel sessionId="session" slots={{ 1: { docType: "nat", files: [file], perFileProcessing: [{ step: "complete", progress: 100 }], uploaded: previous }, 2: empty, 3: empty }} onSlotFilesAdd={vi.fn()} onSlotFileRemove={remove} onSlotTypeChange={vi.fn()} onDocumentUploaded={uploaded} onUploadError={failed} />);
   fireEvent.change(container.querySelector("input")!, { target: { files: [file] } });
   await waitFor(() => expect(uploaded).toHaveBeenCalledOnce());
-  expect((fetchMock.mock.calls[0][1].body as FormData).get("replaceDocumentId")).toBe("old-id");
+  expect(uploadIntakeFile).toHaveBeenCalledWith("session", file, { docType: "nat", replaceDocumentId: "old-id" });
+  expect(JSON.parse(fetchMock.mock.calls[0][1].body)).toEqual({ uploadId: "temporary-id" });
   fetchMock.mockResolvedValueOnce({ ok: false, json: async () => ({ error: "Try removal again" }) });
   fireEvent.click(screen.getByRole("button", { name: "Remove document 1" }));
   await waitFor(() => expect(failed).toHaveBeenCalledOnce()); expect(remove).not.toHaveBeenCalled();

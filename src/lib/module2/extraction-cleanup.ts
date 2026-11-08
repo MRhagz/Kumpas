@@ -1,19 +1,21 @@
 import "server-only";
 import { supabaseAdmin } from "@/lib/supabase";
 
-interface CleanupObject { id: string; object_path: string; lease_token: string; attempts: number }
+interface CleanupObject { id: string; object_path: string; bucket_id?: string; lease_token: string; attempts: number }
 
-// New extraction uses memory only. This drains durable legacy objects independently
-// of session status, including objects left after a killed cleanup invocation.
+// Includes expired/abandoned raw uploads and legacy objects, independently of
+// session status. The queue exists before any raw upload is authorized.
 export async function drainExtractionCleanup(sessionId: string | null = null, limit = 50) {
-  const { data, error } = await supabaseAdmin.rpc("claim_extraction_cleanup", { p_limit: limit, p_session_id: sessionId });
+  const queued = await supabaseAdmin.rpc("queue_temporary_upload_cleanup");
+  if (queued.error) throw new Error("Temporary upload inventory unavailable");
+  const { data, error } = await supabaseAdmin.rpc("claim_intake_cleanup", { p_limit: limit, p_session_id: sessionId });
   if (error) throw new Error("Artifact cleanup unavailable");
   let removed = 0;
   let failed = 0;
   for (const item of (data ?? []) as CleanupObject[]) {
     let deletionFailed = false;
     try {
-      const result = await supabaseAdmin.storage.from("kumpas-documents").remove([item.object_path]);
+      const result = await supabaseAdmin.storage.from(item.bucket_id ?? "kumpas-documents").remove([item.object_path]);
       deletionFailed = !!result.error;
     } catch { deletionFailed = true; }
     const mutation = deletionFailed

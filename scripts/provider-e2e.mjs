@@ -75,7 +75,8 @@ function dispatch(request) {
       structured_data: body.p_data, original_data: body.p_data, evidence_state: body.p_evidence,
       provenance: body.p_provenance, draft_revision: 1 });
     if (url.pathname.endsWith("/rpc/release_academic_upload")) return json(null);
-    if (url.pathname.endsWith("/rpc/claim_extraction_cleanup")) return json([]);
+    if (url.pathname.endsWith("/rpc/claim_extraction_cleanup") || url.pathname.endsWith("/rpc/claim_intake_cleanup")) return json([]);
+    if (url.pathname.endsWith("/rpc/queue_temporary_upload_cleanup")) return json(null);
     if (url.pathname.endsWith("/rpc/read_intake_draft")) return json({ documents: [], notes: { revision: 0 }, uploadPending: false });
     if (url.pathname.endsWith("/rpc/save_intake_notes")) return json({ draft_revision: 1 });
     if (url.pathname === "/rest/v1/analysis_runs" && request.method === "GET") return json(run());

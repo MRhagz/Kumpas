@@ -3,6 +3,7 @@
 import { FolderOpen, Info } from "lucide-react";
 import { useRef } from "react";
 import { academicFileSizeError } from "@/lib/academic-upload-policy";
+import { uploadIntakeFile } from "@/lib/intake-file-upload";
 import FileSlot from "./file-slot";
 import type { DocumentProcessingState, UploadedDocument } from "@/types";
 
@@ -36,14 +37,12 @@ export default function DocumentUploadPanel({
 }: DocumentUploadPanelProps) {
   const pending = useRef(new Set<number>());
   const uploadOne = async (index: 1 | 2 | 3, file: File, docType: string, previous: UploadedDocument | null) => {
-    const fd = new FormData();
-    fd.append("file", file);
-    fd.append("docType", docType);
-    if (previous) fd.append("replaceDocumentId", previous.documentId);
     try {
+      const uploadId = await uploadIntakeFile(sessionId, file, { docType, replaceDocumentId: previous?.documentId });
       const res = await fetch(`/api/sessions/${sessionId}/upload`, {
         method: "POST",
-        body: fd,
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ uploadId }),
       });
       if (!res.ok) {
         const e = await res.json().catch(() => ({}));
