@@ -250,37 +250,17 @@ TypeScript (`node node_modules/typescript/bin/tsc --noEmit --pretty false`),
 scoped ESLint for the runner and regression tests, script syntax and
 `git diff --check` also passed after the locked dependency install.
 
-A read-only hosted inventory found a deployment prerequisite gap: the current
-`match_knowledge_chunks` RPC has four parameters, whereas the application sends
-seven. The hosted knowledge table lacks the source/embedding contract columns,
-and the scoped ingestion roles and refresh RPC are absent. The deployed data
-contains 2,177 knowledge chunks; do not relabel their embedding provenance as
-verified. Deploy the existing prerequisite migrations and refresh the knowledge
-sources before qualifying the candidate. These are deployment actions for
-completed prerequisite tasks, not changes to their tracker status.
-
-The same inventory found 157 expired sessions, eight pending termination
-requests and 19 extraction deletion references. Both Storage buckets are
-private. No production rows or objects were changed during inspection. GitHub's
-maintenance environment still has no cleanup variable or secrets. Preserve the
-restricted operational backup before enabling cleanup or deploying migrations.
-Live cleanup, paid-project verification, P01/P02 and hosted S10 remain unclaimed.
-
-The team subsequently clarified that separate agents use free-tier Gemini keys
-from different accounts. Record that as the current reported setup; the earlier
-paid-project assumption is not verified deployment evidence. Google's
-[Unpaid Services terms](https://ai.google.dev/gemini-api/terms#unpaid-services)
-describe different data use and prohibit submitting sensitive, confidential or
-personal information. Use synthetic inputs for the remaining campaign; resolve
-the provider-handling requirement before real-student use. No key pooling,
-automatic account switching or paid resource creation is added by this change.
+Hosted prerequisite compatibility, verified knowledge refresh, live cleanup,
+paid-project verification, P01/P02 and hosted S10 remain unclaimed. Retain
+deployment inventory and provider account details in restricted operational
+records. Preserve the operational backup before enabling cleanup or deploying
+migrations; these deployment checks do not change completed tracker states.
 
 The repository SRS backup requirement (`docs/SRS_clean.md`, Backup and Recovery)
 specifies a documented mechanism, restore owner and acceptable recovery window,
 but neither the SRS nor SDD specifies a numeric RPO or RTO. Do not present a
-chosen target or an unperformed drill as an approved or measured result. The
-connected Supabase organization is on the free plan and has no existing Kumpas
-development branch; an isolated hosted target still needs to be selected.
+chosen target or an unperformed drill as an approved or measured result. An
+isolated hosted target still needs to be selected.
 
 ### Original implementation checks
 
