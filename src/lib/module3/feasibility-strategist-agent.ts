@@ -1,4 +1,5 @@
 import { selectAgentAnalysis } from "./provider-inputs";
+import type { ThinkingLevel } from "@google/genai";
 import { createGeminiClient } from "./gemini-config";
 import { ProcessingBudget } from "@/lib/processing-budget";
 import { evidenceContext, unavailableEvidence } from "./specialist-evidence";
@@ -111,7 +112,7 @@ export class FeasibilityStrategistAgent {
         ai.models.generateContent({
           model: getGeminiGenerationModel(),
           contents: buildPrompt(profile, chunks),
-          config: { responseMimeType: "application/json", abortSignal: signal },
+          config: { responseMimeType: "application/json", abortSignal: signal, thinkingConfig: { thinkingLevel: "LOW" as ThinkingLevel } },
         }),
       budget,
     );
