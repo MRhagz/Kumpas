@@ -21,6 +21,7 @@ import { draftHeaders, intakeRpc, readIntakeDraft } from "@/lib/module2/intake-d
 import { EXTRACTION_PROMPT_VERSION, normalizeNotes, NOTE_KEYS } from "@/lib/module2/extraction-contract";
 import { getGeminiGenerationModel } from "@/lib/module3/gemini-config";
 import { randomUUID } from "node:crypto";
+import { claimTemporaryUpload, downloadTemporaryUpload, cleanupTemporaryUpload, readUploadJson, type TemporaryIntakeUpload } from "@/lib/module2/temporary-intake-upload";
 
 export const runtime = "nodejs";
 export const maxDuration = 300;
@@ -53,8 +54,16 @@ export async function POST(request: NextRequest) {
   const user = await requireUser();
   if (!user) return unauthorizedResponse();
 
+  let temporary: TemporaryIntakeUpload | undefined;
   try {
-    const formData = await readBoundedForm(request);
+    const staged = request.headers.get("content-type")?.startsWith("application/json");
+    const body = staged ? await readUploadJson(request) : null;
+    const formData = staged ? new FormData() : await readBoundedForm(request);
+    if (body) {
+      for (const name of ["sessionId", "revision", "notesReviewed"]) {
+        if (body[name] !== undefined) formData.set(name, String(body[name]));
+      }
+    }
     if (formData.get("notesReviewed") !== "true") {
       return Response.json({ error: "Confirm that prepared notes exclude personal identifiers and confidential details" }, { status: 400 });
     }
@@ -68,21 +77,26 @@ export async function POST(request: NextRequest) {
     if (!(await userOwnsSession(sessionId, user.id))) return notFoundResponse();
     const draft = await readIntakeDraft(sessionId, user.id);
     if (draft.notes?.revision !== revision) return Response.json({ error: "Notes changed. Reload before extracting." }, { status: 409 });
-    const file = formData.get("file");
-
-    if (!(file instanceof File) || formData.getAll("file").length !== 1) {
-      return Response.json(
-        { error: "Missing required field: file" },
-        { status: 400 }
-      );
+    let buffer: Buffer, mimeType: string;
+    if (body) {
+      temporary = await claimTemporaryUpload(sessionId, user.id, body.uploadId);
+      if (temporary.document_type !== "notes" || temporary.notes_revision !== revision) {
+        throw new UploadValidationError("Choose the current notes photograph upload.", 400);
+      }
+      ({ buffer, mimeType } = await downloadTemporaryUpload(temporary));
+    } else {
+      const file = formData.get("file");
+      if (!(file instanceof File) || formData.getAll("file").length !== 1) {
+        return Response.json(
+          { error: "Missing required field: file" },
+          { status: 400 }
+        );
+      }
+      const sizeError = academicFileSizeError(file);
+      if (sizeError) throw new UploadValidationError(sizeError, 413);
+      buffer = Buffer.from(await file.arrayBuffer());
+      mimeType = await validateAcademicContent(buffer, file.type);
     }
-
-    const sizeError = academicFileSizeError(file);
-    if (sizeError) throw new UploadValidationError(sizeError, 413);
-    // Convert file to base64 for Gemini Vision
-    const arrayBuffer = await file.arrayBuffer();
-    const buffer = Buffer.from(arrayBuffer);
-    const mimeType = await validateAcademicContent(buffer, file.type);
     if (!mimeType.startsWith("image/")) throw new UploadValidationError("Upload a JPEG, PNG or WEBP notes photograph.", 415);
     const base64Data = buffer.toString("base64");
 
@@ -136,7 +150,9 @@ export async function POST(request: NextRequest) {
       p_session_id: sessionId, p_counselor_id: user.id, p_expected_revision: revision,
       p_notes: notes, p_source: source, p_extracted: true,
     });
-    return Response.json({ ...notes, revision: saved.draft_revision, source }, { headers: draftHeaders });
+    const cleanupPending = temporary ? await cleanupTemporaryUpload(temporary) : false;
+    temporary = undefined;
+    return Response.json({ ...notes, revision: saved.draft_revision, source, cleanupPending }, { headers: draftHeaders });
   } catch (error) {
     const validation = uploadErrorResponse(error);
     if (validation) return validation;
@@ -146,5 +162,7 @@ export async function POST(request: NextRequest) {
       { error: "Internal server error" },
       { status: 500 }
     );
+  } finally {
+    if (temporary) await cleanupTemporaryUpload(temporary);
   }
 }

@@ -40,7 +40,8 @@
     "tesseract.js": "^7.0.0",
     "academic-pdfjs": "npm:pdfjs-dist@^6.5.438",
     "@napi-rs/canvas": "^1.1.0",
-    "sharp": "^0.35.5"
+    "sharp": "^0.35.5",
+    "tus-js-client": "^4.3.1"
   },
   "devDependencies": {
     "@electric-sql/pglite": "^0.5.15",
