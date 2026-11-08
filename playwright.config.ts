@@ -5,7 +5,7 @@ export default defineConfig({ testDir: './browser-tests', testMatch: '*.spec.ts'
   projects: [
     { name: 'chrome', use: { browserName: 'chromium', channel: 'chrome' } },
     { name: 'edge', use: { browserName: 'chromium', channel: 'msedge' } },
-    { name: 'firefox', use: { browserName: 'firefox' } },
+    { name: 'firefox', use: { browserName: 'firefox', launchOptions: { firefoxUserPrefs: { 'accessibility.tabfocus': 7 } } } },
     { name: 'webkit-engine', use: { browserName: 'webkit' } },
   ], reporter: [['list'], ['json', { outputFile: 'test-results/browser-results.json' }]],
 });

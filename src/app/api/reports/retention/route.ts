@@ -3,6 +3,7 @@ import { operationalEvent } from "@/lib/operational-log";
 import { runReportRetentionCleanup } from "@/lib/report/retention-cleanup";
 
 export const runtime = "nodejs";
+export const maxDuration = 300;
 
 interface RetentionRequestBody {
   retentionHours?: unknown;

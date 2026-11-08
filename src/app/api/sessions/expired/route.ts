@@ -3,6 +3,7 @@ import { operationalEvent } from "@/lib/operational-log";
 import { runExpiredSessionCleanup } from "@/lib/module5/expired-session-cleanup";
 
 export const runtime = "nodejs";
+export const maxDuration = 300;
 
 interface ExpiredSessionCleanupBody {
   limit?: unknown;

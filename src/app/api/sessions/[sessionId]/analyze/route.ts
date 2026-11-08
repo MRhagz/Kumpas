@@ -9,6 +9,7 @@ import { sessionStateManager } from "@/lib/module5/session-state-manager";
 import { supabaseAdmin } from "@/lib/supabase";
 import { notFoundResponse, requireUser, unauthorizedResponse, userOwnsSession } from "@/lib/auth/api-auth";
 
+export const runtime = "nodejs";
 export const maxDuration = 300;
 
 function json(data: unknown, status = 200) {

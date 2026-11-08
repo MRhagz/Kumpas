@@ -7,9 +7,11 @@ import { UploadValidationError } from "@/lib/module2/academic-upload-validation"
 const mocks = vi.hoisted(() => ({
   user: vi.fn(), owns: vi.fn(), redact: vi.fn(), store: vi.fn(), delete: vi.fn(), extract: vi.fn(),
   cleanup: vi.fn(), claim: vi.fn(), release: vi.fn(), remove: vi.fn(), activity: vi.fn(), progress: vi.fn(),
+  rpc: vi.fn(), download: vi.fn(),
 }));
 vi.mock("@/lib/module2/extraction-cleanup", () => ({ drainExtractionCleanup: mocks.cleanup }));
-vi.mock("@/lib/module2/intake-draft-store", () => ({ draftHeaders: { "Cache-Control": "private, no-store" } }));
+vi.mock("@/lib/supabase", () => ({ supabaseAdmin: { storage: { from: () => ({ download: mocks.download }) } } }));
+vi.mock("@/lib/module2/intake-draft-store", () => ({ intakeRpc: mocks.rpc, draftHeaders: { "Cache-Control": "private, no-store" } }));
 vi.mock("@/lib/auth/api-auth", () => ({
   requireUser: mocks.user, userOwnsSession: mocks.owns,
   unauthorizedResponse: () => Response.json({ error: "Unauthorized" }, { status: 401 }),
@@ -135,4 +137,40 @@ it("returns saved extraction plus pending cleanup when deletion retry is needed,
   expect(body.cleanupPending).toBe(true);
   expect(body).not.toHaveProperty("redactedImageUrl");
   expect(mocks.release).not.toHaveBeenCalled();
+});
+
+const uploadId = "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa";
+function stagedRequest() {
+  return new NextRequest("http://localhost/upload", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ uploadId }) });
+}
+function stage(bytes: Buffer, size = bytes.length) {
+  mocks.rpc.mockImplementation(async (name: string) => name === "claim_temporary_upload" ? {
+    id: uploadId, session_id: "session-a", counselor_id: "owner-a", object_path: `session-a/${uploadId}`,
+    document_type: "nat", file_size: size, mime_type: "application/pdf", extraction_id: docId, upload_token: "token-a",
+  } : undefined);
+  mocks.download.mockResolvedValue({ data: new Blob([new Uint8Array(bytes)]), error: null });
+}
+it("extracts an exact 10 MB staged file using only its reference and then cleans its raw object", async () => {
+  stage(pdfFixture(MAX_ACADEMIC_FILE_BYTES));
+  const response = await sessionPost(stagedRequest(), context);
+  expect(response.status).toBe(200);
+  expect(mocks.extract).toHaveBeenCalledOnce();
+  expect(mocks.claim).not.toHaveBeenCalled();
+  expect(mocks.rpc).toHaveBeenCalledWith("finish_temporary_upload", expect.objectContaining({ p_id: uploadId }));
+  expect(mocks.cleanup).toHaveBeenCalledWith("session-a");
+});
+it.each(["corrupt", "size-changed", "provider"])("cleans a claimed staged upload after %s failure without replacing the saved draft", async mode => {
+  stage(mode === "corrupt" ? Buffer.from("malicious disguised content") : pdfFixture(), mode === "size-changed" ? 1 : undefined);
+  if (mode === "provider") mocks.extract.mockRejectedValue(new Error("PRIVATE provider response"));
+  const response = await sessionPost(stagedRequest(), context);
+  expect(response.status).toBe(mode === "corrupt" ? 415 : mode === "size-changed" ? 400 : 500);
+  expect(await response.text()).not.toContain("PRIVATE");
+  if (mode !== "provider") expect(mocks.extract).not.toHaveBeenCalled();
+  expect(mocks.rpc).toHaveBeenCalledWith("finish_temporary_upload", expect.objectContaining({ p_id: uploadId }));
+});
+it("rejects staged replay before reading Storage and leaves the first processing invocation alone", async () => {
+  mocks.rpc.mockRejectedValue(new UploadValidationError("Already processing", 409));
+  expect((await sessionPost(stagedRequest(), context)).status).toBe(409);
+  expect(mocks.download).not.toHaveBeenCalled();
+  expect(mocks.rpc).toHaveBeenCalledOnce();
 });

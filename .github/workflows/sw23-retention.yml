@@ -6,6 +6,9 @@ on:
     - cron: '*/15 * * * *'
 permissions:
   contents: read
+concurrency:
+  group: retention-${{ github.event_name == 'pull_request' && github.ref || 'production' }}
+  cancel-in-progress: false
 jobs:
   verify:
     if: github.event_name == 'pull_request'
@@ -37,6 +40,7 @@ jobs:
       - run: npx vitest run --config vitest.config.ts tests/retention-database.test.ts tests/retention-cleanup.test.ts tests/report-delivery.test.ts tests/draft-recovery.test.ts tests/processing-termination.test.ts tests/intake-cleanup.test.ts tests/correction-logs.test.ts
       - run: npx tsc --noEmit
   cleanup:
+    timeout-minutes: 15
     environment: maintenance
     if: github.event_name != 'pull_request' && github.ref == 'refs/heads/main'
     runs-on: ubuntu-latest

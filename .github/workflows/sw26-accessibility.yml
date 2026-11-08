@@ -18,8 +18,9 @@ jobs:
             os: ubuntu-latest
           - project: firefox
             browser: firefox
-            # Firefox's Linux axe scan crashes its page; Windows runs the same rules and keyboard assertions.
-            os: windows-latest
+            # The patched engine crashes during axe evaluation on Windows/Linux.
+            # macOS runs the complete keyboard flow and the same unfiltered rules.
+            os: macos-latest
           - project: webkit-engine
             browser: webkit
             os: ubuntu-latest

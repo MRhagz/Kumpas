@@ -1,4 +1,5 @@
 "use client";
+import { uploadIntakeFile } from "@/lib/intake-file-upload";
 
 import { useState, useCallback, useEffect, useRef } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
@@ -335,12 +336,10 @@ export default function InputContainer() {
     setScanError(null);
     setImageSectionsReady(false);
     try {
-      const fd = new FormData();
-      fd.append("file", file);
-      fd.append("notesReviewed", "true");
-      fd.append("sessionId", sessionId);
-      fd.append("revision", String(notesRevision.current));
-      const res = await fetch("/api/extract-notes", { method: "POST", body: fd });
+      const revision = notesRevision.current;
+      const uploadId = await uploadIntakeFile(sessionId, file, { docType: "notes", notesReviewed: true, revision });
+      const res = await fetch("/api/extract-notes", { method: "POST", headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ uploadId, sessionId, revision, notesReviewed: true }) });
       if (!res.ok) {
         const e = await res.json().catch(() => ({}));
         throw new Error(e.error || "Failed to extract notes");

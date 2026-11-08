@@ -1,7 +1,9 @@
 import { readFileSync } from "node:fs";
 import { NextRequest } from "next/server";
 import { afterEach, beforeEach, expect, it, vi } from "vitest";
-const mock = vi.hoisted(() => ({ rpc: vi.fn(), fetch: vi.fn() }));
+const mock = vi.hoisted(() => ({ rpc: vi.fn(), fetch: vi.fn(), download: vi.fn(), cleanup: vi.fn() }));
+vi.mock("@/lib/supabase", () => ({ supabaseAdmin: { storage: { from: () => ({ download: mock.download }) } } }));
+vi.mock("@/lib/module2/extraction-cleanup", () => ({ drainExtractionCleanup: mock.cleanup }));
 vi.mock("@/lib/auth/api-auth", () => ({ requireUser: async () => ({ id: "owner-sentinel" }),
   userOwnsSession: async () => true, unauthorizedResponse: () => new Response(null, { status: 401 }), notFoundResponse: () => new Response(null, { status: 404 }) }));
 vi.mock("@/lib/module2/intake-draft-store", () => ({ intakeRpc: mock.rpc,
@@ -20,6 +22,7 @@ function upload(reviewed = true) {
 beforeEach(() => {
   vi.clearAllMocks(); vi.stubEnv("DOCUMENT_INTAKE_API_KEY", "notes-intake-secret");
   mock.rpc.mockResolvedValue({ draft_revision: 1 });
+  mock.cleanup.mockResolvedValue({ failed: 0, pending: false });
   mock.fetch.mockResolvedValue(Response.json({ candidates: [{ content: { parts: [{ text: JSON.stringify({ ...fixture.expected, debug: "PRIVATE-RESPONSE" }) }] } }] }));
   vi.stubGlobal("fetch", mock.fetch);
 });
@@ -55,4 +58,18 @@ it.each(["provider", "malformed", "cancelled-session"])("mocked notes %s failure
   expect(await response.text()).not.toMatch(/PRIVATE-RESPONSE|notes-intake-secret|PRIVATE-NAME/);
   expect(JSON.stringify(log.mock.calls)).not.toMatch(/PRIVATE-RESPONSE|notes-intake-secret|PRIVATE-NAME/);
   if (mode !== "cancelled-session") expect(mock.rpc).not.toHaveBeenCalled();
+});
+it("extracts staged notes only for their saved revision and cleans the raw photograph after saving", async () => {
+  const uploadId = "bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb";
+  mock.rpc.mockImplementation(async (name: string) => name === "claim_temporary_upload" ? {
+    id: uploadId, session_id: "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa", counselor_id: "owner-sentinel",
+    object_path: `session/${uploadId}`, document_type: "notes", notes_revision: 0, file_size: bytes.length, mime_type: "image/jpeg",
+  } : { draft_revision: 1 });
+  mock.download.mockResolvedValue({ data: new Blob([bytes]), error: null });
+  const response = await POST(new NextRequest("https://app.test/api/extract-notes", { method: "POST",
+    headers: { "Content-Type": "application/json" }, body: JSON.stringify({ uploadId,
+      sessionId: "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa", revision: 0, notesReviewed: true }) }));
+  expect(response.status).toBe(200);
+  expect(await response.json()).toMatchObject({ ...fixture.expected, cleanupPending: false });
+  expect(mock.rpc).toHaveBeenCalledWith("finish_temporary_upload", expect.objectContaining({ p_id: uploadId }));
 });

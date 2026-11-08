@@ -41,6 +41,7 @@ import * as analyze from "@/app/api/sessions/[sessionId]/analyze/route";
 import * as approve from "@/app/api/sessions/[sessionId]/approve/route";
 import * as complete from "@/app/api/sessions/[sessionId]/complete/route";
 import * as upload from "@/app/api/sessions/[sessionId]/upload/route";
+import * as uploads from "@/app/api/sessions/[sessionId]/uploads/route";
 import * as reports from "@/app/api/reports/route";
 import * as pdf from "@/app/api/reports/[sessionId]/route";
 import * as preview from "@/app/api/reports/[sessionId]/preview/route";
@@ -64,6 +65,7 @@ const ownedRoutes = [
   ["POST", "/api/sessions/id/analyze", analyze.POST], ["POST", "/api/sessions/id/approve", approve.POST],
   ["POST", "/api/sessions/id/complete", complete.POST], ["POST", "/api/sessions/id/upload", upload.POST],
   ["DELETE", "/api/sessions/id/upload", upload.DELETE],
+  ["POST", "/api/sessions/id/uploads", uploads.POST], ["DELETE", "/api/sessions/id/uploads", uploads.DELETE],
   ["POST", "/api/reports", reports.POST],
   ["GET", "/api/reports/id?version=1", pdf.GET], ["GET", "/api/reports/id?version=1&download=1", pdf.GET],
   ["GET", "/api/reports/id/preview?version=1", preview.GET], ["POST", "/api/reports/id/review", review.POST],
