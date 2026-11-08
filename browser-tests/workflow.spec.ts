@@ -1,4 +1,4 @@
-import { test, expect, type Page, type Locator, type Route } from '@playwright/test';
+import { test, expect, firefox, type Page, type Locator, type Route } from '@playwright/test';
 import AxeBuilder from '@axe-core/playwright';
 async function tabTo(page: Page, target: Locator) {
   const trail: string[] = [];
@@ -37,7 +37,8 @@ for (const width of [375, 1280]) test(`keyboard workflow and WCAG 2.1 AA at ${wi
   expect(await goal.evaluate(e => getComputedStyle(e).outlineStyle)).not.toBe('none');
   const docType = page.getByRole('combobox',{name:'Document 1 type'});
   await expect(docType).toBeVisible();
-  await tabTo(page, docType); await page.keyboard.press('ArrowDown'); await page.keyboard.press('Enter');
+  await tabTo(page, docType); await page.keyboard.press('n'); await page.keyboard.press('Tab');
+  await expect(docType).toHaveValue('ncae');
   const upload = page.getByRole('button',{name:'Upload document 1',exact:true});
   await tabTo(page,upload);
   const selecting = page.waitForEvent('filechooser'); await page.keyboard.press('Enter');
@@ -45,8 +46,11 @@ for (const width of [375, 1280]) test(`keyboard workflow and WCAG 2.1 AA at ${wi
   await expect(page.getByRole('alert')).toContainText('Choose a JPEG');
   const scan = async (stage: string) => {
     expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
-    // Keep axe injection out of the keyboard flow. Scan equivalent server snapshots in a fresh page.
-    const audit = await page.context().newPage();
+    // Firefox crashes on repeated axe injection in one process. Give each scan
+    // its own process; keep the keyboard browser and all audit rules unchanged.
+    const auditBrowser = info.project.name === 'firefox' ? await firefox.launch() : null;
+    const auditContext = await (auditBrowser ?? browser).newContext({ viewport: {width, height: 900} });
+    const audit = await auditContext.newPage();
     try {
       await audit.setViewportSize({width, height: 900});
       await audit.route('**/api/**',handler);
@@ -66,7 +70,7 @@ for (const width of [375, 1280]) test(`keyboard workflow and WCAG 2.1 AA at ${wi
       await info.attach(`${stage}-axe`,{body:JSON.stringify(result,null,2),contentType:'application/json'});
       expect(result.violations.map(v=>({id:v.id,nodes:v.nodes.map(n=>n.target)}))).toEqual([]);
       await audit.screenshot({path:info.outputPath(`${stage}.png`),fullPage:true});
-    } finally { await audit.close(); }
+    } finally { await auditContext.close(); await auditBrowser?.close(); }
   };
   await scan('intake');
   const cancel = page.getByRole('button',{name:'Cancel session',exact:true});
