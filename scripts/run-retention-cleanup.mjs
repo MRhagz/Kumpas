@@ -20,9 +20,11 @@ try {
     ["session_cleanup", "/api/sessions/expired", sessionSecret],
     ["report_cleanup", "/api/reports/retention", reportSecret],
   ]) {
+    // Bound each capability independently so session backlog cannot starve PDFs.
+    const requestDeadline = Math.min(deadline, Date.now() + 6 * 60_000);
     try {
       for (let batch = 0; ; batch++) {
-        const result = await requestBatch(path, secret, stage === "session_cleanup" ? { limit: batchSize } : {});
+        const result = await requestBatch(path, secret, stage === "session_cleanup" ? { limit: batchSize } : {}, requestDeadline);
         if (!Number.isInteger(result.scannedCount) || result.scannedCount < 0 || !Array.isArray(result.warnings)
           || (stage === "session_cleanup" ? !Number.isInteger(result.expiredCount)
             : !["ok", "completed_with_warnings"].includes(result.status))) throw new Error();
@@ -46,14 +48,14 @@ try {
 }
 if (failed) process.exitCode = 1;
 
-async function requestBatch(path, secret, body) {
+async function requestBatch(path, secret, body, requestDeadline) {
   for (let attempt = 0; attempt < 2; attempt++) {
-    if (Date.now() >= deadline) throw new Error();
+    if (Date.now() >= requestDeadline) throw new Error();
     let response;
     try {
       response = await fetch(new URL(path, base), {
         method: "POST", headers: { Authorization: `Bearer ${secret}`, "Content-Type": "application/json" },
-        body: JSON.stringify(body), signal: AbortSignal.timeout(Math.min(310_000, deadline - Date.now())),
+        body: JSON.stringify(body), signal: AbortSignal.timeout(Math.min(310_000, requestDeadline - Date.now())),
         redirect: "error",
       });
     } catch {
@@ -65,7 +67,7 @@ async function requestBatch(path, secret, body) {
     const retryAfter = response?.headers.get("retry-after");
     const seconds = retryAfter === null || retryAfter === undefined ? NaN : Number(retryAfter);
     const delay = retryAfter ? (Number.isFinite(seconds) ? seconds * 1000 : Date.parse(retryAfter) - Date.now()) : 2000;
-    if (!Number.isFinite(delay) || delay > 60_000 || Date.now() + Math.max(2000, delay) >= deadline) throw new Error();
+    if (!Number.isFinite(delay) || delay > 60_000 || Date.now() + Math.max(2000, delay) >= requestDeadline) throw new Error();
     console.info("operational_event", { runId, stage: "maintenance_request", attempt: attempt + 1,
       outcome: "retry", errorCode: "cleanup_retry_required" });
     await new Promise(resolve => setTimeout(resolve, Math.max(2000, delay)));

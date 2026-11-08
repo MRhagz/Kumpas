@@ -50,10 +50,13 @@ lifecycle scheduler. No Vercel cron with a second credential scheme is added.
 It runs every 15 minutes on main, with manual dispatch on main as fallback.
 Production sweeps cannot overlap within this workflow; PR verification has its
 own concurrency group. The job has a 15-minute limit; the runner has a 12-minute
-deadline, at most 20 batches per endpoint and ten-session request batches.
-Each HTTP request allows up to 310 seconds so the 300-second function can finish.
+deadline, with a separate six-minute budget for each capability, at most 20
+batches per endpoint and ten-session request batches. A slow session backlog
+cannot consume the PDF retention budget. Each HTTP request allows up to 310
+seconds, capped by its capability's remaining budget, so the 300-second function
+can finish when enough time remains.
 Network/429/5xx failures receive at most one retry, respecting Retry-After up to
-60 seconds and the remaining job budget. Unauthorized/redirect/malformed
+60 seconds and the remaining capability budget. Unauthorized/redirect/malformed
 responses fail. Both capabilities are attempted even if the first fails.
 
 A response must contain the expected counts and result fields; a 200 login
@@ -232,6 +235,54 @@ agree any handoff/task split before claiming completion. A01 and stakeholder
 acceptance must use observed evidence, never inferred passes.
 
 ## Executed checks
+
+### Review follow-up, 8 November 2026
+
+The maintenance runner now gives each capability at most six minutes within the
+existing twelve-minute job budget. Regression tests first reproduced both a
+slow, full session backlog skipping the PDF endpoint and repeated session
+timeouts leaving too little time for PDF retention. With the fix, PDF retention
+receives a full request allowance and completes in both cases; incomplete
+session cleanup still fails the job visibly. On Node `v22.16.0`, the maintenance,
+retention-cleanup and retention-database suites passed **24 tests**, and the
+metrics suite passed **3 tests**.
+TypeScript (`node node_modules/typescript/bin/tsc --noEmit --pretty false`),
+scoped ESLint for the runner and regression tests, script syntax and
+`git diff --check` also passed after the locked dependency install.
+
+A read-only hosted inventory found a deployment prerequisite gap: the current
+`match_knowledge_chunks` RPC has four parameters, whereas the application sends
+seven. The hosted knowledge table lacks the source/embedding contract columns,
+and the scoped ingestion roles and refresh RPC are absent. The deployed data
+contains 2,177 knowledge chunks; do not relabel their embedding provenance as
+verified. Deploy the existing prerequisite migrations and refresh the knowledge
+sources before qualifying the candidate. These are deployment actions for
+completed prerequisite tasks, not changes to their tracker status.
+
+The same inventory found 157 expired sessions, eight pending termination
+requests and 19 extraction deletion references. Both Storage buckets are
+private. No production rows or objects were changed during inspection. GitHub's
+maintenance environment still has no cleanup variable or secrets. Preserve the
+restricted operational backup before enabling cleanup or deploying migrations.
+Live cleanup, paid-project verification, P01/P02 and hosted S10 remain unclaimed.
+
+The team subsequently clarified that separate agents use free-tier Gemini keys
+from different accounts. Record that as the current reported setup; the earlier
+paid-project assumption is not verified deployment evidence. Google's
+[Unpaid Services terms](https://ai.google.dev/gemini-api/terms#unpaid-services)
+describe different data use and prohibit submitting sensitive, confidential or
+personal information. Use synthetic inputs for the remaining campaign; resolve
+the provider-handling requirement before real-student use. No key pooling,
+automatic account switching or paid resource creation is added by this change.
+
+The repository SRS backup requirement (`docs/SRS_clean.md`, Backup and Recovery)
+specifies a documented mechanism, restore owner and acceptable recovery window,
+but neither the SRS nor SDD specifies a numeric RPO or RTO. Do not present a
+chosen target or an unperformed drill as an approved or measured result. The
+connected Supabase organization is on the free plan and has no existing Kumpas
+development branch; an isolated hosted target still needs to be selected.
+
+### Original implementation checks
 
 Local verification, 8 November 2026, Node `v24.13.1`:
 
