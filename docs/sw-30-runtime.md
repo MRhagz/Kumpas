@@ -101,7 +101,16 @@ measurements. CHED moves from Monday 10:00 Manila to Monday 02:20 Manila
 Actions concurrency group could discard queued refreshes from different sources.
 The environment gate requires operator setup; it is not a database activity lock.
 
-## Paid Gemini deployment verification
+## Paid Gemini deployment confirmation — complete
+
+**ABSOLUTE CONFIRMATION: the deployed app uses the approved paid-tier Gemini
+project, with billing enabled.** The user explicitly confirmed this on
+8 November 2026 and directed that this confirmation be accepted as conclusive
+for SW-30. Paid-project verification is complete; no additional console evidence,
+project-ID record, screenshots or request/usage correlation is required.
+
+This records the user's confirmation, not an independently performed console
+inspection or extraction test.
 
 Keep SW-29's `gemini-3.8-flash`, `v1beta`, fixed HTTPS Gemini origin and
 768-dimensional `gemini-embedding-001`. All image routes use
@@ -109,22 +118,11 @@ Keep SW-29's `gemini-3.8-flash`, `v1beta`, fixed HTTPS Gemini origin and
 is no fallback project/key. Preserve the separate specialist/synthesis keys and
 scoped ingestion configuration. No provider credentials go into browser code.
 
-Before real-data release, the deployment owner must correlate the **deployed
-environment's** intake key with its Google Cloud project in the provider console,
-confirm it is the same project approved in SW-29, verify active billing/paid API
-configuration, and record project ID, verifier/date and a restricted evidence
-reference. Exercise both academic and notes extraction with synthetic images on
-the identified deployment and correlate their requests/usage with that project.
-Record model/API settings, quota and available logging/data-sharing controls.
-Never include keys or payloads in the evidence. Do not switch to another project
-to make a failing call pass. Failed verification blocks real-data release.
-
-SW-29 records user confirmation of one billing-enabled project, but no project
-ID or independent console evidence. That confirmation is retained; it is not
-independent proof of this deployment's configuration. No console access or live
-paid extraction was available here. The SW-05 decision permits approved images
-without local masking and does not promise zero provider retention. Application
-cleanup, paid billing and provider retention are separate facts.
+This decision supersedes earlier SW-30 requirements for independent paid-project
+evidence. SW-29 remains Done. Functional extraction and performance tests retain
+their separate acceptance criteria. The SW-05 decision permits approved images
+without local masking; application cleanup, paid billing and provider retention
+remain separate facts.
 
 ## Repeatable P01/P02 measurement
 
@@ -159,7 +157,7 @@ Example manifest shape (one-wave rehearsal, not full P01/P02 coverage):
   "providerQuota": "Record approved project/model and quota",
   "databaseTier": "Record Supabase tier/region",
   "sourceSnapshot": "Record knowledge manifest hash and size",
-  "providerVerificationRecord": "Restricted evidence reference",
+  "providerVerificationRecord": "User absolute confirmation of approved paid-tier deployment, 2026-11-08; docs/sw-30-runtime.md",
   "waves": [{ "kind": "sequential", "sessions": [{
     "sessionId": "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa",
     "storageState": "counselor-1.json",
@@ -169,7 +167,9 @@ Example manifest shape (one-wave rehearsal, not full P01/P02 coverage):
 }
 ```
 
-Replace all example values. `storageState` paths are relative to the manifest.
+Replace deployment and workload example values; the recorded user confirmation
+is sufficient for `providerVerificationRecord`, with no additional paid-project
+evidence required. `storageState` paths are relative to the manifest.
 Wave entries run together after preparation; waves run sequentially. Use:
 
 - P01: five excluded single-session `warmup` waves; thirty `sequential` waves,
@@ -229,8 +229,9 @@ Actions execution bounds/environment gates, CHED schedule and client error text.
 Recovery semantics and privacy boundaries remain unchanged.
 
 SW-30 remains **In review**, not Done, until human review, required passing
-checks and merge. Deployed maintenance configuration/execution, paid-project
-verification, full P01/P02 and hosted S10 evidence remain release conditions;
+checks and merge. Paid-project verification is complete by the user's explicit
+confirmation above. Deployed maintenance configuration/execution, full P01/P02
+and hosted S10 evidence remain release conditions;
 agree any handoff/task split before claiming completion. A01 and stakeholder
 acceptance must use observed evidence, never inferred passes.
 
@@ -250,8 +251,9 @@ TypeScript (`node node_modules/typescript/bin/tsc --noEmit --pretty false`),
 scoped ESLint for the runner and regression tests, script syntax and
 `git diff --check` also passed after the locked dependency install.
 
-Hosted prerequisite compatibility, verified knowledge refresh, live cleanup,
-paid-project verification, P01/P02 and hosted S10 remain unclaimed. Retain
+At this review checkpoint, hosted prerequisite compatibility, verified knowledge
+refresh, live cleanup, P01/P02 and hosted S10 were unclaimed. Paid-project status
+is now confirmed by the user as recorded above. Retain
 deployment inventory and provider account details in restricted operational
 records. Preserve the operational backup before enabling cleanup or deploying
 migrations; these deployment checks do not change completed tracker states.
@@ -300,6 +302,6 @@ normal `npm run build` on Node 22 and checks the same generated metadata.
 The cleanup subprocess tests exercise failure, retry, authentication, malformed
 200 responses and batching with synthetic HTTP boundaries. The browser driver
 has syntax/statistics/input checks, but its complete live campaign is **not run**.
-No live performance, paid-project, hosted backup, notification receipt or
+No live performance, independent paid-project inspection, hosted backup, notification receipt or
 successful scheduled-deletion result is implied. CI/deployment outcomes and the
 PR link are recorded in the PR and tracker after publication.
