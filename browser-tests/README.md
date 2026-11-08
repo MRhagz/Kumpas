@@ -6,6 +6,9 @@ uses axe's default aggregation, retaining the fresh Firefox process per audit,
 zero-frame assertion and all WCAG rules. The older compatibility-mode results
 below are historical. Current candidate results and exceptions are recorded in
 `docs/sw-31-verification.md`; no prior crash is reclassified as a passing run.
+Hosted headless scans also crashed with default aggregation. Firefox CI uses
+windowed mode for both its keyboard flow and independent audit processes, with
+native browser diagnostics retained. The assertion set is unchanged.
 
 Prerequisite SW-25 is merged in base `4b0f9cc`. The supplied SRS accessibility
 section targets WCAG 2.1 AA; STD S08 requires keyboard/focus/contrast/status
