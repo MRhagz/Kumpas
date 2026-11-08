@@ -46,10 +46,10 @@ for (const width of [375, 1280]) test(`keyboard workflow and WCAG 2.1 AA at ${wi
   await expect(page.getByRole('alert')).toContainText('Choose a JPEG');
   const scan = async (stage: string) => {
     expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
-    // Firefox crashes on repeated axe injection in one process. Give each scan
-    // its own process; keep the keyboard browser and all audit rules unchanged.
+    // Isolate each Firefox audit from the keyboard browser and other scans.
+    // Hosted scanner crashes remain failures; all audit rules stay enabled.
     const auditBrowser = info.project.name === 'firefox'
-      ? await firefox.launch({headless: info.project.use.headless !== false}) : null;
+      ? await firefox.launch() : null;
     const auditContext = await (auditBrowser ?? browser).newContext({ viewport: {width, height: 900} });
     const audit = await auditContext.newPage();
     try {

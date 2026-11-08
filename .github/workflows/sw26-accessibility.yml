@@ -34,15 +34,11 @@ jobs:
       - run: npx playwright install --with-deps ${{ matrix.browser }}
       - if: matrix.project != 'firefox'
         run: npx playwright test --project=${{ matrix.project }}
-      # Start a fresh Firefox process between widths: repeated axe injection can crash its page.
+      # Preserve independent widths and complete assertions; scanner failures fail the job.
       - if: matrix.project == 'firefox'
-        run: npx playwright test --project=firefox --grep=375px --headed
-        env:
-          DEBUG: pw:browser
+        run: npx playwright test --project=firefox --grep=375px
       - if: matrix.project == 'firefox'
-        run: npx playwright test --project=firefox --grep=1280px --output=test-results-desktop --headed
-        env:
-          DEBUG: pw:browser
+        run: npx playwright test --project=firefox --grep=1280px --output=test-results-desktop
       - uses: actions/upload-artifact@v4
         if: always()
         with:

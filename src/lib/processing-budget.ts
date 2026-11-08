@@ -66,7 +66,7 @@ export class ProcessingBudget {
     }
   }
 
-  async run<T>(stage: string, operation: (signal: AbortSignal) => Promise<T>, retry = true): Promise<T> {
+  async run<T>(stage: string, operation: (signal: AbortSignal) => Promise<T>, retry = true, attemptTimeoutMs = Infinity): Promise<T> {
     for (let attempt = 0; ; attempt++) {
       this.assert(stage);
       const startedAt = Date.now();
@@ -76,11 +76,15 @@ export class ProcessingBudget {
         const expired = new Promise<never>((_, reject) => {
           timer = setTimeout(() => {
             controller.abort();
-            reject(new ProcessingError(stage, "deadline"));
-          }, this.deadlineAt - Date.now());
+            reject(Date.now() >= this.deadlineAt ? new ProcessingError(stage, "deadline") : new ProviderError(408, null, null));
+          }, Math.min(this.deadlineAt - Date.now(), attemptTimeoutMs));
         });
         const result = await Promise.race([operation(controller.signal), expired]);
         this.assert(stage); // Includes synchronous work and providers ignoring abort.
+        if (Date.now() - startedAt >= attemptTimeoutMs) {
+          controller.abort();
+          throw new ProviderError(408, null, null);
+        }
         operationalEvent("processing", "success", startedAt, { id: this.runId, attempt: attempt + 1 });
         return result;
       } catch (error) {

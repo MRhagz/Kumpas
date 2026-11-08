@@ -47,6 +47,31 @@ describe("SW-15 bounded retries", () => {
     expect(signal?.aborted).toBe(true); complete("too late");
     expect(operation).toHaveBeenCalledTimes(1); expect(vi.getTimerCount()).toBe(0);
   });
+  it("retries one bounded provider timeout without resetting the shared deadline", async () => {
+    const signals: AbortSignal[] = [];
+    const operation = vi.fn((signal: AbortSignal) => { signals.push(signal); return new Promise(() => {}); });
+    const budget = new ProcessingBudget();
+    const originalDeadline = budget.deadlineAt;
+    const pending = budget.run("specialist generation", operation, true, 75000);
+    const checked = expect(pending).rejects.toMatchObject({ status: 408 });
+    await vi.advanceTimersByTimeAsync(75000);
+    expect(signals[0].aborted).toBe(true);
+    await vi.advanceTimersByTimeAsync(1999); expect(operation).toHaveBeenCalledTimes(1);
+    await vi.advanceTimersByTimeAsync(1); expect(operation).toHaveBeenCalledTimes(2);
+    await vi.advanceTimersByTimeAsync(75000); await checked;
+    expect(signals.every(signal => signal.aborted)).toBe(true);
+    expect(budget.deadlineAt).toBe(originalDeadline);
+    expect(Date.now()).toBe(originalDeadline - 148000);
+    expect(vi.getTimerCount()).toBe(0);
+  });
+  it("the absolute deadline wins over a longer per-attempt allowance", async () => {
+    const operation = vi.fn(() => new Promise(() => {}));
+    const pending = new ProcessingBudget(Date.now() + 1000).run("specialist generation", operation, true, 75000);
+    const checked = expect(pending).rejects.toMatchObject({ code: "deadline" });
+    await vi.advanceTimersByTimeAsync(1000); await checked;
+    expect(operation).toHaveBeenCalledTimes(1);
+    expect(vi.getTimerCount()).toBe(0);
+  });
   it.each([-1, 0, 1])("rejects synchronous completion %s ms relative to the deadline except just before", async (offset) => {
     const deadline = Date.now() + 1000;
     const pending = new ProcessingBudget(deadline).run("PDF", async () => { vi.setSystemTime(deadline + offset); return "draft"; });

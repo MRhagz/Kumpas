@@ -70,7 +70,9 @@ export async function runAgentStage<T>(
   budget = new ProcessingBudget(),
 ): Promise<T> {
   try {
-    return await budget.run(`${agentName} ${stage}`, operation, stage !== "embedding");
+    // A hung generation gets one bounded retry, leaving room for downstream work.
+    return await budget.run(`${agentName} ${stage}`, operation, stage !== "embedding",
+      stage === "analysis generation" ? 75000 : undefined);
   } catch (error) {
     if (error instanceof ProcessingError) throw error;
     throw new AgentOperationError(agentName, stage, error);
