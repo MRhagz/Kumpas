@@ -18,9 +18,9 @@ jobs:
             os: ubuntu-latest
           - project: firefox
             browser: firefox
-            # The patched engine crashes during axe evaluation on Windows/Linux.
-            # macOS runs the complete keyboard flow and the same unfiltered rules.
-            os: macos-latest
+            # Match the locally verified Windows/default-aggregation combination.
+            # Retain full scans; failed legacy/macOS attempts remain in the run history.
+            os: windows-latest
           - project: webkit-engine
             browser: webkit
             os: ubuntu-latest
