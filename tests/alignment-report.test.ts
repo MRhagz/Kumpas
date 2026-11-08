@@ -6,6 +6,7 @@ import { buildReportPdf } from "@/lib/report/pdf-renderer";
 import { validateRankedRecommendationList } from "@/lib/report/types";
 import type { RankedRecommendation, ReportPayload } from "@/lib/report/types";
 import ReportDownloadView from "@/components/analysis/report-download-view";
+import { alignmentScoreCalculator } from "@/lib/module3/alignment-score-calculator";
 
 function recommendation(name: string, partial = false): RankedRecommendation {
   return { id: name, rank: partial ? null : 1, careerPath: name, alignmentScore: partial ? null : 74.5,
@@ -23,6 +24,24 @@ const payload: ReportPayload = {
   academicEvidence: { availableDocuments: ["nat"], missingDocuments: ["form137", "ncae"], completenessNote: "Only NAT was provided." },
   auditTrail: recommendations.map((r) => ({ recommendationId: r.id, careerPath: r.careerPath, sources: r.sources })),
 };
+
+it("DEF-005/007 preserves the three historical totals through calculation, UI and PDF disclosure", () => {
+  const scored = alignmentScoreCalculator.calculate({ candidates: [[85, 90, 75], [80, 88, 65], [75, 82, 50]].map(([a, d, f], index) => ({
+    careerPath: `Historical option ${index + 1}`, aptitudeScore: a, demandScore: d, feasibilityScore: f,
+    componentEvidence: { aptitude: null, demand: null, feasibility: null }, signals: [], keySignalDetails: [], sourceReferences: [],
+  })) });
+  const paths = scored.map(path => ({ ...recommendation(path.careerPath), rank: path.rank, alignmentScore: path.alignmentScore,
+    aptitudeFit: path.aptitudeScore, marketDemand: path.demandScore, financialFeasibility: path.feasibilityScore, sources: [] }));
+  const historical = { ...payload, rankedRecommendations: { ...payload.rankedRecommendations, recommendations: paths },
+    auditTrail: paths.map(path => ({ recommendationId: path.id, careerPath: path.careerPath, sources: [] })) };
+  const pdf = buildReportPdf(historical).toString("latin1");
+  const html = renderToStaticMarkup(createElement(ReportDownloadView, { report: { ...historical, reportVersion: 1,
+    downloadUrl: null, expiresAt: "2099-01-01T00:00:00Z", byteLength: 1, recommendationCount: paths.length, recommendations: paths }, onNewSession: () => {} }));
+  for (const score of ["84.50/100", "79.45/100", "71.55/100"]) { expect(pdf).toContain(score); expect(html).toContain(score); }
+  expect(pdf).toContain("AI"); expect(html).toContain("AI");
+  expect(pdf).toContain("not probabilities"); expect(html).toContain("not probabilities");
+  expect(pdf).not.toContain("1970");
+});
 
 it("accepts fewer paths, ties and partial comparisons; rejects false scored partials and wrong ordering", () => {
   const list = payload.rankedRecommendations;
