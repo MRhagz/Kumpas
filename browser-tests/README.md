@@ -1,5 +1,12 @@
 # SW-26 browser and accessibility verification
 
+SW-31 follow-up, 8 November 2026: the legacy axe aggregation workaround also
+crashed on the macOS CI runner, including one unchanged retry. The current runner
+uses axe's default aggregation, retaining the fresh Firefox process per audit,
+zero-frame assertion and all WCAG rules. The older compatibility-mode results
+below are historical. Current candidate results and exceptions are recorded in
+`docs/sw-31-verification.md`; no prior crash is reclassified as a passing run.
+
 Prerequisite SW-25 is merged in base `4b0f9cc`. The supplied SRS accessibility
 section targets WCAG 2.1 AA; STD S08 requires keyboard/focus/contrast/status
 checks and explicit exceptions. RTM NFR-014/015 reader/usability studies remain
