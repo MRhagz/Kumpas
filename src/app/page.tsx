@@ -1,7 +1,6 @@
 "use client";
 
 import { useRouter } from "next/navigation";
-import { useEffect, useState } from "react";
 import {
   Sparkles,
   GraduationCap,
@@ -42,12 +41,6 @@ const BUBBLE_PHRASES = [
 
 export default function LandingPage() {
   const router = useRouter();
-  const [mounted, setMounted] = useState(false);
-
-  useEffect(() => {
-    setMounted(true);
-  }, []);
-
   const handleGetStarted = () => {
     router.push("/login");
   };
@@ -59,8 +52,7 @@ export default function LandingPage() {
       <div className={styles.blobGold} />
 
       {/* ── floating icons ── */}
-      {mounted &&
-        FLOATING_ICONS.map(({ Icon, x, y, size, delay, dur, colorClass }, i) => (
+      {FLOATING_ICONS.map(({ Icon, x, y, size, delay, dur, colorClass }, i) => (
           <div
             key={`icon-${i}`}
             className={`${styles.floatIcon} ${colorClass}`}
@@ -76,8 +68,7 @@ export default function LandingPage() {
         ))}
 
       {/* ── bubble phrases ── */}
-      {mounted &&
-        BUBBLE_PHRASES.map(({ text, x, y, delay }, i) => (
+      {BUBBLE_PHRASES.map(({ text, x, y, delay }, i) => (
           <div
             key={`bubble-${i}`}
             className={styles.bubble}

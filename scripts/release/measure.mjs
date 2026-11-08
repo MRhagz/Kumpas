@@ -27,6 +27,9 @@ async function save() {
   await file.sync();
 }
 let browser;
+// Preserve refreshed cookies across waves without rewriting operator auth files.
+// Reloading the original refresh token can revoke a long campaign after rotation.
+const refreshedStates = new Map();
 try {
   await save();
   browser = await chromium.launch();
@@ -38,7 +41,7 @@ try {
       result.samples.push(sample);
       let context;
       try {
-        context = await browser.newContext({ storageState: resolve(dirname(manifestPath), entry.storageState) });
+        context = await browser.newContext({ storageState: refreshedStates.get(entry.storageState) ?? resolve(dirname(manifestPath), entry.storageState) });
         const page = await context.newPage();
         page.setDefaultTimeout(30_000);
         await page.goto(new URL(`/input?session=${entry.sessionId}`, manifest.url).href);
@@ -108,6 +111,7 @@ try {
         sample.outcome = httpFailure ? "http_error" : sample.durationMs >= 299_000 ? "timeout" : "workflow_error";
       } finally {
         page.off("response", onResponse);
+        refreshedStates.set(entry.storageState, await context.storageState());
         await context.close();
       }
     }));

@@ -33,6 +33,8 @@ import io
 import os
 import sys
 from decimal import Decimal, InvalidOperation
+from urllib.parse import urlsplit
+from urllib.request import url2pathname
 
 import httpx
 import pandas as pd
@@ -122,7 +124,10 @@ def _require_env(name: str) -> str:
 
 def download_csv(url: str) -> bytes:
     if url.startswith("file://"):
-        path = url.removeprefix("file://")
+        parts = urlsplit(url)
+        if parts.netloc not in ("", "localhost") or parts.query or parts.fragment:
+            raise IngestionFailure("Use a local file URI without a remote host, query or fragment")
+        path = url2pathname(parts.path)
         with open(path, "rb") as fh:
             return fh.read()
     with httpx.Client(timeout=60.0, follow_redirects=True,
