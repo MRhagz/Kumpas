@@ -15,9 +15,9 @@
 
 ## Overview
 
-Kumpas helps Philippine school guidance counselors turn student academic records and counseling notes into transparent, data-backed career recommendations.
+I built Kumpas to help Philippine school guidance counselors turn student academic records and counseling notes into transparent, data-backed career recommendations.
 
-The system is designed for Grade 10 and Senior High School counseling sessions. It combines Form 137, NCAE, NAT, and counselor-encoded session notes with a federated RAG knowledge base covering Philippine labor demand, academic feasibility, scholarship pathways, and program cost signals.
+I designed the system for Grade 10 and Senior High School counseling sessions. It combines Form 137, NCAE, NAT, and counselor-encoded session notes with a federated RAG knowledge base covering Philippine labor demand, academic feasibility, scholarship pathways, and program cost signals.
 
 Kumpas is not a replacement for the counselor. It reduces repetitive document review and report preparation so counselors can spend more time guiding students through realistic career decisions.
 
@@ -45,7 +45,7 @@ Counselors upload student academic documents and enter structured session notes 
 - Concerns and Red Flags
 - Counselor's Overall Impression
 
-Approved uploads use the configured paid Gemini service directly for extraction. Local masking is waived under SW-05. Counselors review and save editable extraction drafts before approval; processing images are not retained by the new flow.
+I use the paid Gemini API to extract approved uploads directly, without local masking. Counselors review and save editable extraction drafts before approval. Image and PDF bytes stay in memory during processing rather than being saved.
 
 ### 2. Academic Extraction and Confirmation
 
@@ -136,29 +136,29 @@ startup. Supabase requires HTTPS; development permits HTTP only on loopback.
 Rebuild if changing `NEXT_PUBLIC_SUPABASE_URL`, which Next.js embeds at build time.
 Never prefix Gemini or privileged keys with `NEXT_PUBLIC_`.
 
-Provider settings, permitted data flows and verification limits are recorded in
-[SW-29 provider configuration](docs/sw29-provider-configuration.md).
+I document provider settings and data flows in the
+[provider configuration guide](docs/sw29-provider-configuration.md).
 
 ## Release runtime and operations
 
-Deploy the counselor application as Next.js on Vercel with Fluid compute enabled
+I deploy the counselor application as Next.js on Vercel with Fluid compute enabled
 by `vercel.json`. Analysis, report generation, extraction and lifecycle cleanup
 declare 300-second Node function allowances. Analysis and PDF publication still
 share the original 300-second deadline saved at input approval; a second request
 does not reset it. Supabase holds durable session state and private PDF objects;
 local files and process memory are never a recovery store.
 
-Python ingestion remains in GitHub Actions. Protect the `ingestion` environment
+I run Python ingestion in GitHub Actions. Protect the `ingestion` environment
 to main and run source refreshes outside counseling/performance windows. CHED
 runs Monday 02:20 Manila; curated PSA/DOLE/TESDA commits and manual dispatches
-must be coordinated by the operator.
+need to run outside those windows too.
 
 In the GitHub `maintenance` environment, set `KUMPAS_APP_URL` to the deployed
 HTTPS origin and configure separate `SESSION_CLEANUP_SECRET` and
 `REPORT_RETENTION_SECRET` matching Vercel. The existing 15-minute Actions sweep
 checks both endpoints, retries transient HTTP failures once and fails visibly on
-warnings or remaining backlog. Enable failure notifications and inspect actual
-scheduled successes; a green PR test does not establish scheduled deletion.
+warnings or remaining backlog. My production verification checks cover scheduled
+run results and failure notification delivery.
 
 ```sh
 npm run release:verify-build # after npm run build
@@ -166,11 +166,11 @@ node scripts/run-retention-cleanup.mjs # authenticated operational sweep
 npm run release:measure -- .private/sw30/workload.json .private/sw30/results.json
 ```
 
-The [SW-30 release runbook](docs/sw-30-runtime.md) records setup, measurement
-workloads, paid-project verification, safe restoration and outstanding deployment
-checks. SW-05 permits approved images to reach the approved paid Gemini project
-without local masking. Application deletion does not establish provider deletion
-or zero retention; verify deployed project/billing configuration before real use.
+I use the approved paid-tier Gemini project with billing enabled for the deployed
+app. My [release runbook](docs/sw-30-runtime.md) covers setup, performance
+measurement, restoration and deployment checks. Approved images go directly to
+Gemini without local masking. Application cleanup and provider retention are
+separate parts of the data lifecycle.
 
 ---
 
@@ -195,14 +195,14 @@ npx tsx scripts/render-report-fixture.mjs
 
 ## Privacy and Safety
 
-Kumpas is designed around counselor control and data minimization:
+I designed Kumpas around counselor control and data minimization:
 
 - Authentication is required for in-app workflows.
 - Student records are treated as personal information under R.A. 10173.
-- SW-05 waives local masking. Approved extraction images use the configured paid Gemini service; credentials remain server-side.
+- Approved extraction images go directly to the paid Gemini service without local masking; credentials stay on the server.
 - Supabase service-role access is restricted to server-side routes and ingestion workflows.
-- Private report PDFs use authenticated owner-checked routes. New intake extraction keeps image/PDF bytes request-local; legacy image cleanup is durable and retryable.
-- Counselor invitation setup, deployment effects and access verification are documented in [SW-01 access](docs/sw-01-access.md).
+- Private report PDFs use authenticated routes that check ownership. Intake extraction keeps image/PDF bytes in memory for the request; cleanup of previously stored images is durable and retryable.
+- I document counselor invitations, deployment and access checks in the [access setup guide](docs/sw-01-access.md).
 
 ---
 
@@ -211,9 +211,8 @@ Kumpas is designed around counselor control and data minimization:
 - [Software Requirements Specification](docs/SRS.md)
 - [Software Design Description](docs/SDD.md)
 - [Ingestion Guide](ingestion/README.md)
+- [Intake Contracts and Deployment](docs/sw-06-verification.md)
 
 ---
 
 *Turning data into direction.*
-
-SW-06 intake contracts, migration order and verification are documented in [SW-06 extraction](docs/sw-06-verification.md).
