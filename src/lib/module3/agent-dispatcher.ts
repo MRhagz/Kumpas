@@ -25,6 +25,9 @@ function createFailedOutput(
 export class AgentDispatcher {
   async dispatch(input: AnalysisInput, budget = new ProcessingBudget()): Promise<AgentOutput[]> {
     const { approvedProfile } = input;
+    // Bound the parallel stage inside the original run clock, so supported
+    // remaining outputs still have time for synthesis, explanation and PDF.
+    const specialistBudget = new ProcessingBudget(Math.min(budget.deadlineAt, Date.now() + 180000), budget.runId);
 
     const academicAuditorKey =
       process.env.ACADEMIC_AUDITOR_API_KEY?.trim() ?? "";
@@ -47,22 +50,27 @@ export class AgentDispatcher {
           { id: budget.runId, ...(result.status === "FAILED" ? { code: "operation_failed" as const } : {}) });
         return result;
       } catch (error) {
-        operationalEvent(stage, "failure", startedAt, { id: budget.runId, code: "operation_failed" });
-        if (error instanceof ProcessingError && (error.code === "deadline" || error.code === "stale")) throw error;
+        operationalEvent(stage, "failure", startedAt, { id: budget.runId, code: error instanceof ProcessingError ? error.code : "operation_failed" });
+        if (error instanceof ProcessingError) {
+          if (error.code === "stale") throw error;
+          budget.assert(error.stage); // The absolute run deadline still stops everything.
+          return { ...createFailedOutput(name, error),
+            error: `${name} could not finish within its processing allowance. This analysis dimension is unavailable.` };
+        }
         return createFailedOutput(name, error);
       }
     };
     const outputs = await Promise.all([
       runSpecialist(
-        () => academicAuditorAgent.analyze(approvedProfile, academicAuditorKey, budget),
+        () => academicAuditorAgent.analyze(approvedProfile, academicAuditorKey, specialistBudget),
         "AcademicAuditor",
       ),
       runSpecialist(
-        () => industryAnalystAgent.analyze(approvedProfile, industryAnalystKey, budget),
+        () => industryAnalystAgent.analyze(approvedProfile, industryAnalystKey, specialistBudget),
         "IndustryAnalyst",
       ),
       runSpecialist(
-        () => feasibilityStrategistAgent.analyze(approvedProfile, feasibilityStrategistKey, budget),
+        () => feasibilityStrategistAgent.analyze(approvedProfile, feasibilityStrategistKey, specialistBudget),
         "FeasibilityStrategist",
       ),
     ]);

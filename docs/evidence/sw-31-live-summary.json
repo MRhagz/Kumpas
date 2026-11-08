@@ -1,0 +1,362 @@
+{
+  "recordedAt": "2026-11-08T12:43:03.407Z",
+  "hostedCommit": "bc336abb1422832141ab089557d14ad842fb38c9",
+  "deploymentId": "DzRMcmxe3srR7ihoPoPZzznkY1zN",
+  "execution": "unmocked_hosted_http",
+  "providerVerification": "Merged SW-30 paid-project deployment confirmation; docs/sw-30-runtime.md, 8 November 2026",
+  "localMasking": {
+    "status": "waived",
+    "basis": "SW-05 team decision"
+  },
+  "privateEvidenceSha256": {
+    "contracts": "bcd1093d29bcfd3c83dfb331f80b1d977253040d8c0800327644b03e9de60728",
+    "extraction": "e2fa906257e91ee667214be0db7c475315db97c611531fdc29695500f783621a",
+    "download": "52e2515ac5d0c82f2feca8ab9defb3e6c43c7a301820e09e96fdcc275c84545a",
+    "diagnostic": "09f09087b2bdcd0031f82fbf89a45435df5edde74eba09f459eb9c359173d4f7"
+  },
+  "contracts": [
+    {
+      "name": "F01/I03 unauthenticated and cross-owner session denial",
+      "outcome": "pass",
+      "durationMs": 5829.099099999999
+    },
+    {
+      "name": "S11 counselors cannot invoke maintenance",
+      "outcome": "pass",
+      "durationMs": 2490.3140999999996
+    },
+    {
+      "name": "DEF-003 oversized upload rejected before storage",
+      "outcome": "pass",
+      "durationMs": 2400.3178000000007
+    },
+    {
+      "name": "DEF-003 actual 10,000,000-byte private academic upload",
+      "outcome": "pass",
+      "durationMs": 38051.7668
+    },
+    {
+      "name": "DEF-004 optional blanks and required values",
+      "outcome": "pass",
+      "durationMs": 12532.946800000005
+    },
+    {
+      "name": "S05 explicit termination revokes both owners",
+      "outcome": "pass",
+      "durationMs": 9857.2794
+    },
+    {
+      "name": "I02 actual photographed-note extraction and review gate",
+      "outcome": "pass",
+      "durationMs": 34155.34419999999
+    }
+  ],
+  "extraction": {
+    "documents": 30,
+    "manifestSha256": "785623f2fe5244131a2d43184a1e98001ed73cd39b548c02bf390c20f9f3e9bc",
+    "independentGroundTruthReview": "pending",
+    "overall": {
+      "documents": 30,
+      "failures": 0,
+      "correct": 120,
+      "total": 120,
+      "accuracy": 1,
+      "meetsFloor": true
+    },
+    "byCategory": {
+      "form_137": {
+        "documents": 10,
+        "failures": 0,
+        "correct": 40,
+        "total": 40,
+        "accuracy": 1,
+        "meetsFloor": true
+      },
+      "ncae": {
+        "documents": 10,
+        "failures": 0,
+        "correct": 40,
+        "total": 40,
+        "accuracy": 1,
+        "meetsFloor": true
+      },
+      "nat": {
+        "documents": 10,
+        "failures": 0,
+        "correct": 40,
+        "total": 40,
+        "accuracy": 1,
+        "meetsFloor": true
+      }
+    },
+    "byCondition": {
+      "clean": {
+        "documents": 6,
+        "failures": 0,
+        "correct": 24,
+        "total": 24,
+        "accuracy": 1,
+        "meetsFloor": true
+      },
+      "low-quality": {
+        "documents": 6,
+        "failures": 0,
+        "correct": 24,
+        "total": 24,
+        "accuracy": 1,
+        "meetsFloor": true
+      },
+      "missing-field": {
+        "documents": 6,
+        "failures": 0,
+        "correct": 24,
+        "total": 24,
+        "accuracy": 1,
+        "meetsFloor": true
+      },
+      "non-standard": {
+        "documents": 6,
+        "failures": 0,
+        "correct": 24,
+        "total": 24,
+        "accuracy": 1,
+        "meetsFloor": true
+      },
+      "mixed-quality": {
+        "documents": 6,
+        "failures": 0,
+        "correct": 24,
+        "total": 24,
+        "accuracy": 1,
+        "meetsFloor": true
+      }
+    },
+    "byStratum": {
+      "form_137/clean": {
+        "documents": 2,
+        "failures": 0,
+        "correct": 8,
+        "total": 8,
+        "accuracy": 1,
+        "meetsFloor": true
+      },
+      "form_137/low-quality": {
+        "documents": 2,
+        "failures": 0,
+        "correct": 8,
+        "total": 8,
+        "accuracy": 1,
+        "meetsFloor": true
+      },
+      "form_137/missing-field": {
+        "documents": 2,
+        "failures": 0,
+        "correct": 8,
+        "total": 8,
+        "accuracy": 1,
+        "meetsFloor": true
+      },
+      "form_137/non-standard": {
+        "documents": 2,
+        "failures": 0,
+        "correct": 8,
+        "total": 8,
+        "accuracy": 1,
+        "meetsFloor": true
+      },
+      "form_137/mixed-quality": {
+        "documents": 2,
+        "failures": 0,
+        "correct": 8,
+        "total": 8,
+        "accuracy": 1,
+        "meetsFloor": true
+      },
+      "ncae/clean": {
+        "documents": 2,
+        "failures": 0,
+        "correct": 8,
+        "total": 8,
+        "accuracy": 1,
+        "meetsFloor": true
+      },
+      "ncae/low-quality": {
+        "documents": 2,
+        "failures": 0,
+        "correct": 8,
+        "total": 8,
+        "accuracy": 1,
+        "meetsFloor": true
+      },
+      "ncae/missing-field": {
+        "documents": 2,
+        "failures": 0,
+        "correct": 8,
+        "total": 8,
+        "accuracy": 1,
+        "meetsFloor": true
+      },
+      "ncae/non-standard": {
+        "documents": 2,
+        "failures": 0,
+        "correct": 8,
+        "total": 8,
+        "accuracy": 1,
+        "meetsFloor": true
+      },
+      "ncae/mixed-quality": {
+        "documents": 2,
+        "failures": 0,
+        "correct": 8,
+        "total": 8,
+        "accuracy": 1,
+        "meetsFloor": true
+      },
+      "nat/clean": {
+        "documents": 2,
+        "failures": 0,
+        "correct": 8,
+        "total": 8,
+        "accuracy": 1,
+        "meetsFloor": true
+      },
+      "nat/low-quality": {
+        "documents": 2,
+        "failures": 0,
+        "correct": 8,
+        "total": 8,
+        "accuracy": 1,
+        "meetsFloor": true
+      },
+      "nat/missing-field": {
+        "documents": 2,
+        "failures": 0,
+        "correct": 8,
+        "total": 8,
+        "accuracy": 1,
+        "meetsFloor": true
+      },
+      "nat/non-standard": {
+        "documents": 2,
+        "failures": 0,
+        "correct": 8,
+        "total": 8,
+        "accuracy": 1,
+        "meetsFloor": true
+      },
+      "nat/mixed-quality": {
+        "documents": 2,
+        "failures": 0,
+        "correct": 8,
+        "total": 8,
+        "accuracy": 1,
+        "meetsFloor": true
+      }
+    }
+  },
+  "approvedDownload": [
+    {
+      "name": "F12/I10 exact report approval and authenticated PDF stream",
+      "outcome": "pass",
+      "durationMs": 25357.5062
+    }
+  ],
+  "diagnostic": {
+    "coverage": {
+      "P01": false,
+      "P02": false
+    },
+    "completed": true,
+    "samples": [
+      {
+        "kind": "sequential",
+        "profile": "notes",
+        "outcome": "success",
+        "durationMs": 86740.39999961853
+      }
+    ],
+    "summaries": {
+      "warmup": {
+        "attempts": 0,
+        "successful": 0,
+        "failures": 0,
+        "errorRate": 0,
+        "throughputPerSecond": 0,
+        "latencyMs": null,
+        "within300Seconds": false
+      },
+      "sequential": {
+        "attempts": 1,
+        "successful": 1,
+        "failures": 0,
+        "errorRate": 0,
+        "throughputPerSecond": 0.011518931097747787,
+        "latencyMs": {
+          "min": 86740.39999961853,
+          "median": 86740.39999961853,
+          "p95": 86740.39999961853,
+          "max": 86740.39999961853
+        },
+        "within300Seconds": true
+      },
+      "cold": {
+        "attempts": 0,
+        "successful": 0,
+        "failures": 0,
+        "errorRate": 0,
+        "throughputPerSecond": 0,
+        "latencyMs": null,
+        "within300Seconds": false
+      },
+      "concurrent": {
+        "attempts": 0,
+        "successful": 0,
+        "failures": 0,
+        "errorRate": 0,
+        "throughputPerSecond": 0,
+        "latencyMs": null,
+        "within300Seconds": false
+      },
+      "stress": {
+        "attempts": 0,
+        "successful": 0,
+        "failures": 0,
+        "errorRate": 0,
+        "throughputPerSecond": 0,
+        "latencyMs": null,
+        "within300Seconds": false
+      }
+    }
+  },
+  "releaseReady": false,
+  "limitations": [
+    "Live provider corpus and performance target merged bc336ab. PR preview browser smoke is recorded separately; full candidate live qualification remains incomplete.",
+    "Independent human answer-key/explanation review remains pending.",
+    "One diagnostic is not P01/P02 qualification; frozen campaign is in progress.",
+    "Cold-server control and hosted isolated restore are unexecuted."
+  ],
+  "previewSmoke": {
+    "commit": "af48364acc807ee49ff5418bef7ead64e33e63e3",
+    "deploymentId": "86UARiWvdHsGUNSa2KTTzein9TsW",
+    "execution": "actual_browser",
+    "checks": [
+      {
+        "name": "Authorized preview access and counselor sign-in",
+        "outcome": "pass"
+      },
+      {
+        "name": "Synthetic typed-only draft save and refresh preserves values and fixed expiry",
+        "outcome": "pass"
+      },
+      {
+        "name": "Same-owner saved draft link restores after logout/login",
+        "outcome": "pass"
+      },
+      {
+        "name": "Direct analysis navigation before approval redirects to confirmation",
+        "outcome": "pass"
+      }
+    ],
+    "providerInvoked": false
+  }
+}

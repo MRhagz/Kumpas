@@ -36,6 +36,15 @@ RPO/RTO pass is inferred. Human/stakeholder validation remains after the midterm
   guards against the invented 1970 source date.
 - Missing operational-log database configuration previously exited without a
   named setup error. The job now names the missing variable without exposing it.
+- Repeated live timeouts exhausted the shared clock during feasibility
+  generation. A regression reproduced the absence of an operation timeout and
+  the loss of remaining successful outputs to a hung specialist. Specialist
+  generation now permits two attempts of at most 75 seconds, separated by the
+  existing bounded retry delay; the parallel stage has at most 180 seconds
+  inside the original run deadline. Stage timeout preserves valid other outputs
+  for explicitly partial synthesis. A global deadline or stale version still
+  stops the run. Fake-clock regressions pass; live candidate qualification is
+  pending and the original measured failures remain unchanged.
 
 No production fault endpoint, deferred feature, schema migration, provider/model
 change, credential fallback or data migration is introduced. Existing warnings
@@ -115,3 +124,169 @@ Remaining handoff includes independent extraction/explanation review, accepted
 limitations and live deployment coverage. Neither green fixtures nor a merged
 prerequisite closes a currently unexecuted STD acceptance case. Keep this task
 out of Done until human review, required checks and merge.
+
+### Executed checks and build identity
+
+Application checks on `b4dba07dea3f12650602526278216b7846a1bf6a`:
+
+| Exact command | Observed outcome |
+| --- | --- |
+| `npm ci --ignore-scripts --no-audit --no-fund` | 859 packages installed. |
+| `npm run test:access -- --maxWorkers=2` | 775 tests passed in 52 files. |
+| `npm test` | 28 tests passed in two files. |
+| `node --test scripts/release/metrics.test.mjs` | Three tests passed. |
+| `npx tsc --noEmit` | Passed. |
+| `npm run lint` | Zero errors; 12 existing warnings. |
+| `node scripts/release/verify-build.mjs` | Passed: seven 300-second route allowances and Fluid configuration. Local Windows tracing is not Linux deployment tracing; CI checks the Linux build. |
+| `git diff --check` | Passed. |
+
+After the bounded-specialist fix, `npm run test:access -- --maxWorkers=2`
+passed **780 tests in 53 files**. The focused command
+`npx vitest run tests/processing-budget.test.ts tests/specialist-timeout.test.ts tests/processing-providers.test.ts --maxWorkers=2`
+passed 31 tests; its preserved pre-fix run failed on the missing attempt timeout
+and the hung specialist not releasing successful outputs. `npx tsc --noEmit`
+passed again; full lint remains zero errors and 12 existing warnings. Scoped
+ESLint and actionlint for the three changed workflows passed. The browser's
+unsuccessful windowed diagnostic was removed; the normal headless job retains
+all assertions and remains an open CI gate rather than a claimed fix.
+
+The production build passed with the existing private environment loaded into
+the parent process, followed by `node node_modules/next/dist/bin/next build --webpack`.
+The earlier `node --env-file=... ... next build --webpack` attempt failed because
+the build worker rejected that inherited option; that failed attempt is retained.
+An actual-value scan of `.next/static` found none of the eight server-only
+credential values. Credentials and their values are excluded from evidence.
+
+Python ran in a fresh virtual environment with
+`pip install -e './ingestion[pdf,psa,fixtures,dev]'` and `psycopg2-binary`.
+`python -m unittest discover -s ingestion/tests -v` passed 55 tests. Its first
+local run skipped nine database cases; the later disposable PostgreSQL run
+executed all 55 without skips. DOLE's six database tests also passed without
+skips. Local CHED ran 20 tests with one OCR skip, and local DOLE ran 16 tests
+with seven database/OCR skips before the database rerun. Dedicated CI jobs run
+real OCR; local skips are not reclassified as local OCR passes.
+
+On a new loopback-only PostgreSQL 18 cluster, `psql -X -v ON_ERROR_STOP=1 -f`
+passed `sw08_correction_logs.sql`, `sw23_retention.sql`, and, in a separate
+ingestion database after `sw09_bootstrap.sql`, `sw09_embedding_contract.sql`,
+`sw11_ched_cache.sql` and `sw14_specialist_silos.sql` under `supabase/tests/`.
+No hosted migration or production database change was made for these checks.
+
+### Hosted evidence and open gates
+
+`docs/evidence/sw-31-live-summary.json` contains sanitized aggregate evidence.
+Raw evidence, synthetic session references and authentication state remain in
+the ignored, private operator directory. The first hosted contract/corpus/
+download runs target merged `bc336abb1422832141ab089557d14ad842fb38c9`, Vercel
+deployment `DzRMcmxe3srR7ihoPoPZzznkY1zN`; they do not attest the later PR preview.
+
+The 70-attempt performance campaign preserves five warm-ups, 30 sequential
+attempts, five waves of five distinct counselors and a separate ten-session
+stress wave. Three genuine cold starts cannot be controlled here and are not
+claimed. Several measured attempts reached 300 seconds before a draft appeared.
+Narrow processing metadata identifies FeasibilityStrategist generation as the
+failed stage in several runs. One client timeout has a completed report, so its
+client end-to-end failure is retained despite the eventual server completion.
+No failed attempt is removed or silently retried to improve the result.
+
+PR preview access became available on 8 November. The Vercel status for
+`af48364acc807ee49ff5418bef7ead64e33e63e3` identifies deployment
+`86UARiWvdHsGUNSa2KTTzein9TsW`. Actual counselor sign-in and typed-only draft
+save/refresh work there, with unchanged expiry. Further preview checks are
+recorded separately from the production baseline.
+After logout/login, reopening the same saved draft link restores its synthetic
+values and original expiry. Direct navigation to analysis before input approval
+redirects to confirmation. Signing in without a return link creates a new intake
+when there is no approved resumable profile; this unapproved-note test does not
+claim automatic recovery of an approved analysis. No Gemini operation was
+started by these preview smoke checks during the measured baseline campaign.
+
+All 18 other workflows passed on that head; the Firefox accessibility job
+still crashes inside axe's page evaluation, including its windowed diagnostic.
+Chrome, Edge and WebKit CI pass. Local default-aggregation Firefox passes both
+widths, but that does not close the CI failure. No rule, assertion or failure
+gate is disabled. Actual Safari and spoken screen-reader verification remain
+unexecuted.
+
+Actual hosted ingestion jobs failed for missing `SUPABASE_INGESTION_TOKEN` and
+`SUPABASE_PUBLISHABLE_KEY`; operational-log pruning failed for missing
+`INGESTION_LOG_MAINTENANCE_DATABASE_URL`. These require scoped deployment
+configuration, not broader credential fallbacks. The earlier successful SW-30
+manual empty cleanup sweep is retained as its own run, not a current scheduled
+execution pass. Notification receipt and an applicable scheduled-success run
+remain unverified. No global production maintenance job was dispatched here.
+
+
+### R02 defect retest register
+
+These are executed checks, not independent reviewer closures. The historical
+original failing build remains in the approved STD evidence; it was not redeployed
+over the shared service. A reviewer other than the fixer should link their retest
+before closing each defect.
+
+| Historical defect | Current evidence | Remaining closure condition |
+| --- | --- | --- |
+| KMP-DEF-001 | Rounded-score ordering, shared ranks and alphabetical ties pass in the calculator regressions. | Reviewer-linked retest against the preserved original fixture. |
+| KMP-DEF-002 | Missing/invalid publication dates do not become 1970 in UI/PDF fixtures. | Reviewer-linked retest. |
+| KMP-DEF-003 | Hosted oversized metadata returns 413; an actual valid 10,000,000-byte private upload extracts successfully. Boundary/format fixtures pass. | Reviewer-linked retest and candidate-specific live confirmation. |
+| KMP-DEF-004 | Hosted all-optional-blank/undecided approval passes; missing required values are denied. Individual optional-field regressions pass. | Reviewer-linked retest. |
+| KMP-DEF-005 | Original 85/90/75, 80/88/65 and 75/82/50 fixtures produce 84.50, 79.45 and 71.55 through calculator, UI and PDF. | Reviewer-linked retest; live semantic quality remains a separate gate. |
+| KMP-DEF-006 | Hosted unapproved/stale/cross-owner download denial and exact approval/stream/revocation pass; Draft markings and regeneration are covered by fixtures. | Candidate live review/regeneration walkthrough and independent retest. |
+| KMP-DEF-007 | AI/comparative-score disclosure assertions pass in PDF/UI. A missing AI label in the legacy summary-absent UI was reproduced and fixed here. | Candidate live visual report review and independent retest. |
+
+Current additional open observations are measured analysis-to-draft timeouts,
+Firefox's CI scanner crash and the operational configuration failures above.
+They prevent A01 acceptance; successful extraction and green unit tests do not
+override them.
+
+### Current active-row disposition
+
+This table maps software evidence and remaining acceptance work, not blanket passes.
+Later human validation does not become an invented automated result.
+
+| Active requirement | Linked STD cases | Evidence / remaining condition |
+| --- | --- | --- |
+| KMP-FR-001 | F01, F13, I03 | Access/invitation fixtures and hosted missing-auth/other-owner denials pass. Live invitation expiry and email-delivery variants remain unexecuted. |
+| KMP-FR-002 | F02, F03, R02 | All formats/categories in fixtures and the 30-file hosted corpus; actual inclusive 10 MB upload and oversized metadata rejection pass. Hosted interrupted TUS transfer remains unexecuted. |
+| KMP-FR-003 | F04, I02, S02, R02 | Hosted undecided goal, blank optional fields and missing-required denials pass; individual optional-field fixtures pass. |
+| KMP-FR-004 | I01, I02 | Local masking-only cases waived under SW-05. Hosted private raw-read denial, cleanup and extraction pass; no zero-provider-retention claim. |
+| KMP-FR-005 | F06, I02, I11, S09, R03 | Hosted 30-document corpus: 120/120 observations; independent human answer-key review and previous/candidate live comparison remain pending. |
+| KMP-FR-006 | F07, I04 | Reviewed-input and real database version/correction fixtures pass. Hosted academic-correction walkthrough remains pending. |
+| KMP-FR-007 | F07, S06 | Correction whitelist, restricted grants and 12-calendar-month real SQL boundaries pass. Hosted evaluator/audit walkthrough is unexecuted. |
+| KMP-FR-008 | I08, I09, I13 | PSA parser/CLI and real pgvector refresh/rollback/replay tests pass. Actual hosted ingestion is blocked by missing scoped credentials. |
+| KMP-FR-009 | I08, I09, I12, I13 | CHED publication/cache and actual OCR fixture CI passes. Actual scheduled import is not established by these fixtures. |
+| KMP-FR-010 | I08, I09, I12, I13 | DOLE curated PDF/OCR and six real database tests pass. Hosted pipeline is blocked by missing scoped credentials. |
+| KMP-FR-011 | I08, I09, I13 | TESDA valid/missing/cost/replay and real database tests pass. This does not independently certify every production catalog fact. |
+| KMP-FR-012 | F06, F10, I08, I12, I13 | Provenance/embedding/replay fixtures pass; public snapshot contains 2,177 chunks. Live import operation remains configuration-blocked. |
+| KMP-FR-013 | I05, I06, I14, R03 | Specialist-silo and real SQL retrieval isolation pass. Hosted diagnostic generated a real report; workload campaign and expert evidence review remain separate. |
+| KMP-FR-014 | F08, F09, I04, I06, R02, R03, U01 | Historical 84.50/79.45/71.55 and rounding/tie/null guards pass through calculator/UI/PDF; hosted semantic quality is not inferred from arithmetic tests. |
+| KMP-FR-015 | F10, F11, R02, R03 | PDF content/missing evidence/confidential-marker fixtures and actual approved PDF stream pass. Independent explanation review remains pending. |
+| KMP-FR-016 | F12, I04, I10, S08, R02 | Hosted unapproved/stale/cross-owner denial, exact approval, PDF stream and termination revocation pass; broader regeneration cases have fixture coverage. |
+| KMP-FR-017 | S01, S05, R01 | Five-stage fixtures and browser contracts cover flow. Hosted diagnostic/download pass; both-grade full browser walkthrough remains incomplete. |
+| KMP-FR-018 | S03, S04 | Refresh/login/stale/expired owner-draft fixtures pass. Full hosted logout/login recovery walkthrough remains incomplete. |
+| KMP-FR-019 | I01, I11, S04, S05 | Independent draft/PDF clocks and retry/tombstone real SQL pass; hosted extraction raw deletion passes. Hosted 24-hour boundary and injected-delete-failure drill not run. |
+| KMP-FR-020 | F03, F04, F06, S02 | Eight optional-document combinations have fixture coverage; hosted notes-only diagnostic and corpus uploads pass. Full hosted combination matrix not run. |
+| KMP-FR-021 | F12, I10 | AI/score disclosures and provenance fixtures pass; a legacy UI disclosure gap was reproduced and fixed. Final preview-specific validation remains pending. |
+| KMP-FR-022 | F03, F05, I02 | Hosted notes photograph review gate, required-field and upload boundary denials pass. SRS/STD masking wording requires later reconciliation. |
+| KMP-FR-023 | F05, A02 | Onboarding/notice/control semantics have fixture/browser coverage. Human orientation/comprehension remains after the midterm deliverable. |
+| KMP-FR-029 | S01 | Grade 10/SHS validation fixtures and both grade-level corpus records pass. Completed live browser workflows for both groups remain incomplete. |
+| KMP-NFR-001 | F01, I03, I10, S03, S06, S11 | Owner/role/version SQL and API fixtures plus hosted cross-owner denials pass; full direct hosted child-table/storage policy matrix remains partial. |
+| KMP-NFR-002 | I05, I14, S07, S11 | Server-only bundle scan and secret-marker fixtures pass; paid-project confirmation retained from SW-30. No unapproved key fallback added. |
+| KMP-NFR-003 | F05, I01, S07, A01 | Processing notice and SW-05/SW-30 decisions recorded; school policy/contact and provider account controls require institutional verification. |
+| KMP-NFR-004 | F05, I10, I11, S04, S05, S06, S07, S10, S11, A01 | All separate clocks/retry/replay fixtures and real SQL pass; hosted raw deletion passes. Hosted elapsed-time/failure isolation remains partial. |
+| KMP-NFR-005 | I07, P01, P02 | One real browser diagnostic completed in 86.740 s. Frozen sequential/concurrent campaign is in progress; no P01/P02 pass or cold-server claim. |
+| KMP-NFR-006 | S09, R03 | 30 hosted extractions matched 120/120 frozen observations. Independent human corpus verification remains pending. |
+| KMP-NFR-007 | F07, F08, F12, I04, S03, R01 | 780 application and 28 legacy regressions pass; remaining live/independent gates prevent broad release acceptance. |
+| KMP-NFR-008 | F09, I06 | Malformed/partial/missing-evidence and specialist-failure fixtures pass. Controlled hosted provider fault injection is not claimed. |
+| KMP-NFR-009 | I06, I07, P02 | Retry/deadline/quota/stale-write fixtures pass. Live diagnostic passes; concurrent workload and fault qualification remain separate. |
+| KMP-NFR-010 | I09, S07 | Seeded safe-log and fixed-retention fixtures pass. Actual operational-log pruning fails on missing maintenance DSN; notification receipt unverified. |
+| KMP-NFR-011 | S10 | Real SQL deletion-ledger replay prevents revival. Hosted isolated S10/RPO/RTO excluded in SW-30 record; no hosted restore pass. |
+| KMP-NFR-012 | F10, R03, A03 | Evidence/silo/score invariants pass. Qualified counselor review of the twenty-case explanation set remains pending; no expert sign-off inferred. |
+| KMP-NFR-013 | S08 | Edge/WebKit local and Chrome/Edge/WebKit CI scans pass. Firefox scanner crashes are retained; current-platform CI under investigation. Actual Safari/spoken reader checks unexecuted. |
+| KMP-NFR-014 | F11, A02 | Student-summary wording/confidentiality fixtures pass. Intended-student comprehension study remains after the midterm deliverable. |
+| KMP-NFR-015 | S01, A02 | Keyboard/navigation fixtures and available-browser workflows run. Five-counselor unassisted usability study remains after the midterm deliverable. |
+| KMP-NFR-016 | I08, S07, S08 | Next/Vercel production and separate Actions topology observed; generated seven 300-second allowances and Fluid config verified. Authorized PR-preview login/save/refresh/recovery/approval-guard browser smoke passes; full live candidate qualification remains incomplete. |
+
+FR-024/025/026/028 remain deferred; FR-027 remains excluded. No implementation
+was added for those rows. Formal A01 is **not accepted** while the applicable
+live, operational, independent-review and browser gates remain unresolved.
