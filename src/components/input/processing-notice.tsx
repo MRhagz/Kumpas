@@ -18,7 +18,8 @@ export default function ProcessingNotice({ confirmed, onConfirm }: ProcessingNot
       </p>
       <p className="mt-2">
         Vercel hosts application processing. Supabase provides authentication and restricted
-        temporary session storage. The approved paid Gemini service processes submitted images directly for extraction and
+        temporary session storage. Uploads are staged privately in Supabase for extraction.
+        The approved paid Gemini service processes submitted images directly for extraction and
         approved inputs for automated career analysis. Typed-only notes skip image extraction;
         they are not automatically redacted. Remove names, birthdates, student IDs and
         confidential details yourself. Do not submit complete confidential counseling records.
@@ -27,7 +28,10 @@ export default function ProcessingNotice({ confirmed, onConfirm }: ProcessingNot
         The approved handling policy limits session access to the owning counselor and
         authorized service operations. Recovery drafts expire 24 hours after creation;
         server PDFs expire 24 hours after generation or earlier Cancel or End Session.
-        Temporary images must be deleted when no longer needed. Restricted academic
+        Raw uploads are deleted after processing. Failed deletions are queued for retry;
+        abandoned uploads expire after 10 minutes and are collected by scheduled cleanup.
+        An upload already processing has a separate six-minute recovery allowance.
+        Restricted academic
         correction logs are retained for 12 calendar months and exclude counselor notes.
         Save approved reports through the school’s approved process. Application deletion
         does not determine Gemini’s separate provider retention terms.

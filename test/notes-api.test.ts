@@ -9,6 +9,7 @@ const { buildAndSave, requireUser, userOwnsSession } = vi.hoisted(() => {
   };
 });
 vi.mock("@/lib/module2/student-profile-builder", () => ({ studentProfileBuilder: { buildAndSave } }));
+vi.mock("@/lib/supabase", () => ({ supabaseAdmin: {} }));
 vi.mock("@/lib/auth/api-auth", () => ({
   requireUser, userOwnsSession,
   unauthorizedResponse: () => Response.json({}, { status: 401 }),

@@ -18,7 +18,7 @@ const result = {
   origin: new URL(manifest.url).origin, manifestSha256: createHash("sha256").update(raw).digest("hex"),
   environment: Object.fromEntries(["hardware", "network", "providerQuota", "databaseTier", "sourceSnapshot", "providerVerificationRecord"].map(k => [k, manifest[k]])),
   coverage: qualificationCoverage(manifest.waves), samples: [], waves: [], completed: false,
-  limitations: "Build identity, project/billing, quotas and cold server state require the linked operator evidence. This driver does not inject provider faults or certify S10/A01.",
+  limitations: "Build identity, quotas and cold server state require operator records. Paid-tier status is accepted from the recorded user confirmation. This driver does not inject provider faults or certify S10/A01.",
 };
 async function save() {
   const bytes = Buffer.from(JSON.stringify(result, null, 2));

@@ -1,5 +1,117 @@
 # SW-30 runtime and release verification
 
+## Current checkpoint — 8 November 2026
+
+The paid-tier deployment confirmation below is complete. The user also waived
+the isolated hosted restore drill because of the free-project limit; hosted S10
+and measured RPO/RTO are excluded, not passed. These decisions supersede older
+release conditions in this document and PR #74.
+
+The upload implementation is prepared locally, including the migration and tests
+described below. The migration was applied through Supabase MCP to the Kumpas
+project on 8 November at 09:15 UTC, registered as
+`20261108091527_sw30_temporary_intake_uploads`. The local filename matches that
+hosted version; its SQL is unchanged from the reviewed migration. The matching
+application has **not** been deployed. Vercel CLI has no saved credentials in this workspace, and the user
+confirmed they do not have Vercel access. The existing GitHub integration can
+deploy an eligible push to `sw-30`; a manual CLI login is not required for that
+path. The migration prerequisite is now satisfied for Kumpas; verify the automatic candidate
+deployment before hosted 10 MB boundary, P01/P02 and A01 checks can pass.
+Changes remain uncommitted; no push, PR creation or merge was performed.
+
+After explicit approval for the production cleanup execution,
+[manual maintenance run 42464753589](https://github.com/MRhagz/Kumpas/actions/runs/42464753589)
+on existing `main@fa95cef` passed on 8 November at 08:52 UTC. Both
+`session_cleanup` and `report_cleanup` reported success; total runner wall time
+was about 7.6 seconds. Read-only before/after checks found zero expired/cancelled
+sessions, document/report cleanup rows, legacy document objects and expired
+report versions. This establishes an empty repeat sweep through GitHub Actions,
+not deletion of a new synthetic fault fixture or qualification of unmerged code.
+Automatic approval review initially rejected the trigger because its production
+deletion scope lacked explicit approval. The user reviewed the empty scope and
+explicitly approved this exact run before it was dispatched.
+
+A successful scheduled trigger and failure-notification receipt still need to
+be observed. The latest inspected scheduled run was an older failure; green
+PR verification jobs do not run production cleanup. No deliberate production
+failure or notification message was sent.
+
+## Private resumable intake uploads
+
+The user approved temporary private raw-file storage on 8 November. Academic
+documents and prepared note photographs now use direct resumable uploads to
+Supabase Storage. The counselor app and extraction remain Next.js/Vercel; Python
+ingestion remains in Actions. The browser sends only metadata and an upload
+reference through Vercel, avoiding its multipart ingress limit without resizing
+or dropping PDF pages. Legacy multipart handlers remain for compatibility;
+large uploads must use the new reference flow.
+
+Migration `20261108091527_sw30_temporary_intake_uploads.sql` adds:
+
+- A private `kumpas-intake-temp` bucket capped at **10,000,000 bytes**, with
+  supported image/PDF types and an octet-stream fallback for files whose browser
+  MIME is missing. Decoded content and size are rechecked before any provider call.
+- Session-bound, ten-minute upload reservations and a six-minute processing
+  recovery allowance. Academic reservations retain existing token/version guards;
+  notes reservations bind to the saved notes revision and block input approval.
+- Restrictive Storage policies permitting an active counselor to insert only at
+  an owned pending reservation. Client reads, signed reads, overwrites and deletes
+  are denied, including in the presence of an older broad permissive policy.
+  Internal mutation RPCs remain invoker functions executable only by service role.
+- Cleanup rows registered transactionally **before** upload authorization. Both
+  raw objects and their cleanup metadata survive cancellation/session deletion.
+  Successful Storage deletion cascades away staging metadata; failed deletion
+  retains its queue lease/backoff for retry. Expired/abandoned work and orphaned
+  completed objects are inventoried by the existing maintenance path.
+- A bucket-aware cleanup RPC. The old cleanup RPC is restricted to the legacy
+  bucket so an already-deployed worker cannot acknowledge deletion against the
+  wrong bucket during rollout.
+
+The browser uses `tus-js-client` with six-MiB protocol chunks, one transient
+retry and no upsert. No upload URL, filename, token or file content is persisted
+in browser storage. The server retrieves bytes privately, validates the actual
+file and expected byte count, renders every PDF page and invokes existing paid
+extraction. Success and failure both schedule raw-object deletion. A killed
+invocation remains recoverable from the pre-existing cleanup row.
+
+Reservation expiry denies access; it is not a guarantee of physical deletion at
+that instant. Scheduled collection and retry backoff are best effort. Incomplete
+TUS transfers are also subject to Supabase's protocol/service cleanup lifecycle;
+the application checks completed bucket objects, not provider-internal chunks
+or backups. The processing notice and README describe temporary storage.
+Approved submission documents/PDFs are unchanged; their raw-storage wording
+needs alignment in the later document handoff.
+
+### Deployment owner handoff
+
+1. Review the uncommitted change. The migration has already been applied to
+   Kumpas through MCP, with a pre-migration schema snapshot retained in ignored
+   `.private/sw30/pre-migration-schema.json`. For other deployment targets,
+   preserve a backup and apply the migration **before pushing `sw-30`**, since the connected Vercel
+   integration may immediately deploy the matching app/maintenance routes.
+   Use a quiet intake window and admit uploads only after smoke verification.
+   There are no new production secrets or paid-project evidence requirements.
+2. Verify academic and notes uploads on the identified candidate: exact
+   10,000,000-byte acceptance, 10,000,001-byte rejection, decoded-content rejection,
+   cross-owner/expired/replayed reference denial, interrupted transfer, replacement
+   preservation and actual raw-object deletion. Exercise failed deletion and
+   abandoned reservations in an isolated synthetic fixture. Do not publish keys,
+   signed URLs, student data or real filenames as evidence.
+3. Run a fresh diagnostic with the existing feasibility LOW-thinking fix, then
+   freeze the candidate/deployment and run the complete P01/P02 workloads below.
+   Replace used/expired sessions; a new browser context does not prove a cold
+   server. Existing synthetic retry state reached `report_pending`, but no ready
+   PDF or complete campaign was observed, so no 300-second end-to-end pass is
+   claimed.
+4. Observe scheduled maintenance and notification delivery, and complete the
+   A01 counselor walkthrough on that same candidate. Record actual results and
+   accepted exclusions, then obtain human review and merge before marking Done.
+
+Do not roll cleanup back to a version unaware of the new bucket while staged
+objects or their queue entries remain. Keep bucket-aware cleanup available until
+both are empty; the compatibility guard prevents false acknowledgements but does
+not make an old worker capable of draining the new bucket.
+
 Baseline: fetched `main@fa95cef` on 8 November 2026; isolated branch `sw-30`
 in `/private/tmp/kumpas-sw-30`. The original dirty checkout was preserved.
 Moen's existing tracker claim was retained. SW-15/20/23/27/29 are all Done in
@@ -84,7 +196,7 @@ payload and Storage deletion, cleared retry rows and preserved valid records.
 Run again to verify idempotence. Retain only sanitized counts/run IDs and the
 Actions run link. Do not treat route availability as evidence of deletion.
 
-**Observed deployment blocker:** GitHub Actions schedule
+**Historical deployment blocker, superseded by the current checkpoint:** GitHub Actions schedule
 [42426925002](https://github.com/MRhagz/Kumpas/actions/runs/42426925002)
 on `4b0f9cc`, 7 November 2026 23:48 UTC, failed with
 `cleanup_configuration_invalid`. Its step environment shows all three variables
@@ -222,7 +334,9 @@ owner/cross-owner access and absence of expired/terminated content before
 reopening. Missing/stale ledger or failed cleanup keeps access closed. Measure
 actual RPO/RTO; command availability is not a successful S10 restoration.
 
-No new database migration, bucket or production credential is introduced here.
+The original implementation introduced no database migration, bucket or
+production credential. The private-upload follow-up adds the migration and bucket
+described above, with no new credential.
 Existing prerequisite migrations must already be applied, including SW-23 and
 SW-27. Deployment changes: explicit Fluid compute, cleanup function durations,
 Actions execution bounds/environment gates, CHED schedule and client error text.
@@ -230,12 +344,83 @@ Recovery semantics and privacy boundaries remain unchanged.
 
 SW-30 remains **In review**, not Done, until human review, required passing
 checks and merge. Paid-project verification is complete by the user's explicit
-confirmation above. Deployed maintenance configuration/execution, full P01/P02
-and hosted S10 evidence remain release conditions;
+confirmation above. Qualification of the matching deployed maintenance code and
+full P01/P02 remain release conditions. The hosted S10 drill is excluded by the user's waiver;
 agree any handoff/task split before claiming completion. A01 and stakeholder
 acceptance must use observed evidence, never inferred passes.
 
 ## Executed checks
+
+### Private-upload follow-up, 8 November 2026
+
+Verified locally on Linux with Node `v24.16.0`, against the uncommitted follow-up
+to `635f0a3`. The hosted migration was subsequently applied through MCP as
+recorded in the current checkpoint. No new app deployment or live paid-provider
+call was performed in this follow-up.
+
+| Command/check | Result |
+| --- | --- |
+| `npm ci --ignore-scripts --no-audit --no-fund --cache /tmp/sw30-npm-cache` | Passed; locked dependencies installed. |
+| `npm run test:access -- --maxWorkers=2` with subprocess access | **771 passed**, 52 files, including temporary-upload SQL/RLS, owner and replay guards, staged academic/notes extraction, cleanup bucket selection and protected-route inventory. |
+| `npm test` | **28 passed**, 2 files. |
+| `npm run test:upload` | **64 passed**, 6 files, including exact 10 MB staged extraction and failed validation/provider cleanup. |
+| `node --test scripts/release/metrics.test.mjs` with subprocess access | **3 passed**. |
+| `node scripts/provider-e2e.mjs` | Production Webpack build and **14 synthetic HTTP/startup/provider/bundle checks passed**; zero live provider calls. |
+| `npm run release:verify-build` | Passed: seven generated 300-second allowances, explicit Fluid compute and native Sharp/libvips tracing in all six relevant functions. |
+| `npx tsc --noEmit --pretty false` | Passed, including after the final formatting changes. |
+| Scoped ESLint for every changed TypeScript/JavaScript file; `node --check scripts/release/measure.mjs`; `git diff --check` | Passed. |
+| Chromium keyboard and WCAG 2.1 AA fixture workflows at 375 px and 1280 px | **2 passed**. Intake, review and download each reported zero violations and zero needs-review findings. |
+| README first-person scan and local links in README/runbook | Passed; README uses Kumpas/the system and contains no first-person wording. |
+
+The final database-only recheck also passed after giving the second test
+counselor its own valid Auth session, so cross-owner rejection is tested with
+an authenticated active counselor rather than relying on an invalid session.
+
+Pre-commit review reproduced an abandoned-upload backlog bug with 101
+reservations: the bounded inventory released 100, but the cleanup claimant could
+select the remaining older queue entry first and cascade away its tracking row
+without releasing its document reservation. `claim_intake_cleanup` now excludes
+staging rows until inventory has moved them to `cleanup`. The regression first
+failed, then passed with the fix; all 33 focused database/cleanup tests and the
+full 771-test workflow suite passed. This keeps approval from remaining blocked
+by an abandoned empty document reservation after its tracking row is gone.
+
+Post-migration MCP verification confirmed a private bucket with a 10,000,000-byte
+limit, RLS on staging metadata, four Storage policies, no anonymous metadata
+read, no authenticated metadata insert or upload-token read, and service-only
+invoker mutation RPCs. The backlog guard is present in the hosted cleanup
+function; a zero-limit cleanup claim returned no rows and staging is empty.
+The security advisor reported the same pre-existing findings as before this
+change, with no new finding for the migration: service-only tables without read
+policies, `vector` in public, the existing `rls_auto_enable()` function grants and
+disabled leaked-password protection. These unrelated settings were preserved;
+see [Supabase's advisor reference](https://supabase.com/docs/guides/database/database-linter)
+for their existing remediation guidance.
+
+Initial failures are retained in the work history: sandboxed maintenance tests
+could not spawn Node (`EPERM`); all eight passed with subprocess access. New
+imports required the existing multipart test fixtures to mock the additional
+server Storage boundary; those fixtures were corrected without weakening their
+assertions. Two build attempts encountered stale Webpack icon references; the
+fresh locked package had zero missing imports and the obsolete filename was
+found in generated cache. Moving that cache aside produced the passing build,
+with no icon package upgrade. The local browser runner initially lacked its
+matching binary and then required corrected config import/working-directory
+resolution; the final run uses the repository's unchanged assertions.
+
+The ignored browser override uses the pinned Playwright package's Chromium
+headless shell `158.0.8127.18`; it does not claim new Chrome/Edge/Firefox/WebKit
+results. Its command was:
+
+```sh
+PLAYWRIGHT_BROWSERS_PATH=/tmp/sw30-playwright npx playwright test --config .private/sw30/browser.config.mts
+```
+
+The two-width results are synthetic fixture accessibility checks, not hosted
+upload, paid extraction, P01/P02 or stakeholder acceptance results. The successful
+production maintenance run and its limited scope are recorded in the current
+checkpoint above. The remaining deployment owner checks are listed in the
+handoff; SW-30 stays In review.
 
 ### Review follow-up, 8 November 2026
 
