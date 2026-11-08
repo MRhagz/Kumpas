@@ -8,8 +8,8 @@ name: Ingest CHED Memorandum Orders
 
 on:
   schedule:
-    # Every Monday at 02:00 UTC (10:00 Manila). Off-hours, low traffic.
-    - cron: "0 2 * * 1"
+    # Monday 02:20 Manila (Sunday 18:20 UTC), outside school counseling hours.
+    - cron: "20 18 * * 0"
   workflow_dispatch:
     inputs:
       target_year:
@@ -33,6 +33,8 @@ jobs:
     uses: ./.github/workflows/sw11-contracts.yml
 
   ingest:
+    timeout-minutes: 30
+    environment: ingestion
     # PRs test public fixtures only; never expose production credentials or write a silo.
     if: github.event_name != 'pull_request' && github.ref == 'refs/heads/main'
     needs: [verify]

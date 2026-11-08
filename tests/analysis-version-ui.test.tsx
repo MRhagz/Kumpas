@@ -44,3 +44,20 @@ it("sends the saved approval/run token when starting analysis", async () => {
   expect(screen.getByRole("link", { name: "Review or correct inputs" }).getAttribute("href"))
     .toBe("/input?session=session&edit=1");
 });
+
+it.each(["analysis", "report", "network"])("a hosting interruption during %s preserves actionable recovery", async stage => {
+  vi.stubGlobal("fetch", vi.fn(async (url: string) => {
+    if (url.endsWith("/analyze") || url === "/api/reports") {
+      if (stage === "network") throw new TypeError("Failed to fetch");
+      return new Response("<html>FUNCTION_INVOCATION_TIMEOUT</html>", { status: 504 });
+    }
+    return Response.json({ ...current, nextStep: stage === "report" ? "report" : "analysis", reportStatus: stage === "report" ? "ready" : "not_started" });
+  }));
+  render(<AnalysisPage />);
+  await act(async () => { await vi.advanceTimersByTimeAsync(800); });
+  const message = screen.getByRole("alert").textContent;
+  expect(message).toContain("Vercel Fluid compute");
+  expect(message).toContain("300-second");
+  expect(message).toContain("saved inputs");
+  expect(message).not.toContain("FUNCTION_INVOCATION_TIMEOUT");
+});

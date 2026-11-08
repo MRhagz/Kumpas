@@ -13,6 +13,7 @@ import type { StageName } from "@/lib/analysis-types";
 import type { ReportGenerationResponse } from "@/lib/report/types";
 
 import ErrorView from "@/components/analysis/error-view";
+import { processingHttpError } from "@/lib/processing-http-error";
 import ReportDownloadView from "@/components/analysis/report-download-view";
 import type { SpecialistStatus } from "@/lib/module3/types";
 
@@ -62,7 +63,7 @@ function AnalysisContent() {
       body: JSON.stringify({ sessionId, runId }),
     });
     if (reportRes.status === 401) redirectToLogin(sessionId);
-    const reportBody = await reportRes.json();
+    const reportBody = await reportRes.json().catch(() => null);
 
     if (!reportRes.ok) {
       throw new Error(
@@ -139,7 +140,7 @@ function AnalysisContent() {
       if (!res.ok) {
         if (res.status === 401) redirectToLogin(sessionId);
         const body = await res.json().catch(() => ({}));
-        throw new Error(body.error || `Analysis failed (${res.status})`);
+        throw new Error(body.error || processingHttpError(res.status, "Analysis"));
       }
 
       const analysis = await res.json();
@@ -154,7 +155,9 @@ function AnalysisContent() {
       if (signal.aborted) return;
       setState({
         phase: "error",
-        message: err instanceof Error ? err.message : "Analysis failed",
+        message: err instanceof TypeError && /fetch|network/i.test(err.message)
+          ? processingHttpError(503, "Analysis")
+          : err instanceof Error ? err.message : "Analysis failed",
       });
     }
   }, [generateReport, router, sessionId]);
@@ -289,7 +292,7 @@ function getReportGenerationErrorMessage(
     const errorMessage =
         isReportErrorBody(responseBody) && responseBody.error.trim()
             ? responseBody.error
-            : "Report generation failed.";
+            : processingHttpError(status, "Report generation");
 
     if (status === 422) {
         const detailCount =

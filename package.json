@@ -18,7 +18,9 @@
     "test:extraction:live": "vitest run --config vitest.extraction-live.config.mts",
     "extraction:compare": "node scripts/extraction/compare-reports.mjs",
     "lint:upload": "eslint next.config.ts src/proxy.ts src/lib/academic-upload-policy.ts src/lib/module2/academic-upload-validation.ts src/lib/module2/academic-pdf-renderer.ts src/lib/module2/academic-document-store.ts src/lib/module2/gemini-extraction-service.ts src/lib/module2/student-profile-builder.ts src/app/api/extract-document/route.ts \"src/app/api/sessions/**/upload/route.ts\" src/components/input/document-upload-panel.tsx src/components/input/file-slot.tsx src/components/input/input-container.tsx src/components/input/confirmation-approval-bar.tsx src/types.ts tests/upload* vitest.upload.config.mts",
-    "test:browser": "playwright test"
+    "test:browser": "playwright test",
+    "release:measure": "node scripts/release/measure.mjs",
+    "release:verify-build": "node scripts/release/verify-build.mjs"
   },
   "dependencies": {
     "@google/genai": "^2.6.0",
