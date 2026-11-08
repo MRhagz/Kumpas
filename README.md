@@ -35,7 +35,7 @@ Kumpas is not a replacement for the counselor. It reduces repetitive document re
 
 ## How It Works
 
-### 1. Intake and Redaction
+### 1. Intake and Extraction
 
 Counselors upload student academic documents and enter structured session notes across five fields:
 
@@ -138,6 +138,39 @@ Never prefix Gemini or privileged keys with `NEXT_PUBLIC_`.
 
 Provider settings, permitted data flows and verification limits are recorded in
 [SW-29 provider configuration](docs/sw29-provider-configuration.md).
+
+## Release runtime and operations
+
+Deploy the counselor application as Next.js on Vercel with Fluid compute enabled
+by `vercel.json`. Analysis, report generation, extraction and lifecycle cleanup
+declare 300-second Node function allowances. Analysis and PDF publication still
+share the original 300-second deadline saved at input approval; a second request
+does not reset it. Supabase holds durable session state and private PDF objects;
+local files and process memory are never a recovery store.
+
+Python ingestion remains in GitHub Actions. Protect the `ingestion` environment
+to main and run source refreshes outside counseling/performance windows. CHED
+runs Monday 02:20 Manila; curated PSA/DOLE/TESDA commits and manual dispatches
+must be coordinated by the operator.
+
+In the GitHub `maintenance` environment, set `KUMPAS_APP_URL` to the deployed
+HTTPS origin and configure separate `SESSION_CLEANUP_SECRET` and
+`REPORT_RETENTION_SECRET` matching Vercel. The existing 15-minute Actions sweep
+checks both endpoints, retries transient HTTP failures once and fails visibly on
+warnings or remaining backlog. Enable failure notifications and inspect actual
+scheduled successes; a green PR test does not establish scheduled deletion.
+
+```sh
+npm run release:verify-build # after npm run build
+node scripts/run-retention-cleanup.mjs # authenticated operational sweep
+npm run release:measure -- .private/sw30/workload.json .private/sw30/results.json
+```
+
+The [SW-30 release runbook](docs/sw-30-runtime.md) records setup, measurement
+workloads, paid-project verification, safe restoration and outstanding deployment
+checks. SW-05 permits approved images to reach the approved paid Gemini project
+without local masking. Application deletion does not establish provider deletion
+or zero retention; verify deployed project/billing configuration before real use.
 
 ---
 

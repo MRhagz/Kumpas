@@ -13,6 +13,7 @@
 # testing
 /coverage
 /.private/sw28/
+/.private/sw30/
 
 # next.js
 /.next/

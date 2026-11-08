@@ -1,0 +1,29 @@
+name: Release runtime contracts
+on:
+  pull_request:
+permissions:
+  contents: read
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci --ignore-scripts --no-audit --no-fund
+      - run: node --test scripts/release/metrics.test.mjs
+      - run: npx vitest run --config vitest.config.ts tests/maintenance-job.test.ts tests/analysis-version-ui.test.tsx tests/routes.test.ts tests/retention-cleanup.test.ts
+      - run: npm run build
+        env:
+          NEXT_PUBLIC_SUPABASE_URL: https://release-fixture.supabase.test
+          NEXT_PUBLIC_SUPABASE_ANON_KEY: synthetic-anon
+          SUPABASE_SERVICE_ROLE_KEY: synthetic-service
+          DOCUMENT_INTAKE_API_KEY: synthetic-intake
+          ACADEMIC_AUDITOR_API_KEY: synthetic-academic
+          INDUSTRY_ANALYST_API_KEY: synthetic-industry
+          FEASIBILITY_STRATEGIST_API_KEY: synthetic-feasibility
+          SYNTHESIS_API_KEY: synthetic-synthesis
+      - run: node scripts/release/verify-build.mjs
