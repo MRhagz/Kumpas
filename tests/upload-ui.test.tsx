@@ -27,12 +27,12 @@ it("labels an occupied slot Replace, prevents type changes, and blocks edits whi
   const file = new File([new Uint8Array(MAX_ACADEMIC_FILE_BYTES)], "record.pdf");
   const props = { index: 1, docType: "form_137", files: [file], onFilesAdd: vi.fn(), onFileRemove: vi.fn(), onTypeChange: vi.fn() };
   const { rerender } = render(<FileSlot {...props} perFileProcessing={[{ step: "complete", progress: 100 }]} />);
-  expect(screen.getByRole("button", { name: "Replace" })).toBeDefined();
+  expect(screen.getByRole("button", { name: "Replace document 1" })).toBeDefined();
   expect(screen.getByText("10.0 MB")).toBeDefined();
   expect((screen.getByRole("combobox") as HTMLSelectElement).disabled).toBe(true);
   rerender(<FileSlot {...props} perFileProcessing={[{ step: "ai_structuring", progress: 30 }]} />);
-  expect((screen.getByRole("button", { name: "Replace" }) as HTMLButtonElement).disabled).toBe(true);
-  expect((screen.getByRole("button", { name: "Remove file" }) as HTMLButtonElement).disabled).toBe(true);
+  expect((screen.getByRole("button", { name: "Replace document 1" }) as HTMLButtonElement).disabled).toBe(true);
+  expect((screen.getByRole("button", { name: "Remove document 1" }) as HTMLButtonElement).disabled).toBe(true);
 });
 it("sends explicit replacement and removal IDs, preserving local selection until removal succeeds", async () => {
   const file = new File(["a"], "record.pdf", { type: "application/pdf" });
@@ -46,9 +46,9 @@ it("sends explicit replacement and removal IDs, preserving local selection until
   await waitFor(() => expect(uploaded).toHaveBeenCalledOnce());
   expect((fetchMock.mock.calls[0][1].body as FormData).get("replaceDocumentId")).toBe("old-id");
   fetchMock.mockResolvedValueOnce({ ok: false, json: async () => ({ error: "Try removal again" }) });
-  fireEvent.click(screen.getByRole("button", { name: "Remove file" }));
+  fireEvent.click(screen.getByRole("button", { name: "Remove document 1" }));
   await waitFor(() => expect(failed).toHaveBeenCalledOnce()); expect(remove).not.toHaveBeenCalled();
-  fireEvent.click(screen.getByRole("button", { name: "Remove file" }));
+  fireEvent.click(screen.getByRole("button", { name: "Remove document 1" }));
   await waitFor(() => expect(remove).toHaveBeenCalledWith(1, 0));
   expect(fetchMock.mock.calls[2][0]).toContain("docType=nat&documentId=old-id");
 });

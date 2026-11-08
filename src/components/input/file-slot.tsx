@@ -115,6 +115,7 @@ export default function FileSlot({
 
         <div className="flex w-full sm:flex-1 items-center gap-2">
           <select
+            aria-label={`Document ${index} type`}
             className="flex-1 w-0 min-w-0 rounded-md border border-black/[0.1] bg-white px-2.5 py-1.5 text-[13px] text-charcoal-2 outline-none focus:border-sage"
             value={docType}
             disabled={hasFiles || anyProcessing}
@@ -133,6 +134,7 @@ export default function FileSlot({
               className="shrink-0 inline-flex items-center gap-1.5 rounded-md border border-black/[0.1] bg-white px-3 py-1.5 text-xs font-medium text-charcoal-2 transition-colors hover:bg-black/[0.02] cursor-pointer"
               onClick={() => inputRef.current?.click()}
               disabled={!docType || anyProcessing}
+              aria-label={`${hasFiles ? "Replace" : "Upload"} document ${index}`}
               title={!docType ? "Pick a document type first" : undefined}
             >
               <Upload size={14} /> {hasFiles ? "Replace" : "Upload"}
@@ -181,7 +183,7 @@ export default function FileSlot({
                 className="flex h-6 w-6 items-center justify-center rounded-full text-black/30 hover:bg-black/5 hover:text-charcoal-2 cursor-pointer"
                 onClick={() => onFileRemove(fileIdx)}
                 disabled={anyProcessing}
-                aria-label="Remove file"
+                aria-label={`Remove document ${index}`}
               >
                 <X size={14} />
               </button>
@@ -190,6 +192,8 @@ export default function FileSlot({
             {/* Per-file status row */}
             {proc.step !== "idle" && (
               <div
+                role={isError ? "alert" : "status"}
+                aria-live={isError ? "assertive" : "polite"}
                 className={`border-t px-3 py-2.5 text-[12px] ${
                   isError
                     ? "border-red-soft/20 bg-red-light text-red-soft"

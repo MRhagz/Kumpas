@@ -1,0 +1,48 @@
+name: Accessibility and browser contracts
+on:
+  pull_request:
+permissions:
+  contents: read
+jobs:
+  browser:
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - project: chrome
+            browser: chrome
+            os: ubuntu-latest
+          - project: edge
+            browser: msedge
+            os: ubuntu-latest
+          - project: firefox
+            browser: firefox
+            # Firefox's Linux axe scan crashes its page; Windows runs the same rules and keyboard assertions.
+            os: windows-latest
+          - project: webkit-engine
+            browser: webkit
+            os: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci --ignore-scripts --no-audit --no-fund
+      - run: npx playwright install --with-deps ${{ matrix.browser }}
+      - if: matrix.project != 'firefox'
+        run: npx playwright test --project=${{ matrix.project }}
+      # Start a fresh Firefox process between widths: repeated axe injection can crash its page.
+      - if: matrix.project == 'firefox'
+        run: npx playwright test --project=firefox --grep=375px
+      - if: matrix.project == 'firefox'
+        run: npx playwright test --project=firefox --grep=1280px --output=test-results-desktop
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: accessibility-${{ matrix.project }}
+          path: |
+            test-results/
+            test-results-desktop/
+          retention-days: 14
