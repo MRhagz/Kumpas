@@ -52,3 +52,34 @@ it.each(["transient", "unauthorized", "login-page", "batch"])("maintenance runne
   expect(logs).toContain(mode === "transient" ? '"sessions":2,"reports":2'
     : mode === "batch" ? '"sessions":2,"reports":1' : '"sessions":1,"reports":1');
 });
+
+it.each(["backlog", "timeouts"])("reserves time for PDF retention after slow session %s", mode => {
+  const result = spawnSync(process.execPath, ["--input-type=module", "-e", `
+    let now = 0, reportsCompleted = 0;
+    const reportBudgets = [];
+    const budgets = new WeakMap();
+    Date.now = () => now;
+    globalThis.setTimeout = (fn, delay) => { now += delay; fn(); };
+    AbortSignal.timeout = milliseconds => {
+      const signal = new AbortController().signal;
+      budgets.set(signal, milliseconds);
+      return signal;
+    };
+    globalThis.fetch = async (url, options) => {
+      const session = url.pathname.includes("sessions");
+      const budget = budgets.get(options.signal);
+      if (!session) reportBudgets.push(budget);
+      const duration = session && ${JSON.stringify(mode)} === "timeouts" ? 400_000 : 240_000;
+      now += Math.min(duration, budget);
+      if (duration > budget) throw new Error("Request timed out");
+      if (!session) reportsCompleted++;
+      return Response.json({scannedCount:session ? 10 : 0,expiredCount:10,status:"ok",warnings:[]});
+    };
+    await import(${JSON.stringify(script)});
+    console.info("result", JSON.stringify({reportsCompleted,reportBudgets,elapsedMs:now}));
+  `], { cwd, encoding: "utf8", timeout: 5000, env: { NODE_ENV: "test", SystemRoot: process.env.SystemRoot,
+    KUMPAS_APP_URL: "https://fixture.test", SESSION_CLEANUP_SECRET: "fixture-session", REPORT_RETENTION_SECRET: "fixture-report" } });
+  expect(result.status).toBe(1);
+  expect(result.stdout).toContain('"reportsCompleted":1,"reportBudgets":[310000],"elapsedMs":600000');
+  expect(result.stdout + result.stderr).toContain("cleanup_retry_required");
+});
