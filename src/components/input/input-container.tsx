@@ -665,13 +665,13 @@ export default function InputContainer() {
             <TabsList tabIndex={-1} className="w-full h-auto p-1 rounded-xl bg-cream-dark/80 border border-black/[0.06] mb-4">
               <TabsTrigger
                 value="image"
-                className="flex-1 gap-2 rounded-lg px-4 py-2.5 text-[13px] font-semibold transition-all data-[state=active]:bg-white data-[state=active]:text-sage data-[state=active]:shadow-sm data-[state=inactive]:text-muted-text"
+                className="flex-1 cursor-pointer gap-2 rounded-lg px-4 py-2.5 text-[13px] font-semibold transition-all data-[state=active]:bg-white data-[state=active]:text-sage data-[state=active]:shadow-sm data-[state=inactive]:text-muted-text"
               >
                 <ImageIcon size={15} /> Image Analysis
               </TabsTrigger>
               <TabsTrigger
                 value="manual"
-                className="flex-1 gap-2 rounded-lg px-4 py-2.5 text-[13px] font-semibold transition-all data-[state=active]:bg-white data-[state=active]:text-sage data-[state=active]:shadow-sm data-[state=inactive]:text-muted-text"
+                className="flex-1 cursor-pointer gap-2 rounded-lg px-4 py-2.5 text-[13px] font-semibold transition-all data-[state=active]:bg-white data-[state=active]:text-sage data-[state=active]:shadow-sm data-[state=inactive]:text-muted-text"
               >
                 <PenLine size={15} /> Manual Input
               </TabsTrigger>
@@ -924,7 +924,7 @@ export default function InputContainer() {
                   <p className="mt-1 text-xs leading-relaxed text-muted-text">{dirtyDraft ? "Save before approval." : "Review the values above before approval."}</p>
                 </div>
               </div>
-          <button type="button" className="inline-flex min-h-11 shrink-0 items-center justify-center gap-2 rounded-lg border border-sage/25 bg-cream-light px-4 py-2 text-xs font-semibold text-forest transition-colors hover:bg-sage/5 disabled:cursor-not-allowed disabled:opacity-50"
+          <button type="button" className="inline-flex min-h-11 cursor-pointer shrink-0 items-center justify-center gap-2 rounded-lg border border-sage/25 bg-cream-light px-4 py-2 text-xs font-semibold text-forest transition-colors hover:bg-sage/5 disabled:cursor-not-allowed disabled:opacity-50"
             disabled={!sessionId || savingDraft || scanning || documentsProcessing || (!dirtyDraft && !draftError)} onClick={saveDraft}>
             {draftError ? "Retry saving draft" : "Save draft"}
           </button>
@@ -959,6 +959,7 @@ export default function InputContainer() {
           </AlertDialogHeader>
           <AlertDialogFooter>
             <AlertDialogCancel
+              className="cursor-pointer"
               onClick={() => {
                 setPendingTab(null);
                 setShowSwitchDialog(false);
@@ -968,7 +969,7 @@ export default function InputContainer() {
             </AlertDialogCancel>
             <AlertDialogAction
               onClick={confirmTabSwitch}
-              className="bg-red-600 text-white hover:bg-red-700"
+              className="cursor-pointer bg-red-600 text-white hover:bg-red-700"
             >
               Discard &amp; switch
             </AlertDialogAction>
