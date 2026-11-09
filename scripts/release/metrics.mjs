@@ -3,12 +3,30 @@ export function summarize(samples, durationMs) {
   const successful = latencies.length;
   return {
     attempts: samples.length, successful, failures: samples.length - successful,
+    partialDrafts: samples.filter(s => s.outcome === "partial").length,
     errorRate: samples.length ? (samples.length - successful) / samples.length : 0,
     throughputPerSecond: durationMs > 0 ? successful / (durationMs / 1000) : 0,
     latencyMs: successful ? { min: latencies[0], median: successful % 2 ? latencies[(successful - 1) / 2]
       : (latencies[successful / 2 - 1] + latencies[successful / 2]) / 2,
     p95: latencies[Math.ceil(.95 * successful) - 1], max: latencies.at(-1) } : null,
     within300Seconds: samples.length > 0 && samples.every(s => s.outcome === "success" && s.durationMs <= 300_000),
+  };
+}
+
+// Healthy-provider qualification must not hide a specialist timeout behind a
+// useful partial PDF. Missing academic inputs alone are not provider failures.
+export function draftOutcome(report, durationMs) {
+  const agents = ["AcademicAuditor", "IndustryAnalyst", "FeasibilityStrategist"];
+  const statuses = report.agentStatuses;
+  if (!Number.isFinite(durationMs) || durationMs < 0 || !Array.isArray(statuses) || statuses.length !== agents.length
+    || !agents.every(agent => statuses.filter(s => s?.agent === agent).length === 1)
+    || !statuses.every(s => ["SUCCESS", "FAILED", "UNAVAILABLE"].includes(s?.status))) return { outcome: "identity_mismatch" };
+  const failedSpecialists = statuses.filter(s => s.status === "FAILED").length;
+  return {
+    outcome: durationMs > 300000 ? "timeout" : failedSpecialists ? "partial" : "success",
+    draftReady: true, failedSpecialists,
+    unavailableSpecialists: statuses.filter(s => s.status === "UNAVAILABLE").length,
+    specialists: statuses.map(({ agent, status }) => ({ agent, status })),
   };
 }
 

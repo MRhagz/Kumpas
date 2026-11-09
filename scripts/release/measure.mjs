@@ -3,7 +3,8 @@ import { createHash } from "node:crypto";
 import { readFile, open } from "node:fs/promises";
 import { dirname, resolve } from "node:path";
 import { performance } from "node:perf_hooks";
-import { summarize, validateWorkload, qualificationCoverage } from "./metrics.mjs";
+import { execFileSync } from "node:child_process";
+import { summarize, validateWorkload, qualificationCoverage, draftOutcome } from "./metrics.mjs";
 
 // Run only on an identified, isolated release candidate with synthetic, saved,
 // unapproved intake drafts. Cookie files stay local; no traces or payloads are saved.
@@ -14,7 +15,10 @@ const manifest = JSON.parse(raw);
 validateWorkload(manifest);
 const file = await open(outputPath, "wx", 0o600);
 const result = {
-  version: 1, startedAt: new Date().toISOString(), commit: manifest.commit, deploymentId: manifest.deploymentId,
+  version: 2, startedAt: new Date().toISOString(), commit: manifest.commit, deploymentId: manifest.deploymentId,
+  runnerCommit: execFileSync("git", ["rev-parse", "HEAD"], { encoding: "utf8" }).trim(),
+  runnerDirty: !!execFileSync("git", ["status", "--porcelain", "--untracked-files=no"], { encoding: "utf8" }).trim(),
+  runnerSha256: createHash("sha256").update(await readFile(new URL(import.meta.url))).digest("hex"),
   origin: new URL(manifest.url).origin, manifestSha256: createHash("sha256").update(raw).digest("hex"),
   environment: Object.fromEntries(["hardware", "network", "providerQuota", "databaseTier", "sourceSnapshot", "providerVerificationRecord"].map(k => [k, manifest[k]])),
   coverage: qualificationCoverage(manifest.waves), samples: [], waves: [], completed: false,
@@ -59,6 +63,12 @@ try {
         if (state.hasApprovedProfile || state.currentRunId || state.nextStep !== "input" || !Number.isInteger(draft.profileVersion)) throw new Error();
         const count = draft.documents?.length;
         if (draft.uploadPending || !(entry.profile === "full" ? count === 3 : entry.profile === "notes" ? count === 0 : count > 0 && count < 3)) throw new Error();
+        // Fingerprint the synthetic workload without saving notes or academics.
+        sample.inputSha256 = createHash("sha256").update(JSON.stringify({
+          notes: Object.fromEntries(["careerGoal", "interests", "financial", "concerns", "impression"].map(key => [key, draft.notes?.[key]])),
+          documents: draft.documents.map(doc => ({ type: doc.document_type, data: doc.structured_data }))
+            .sort((a, b) => a.type.localeCompare(b.type)),
+        })).digest("hex");
         sample.outcome = "incomplete";
         return { entry, sample, page, context, button, expectedVersion: draft.profileVersion + 1 };
       } catch {
@@ -104,7 +114,7 @@ try {
           sample.runId = report.runId;
           sample.reportVersion = report.reportVersion;
           sample.profileVersion = report.approvedProfileVersion;
-          sample.outcome = sample.durationMs <= 300_000 ? "success" : "timeout";
+          Object.assign(sample, draftOutcome(report, sample.durationMs));
         }
       } catch {
         sample.durationMs = performance.now() - start;
