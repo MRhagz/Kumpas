@@ -30,7 +30,11 @@ const MARGIN_BOTTOM = 38;
 const CONTENT_WIDTH = PAGE_WIDTH - MARGIN_X * 2;
 const SPACE_1 = 8;
 const SPACE_3 = 24;
-const OVERVIEW_TITLE_SIZES = [11, 10, 9, 8];
+const BODY_SIZE = 12;
+const DETAIL_SIZE = 11;
+const SOURCE_SIZE = 10.5;
+const SECTION_LABEL_HEIGHT = 16;
+const OVERVIEW_TITLE_SIZES = [12, 11, 10, 9];
 const INK: Rgb = [0.102, 0.102, 0.094];
 const MUTED: Rgb = [0.349, 0.349, 0.314];
 const LINE: Rgb = [0.867, 0.851, 0.816];
@@ -90,8 +94,8 @@ class StyledReportPdf {
     this.y -= 16;
     this.drawText("Career Guidance Report", MARGIN_X, this.y, { font: "serif", size: 29 });
     this.y -= 27;
-    this.flowText(`Generated ${formatDate(this.payload.generatedAt)}. Report version: ${this.payload.reportVersion ?? "unavailable"}. Approved profile version: ${this.payload.approvedProfileVersion ?? "unavailable"}.`, 9, MUTED);
-    this.flowText("Generated as Draft for counselor review. Current approval status is recorded separately.", 9, AMBER);
+    this.flowText(`Generated ${formatDate(this.payload.generatedAt)}. Report version: ${this.payload.reportVersion ?? "unavailable"}. Approved profile version: ${this.payload.approvedProfileVersion ?? "unavailable"}.`, DETAIL_SIZE, MUTED);
+    this.flowText("Generated as Draft for counselor review. Current approval status is recorded separately.", DETAIL_SIZE, AMBER);
     this.y -= 4;
   }
 
@@ -107,51 +111,54 @@ class StyledReportPdf {
       ? "Explore options before ranking them"
       : `${scored} scored ${scored === 1 ? "option" : "options"} to discuss`;
     this.flowPanel([
-      { value: "AT A GLANCE", size: 8, color: SAGE, font: "bold" },
-      { value: takeaway, size: 16, font: "serif" },
+      { value: "AT A GLANCE", size: 10, color: SAGE, font: "bold" },
+      { value: takeaway, size: 18, font: "serif" },
       { value: scored === 0
         ? "An overall score or rank is unavailable. Review the evidence gaps with the student before choosing a pathway."
         : "Review the scores, trade-offs and evidence gaps with the student before choosing a pathway." },
+      ...(this.payload.academicEvidence.availableDocuments.length === 0
+        ? [{ value: "No usable academic records were available.", size: DETAIL_SIZE }]
+        : []),
     ], SAGE_LIGHT);
     summary.options.forEach((option, index) => {
       this.flowPanel([
-        { value: option.careerPath, size: 12, font: "bold" },
+        { value: option.careerPath, size: 14, font: "bold" },
         { value: option.rank === null || option.alignmentScore === null
           ? "Unscored option. No total or rank: partial evidence."
           : `Rank ${option.rank} | Alignment score: ${option.alignmentScore.toFixed(2)} out of 100`,
-          size: 9, color: SAGE, font: "bold" },
+          size: DETAIL_SIZE, color: SAGE, font: "bold" },
         ...option.reasons.map((value) => ({ value })),
-        ...option.considerations.map((value) => ({ value, size: 9, color: MUTED })),
+        ...option.considerations.map((value) => ({ value, size: DETAIL_SIZE, color: MUTED })),
       ], PANEL, index === 0 ? "Options to discuss" : undefined);
     });
-    this.ensureSpace(50);
-    this.drawSectionLabel("Evidence gaps to review");
-    for (const limitation of summary.limitations) this.flowText(`- ${limitation}`, 10);
+    if (summary.limitations.length) {
+      this.flowPanel(summary.limitations.map((limitation) => ({ value: `- ${limitation}` })), PANEL, "Evidence gaps to review");
+    }
     if (summary.nextSteps.length) {
       this.flowPanel(summary.nextSteps.map((step, index) => ({ value: `${index + 1}. ${step}` })), PANEL, "Next steps");
     }
     this.ensureSpace(68);
     this.drawSectionLabel("How to read this report");
     this.flowText(summary.disclosure);
-    this.flowText(summary.scope, 9, MUTED);
-    this.flowText(summary.scoreExplanation, 9);
+    this.flowText(summary.scope, DETAIL_SIZE, MUTED);
+    this.flowText(summary.scoreExplanation, DETAIL_SIZE);
   }
 
   private renderAcademicEvidence(): void {
     this.ensureSpace(60);
     this.drawSectionLabel("Academic evidence completeness");
     const evidence = this.payload.academicEvidence;
-    this.flowText(`Available documents: ${evidence.availableDocuments.map(documentLabel).join(", ") || "None"}.`, 9);
-    this.flowText(`Missing usable documents: ${evidence.missingDocuments.map(documentLabel).join(", ") || "None"}.`, 9, AMBER);
+    this.flowText(`Available documents: ${evidence.availableDocuments.map(documentLabel).join(", ") || "None"}.`);
+    this.flowText(`Missing usable documents: ${evidence.missingDocuments.map(documentLabel).join(", ") || "None"}.`, BODY_SIZE, AMBER);
     for (const [document, status] of Object.entries(evidence.documentStatuses ?? {})) {
-      this.flowText(`${documentLabel(document)}: ${status}.`, 9, MUTED);
+      this.flowText(`${documentLabel(document)}: ${status}.`, DETAIL_SIZE, MUTED);
     }
-    this.flowText(evidence.completenessNote, 9);
-    this.flowText("Scores compare supported options; they are not probabilities of career success. Missing components remain unavailable and are not treated as zero.", 9, MUTED);
+    this.flowText(evidence.completenessNote);
+    this.flowText("Scores compare supported options; they are not probabilities of career success. Missing components remain unavailable and are not treated as zero.", DETAIL_SIZE, MUTED);
   }
 
   /** Flow full-width text line by line so long content can span pages. */
-  private flowText(value: string, size = 10, color: Rgb = INK, font: TextOptions["font"] = "regular"): void {
+  private flowText(value: string, size = BODY_SIZE, color: Rgb = INK, font: TextOptions["font"] = "regular"): void {
     const lineHeight = Math.ceil(size * 1.4);
     const lines = wrapText(value, CONTENT_WIDTH, size);
     const height = lines.length * lineHeight + 6;
@@ -167,15 +174,15 @@ class StyledReportPdf {
   private flowPanel(paragraphs: ReportParagraph[], background: Rgb, sectionLabel?: string): void {
     const padding = 12;
     const gap = 3;
-    const blocks = paragraphs.map(({ value, size = 10, ...options }) => ({
+    const blocks = paragraphs.map(({ value, size = BODY_SIZE, ...options }) => ({
       lines: wrapText(value, CONTENT_WIDTH - padding * 2, size),
-      lineHeight: Math.ceil(size * 1.25),
+      lineHeight: Math.ceil(size * 1.3),
       options: { ...options, size },
     }));
     const height = padding * 2 + blocks.reduce((sum, block) => sum + block.lines.length * block.lineHeight, 0)
       + gap * (blocks.length - 1);
 
-    const requiredHeight = height + (sectionLabel ? 14 : 0);
+    const requiredHeight = height + (sectionLabel ? SECTION_LABEL_HEIGHT : 0);
     if (requiredHeight > PAGE_HEIGHT - 38 - MARGIN_BOTTOM) {
       if (sectionLabel) {
         this.ensureSpace(50);
@@ -232,7 +239,7 @@ class StyledReportPdf {
     const bottomPad = 12;
     const panelHeight = rankRowHeight + titleAreaHeight + 14 + scoreBlockHeight + bottomPad;
 
-    this.ensureSpace(panelHeight + SPACE_3 + 14);
+    this.ensureSpace(panelHeight + SPACE_3 + SECTION_LABEL_HEIGHT);
     this.drawSectionLabel("Recommendation Overview");
     const cardTop = this.y;
 
@@ -242,7 +249,7 @@ class StyledReportPdf {
       this.drawText(`RANK ${recommendation.rank}`, x + SPACE_1, cardTop - 18, {
         color: SAGE,
         font: "bold",
-        size: 7,
+        size: 9,
       });
       const overviewTitleLines = wrapText(
         recommendation.careerPath,
@@ -267,7 +274,7 @@ class StyledReportPdf {
       this.drawText(recommendation.status.toUpperCase(), x + SPACE_1, scoreY - 25, {
         color: statusColor(recommendation.status),
         font: "bold",
-        size: 7,
+        size: 9,
       });
     });
 
@@ -292,25 +299,25 @@ class StyledReportPdf {
 
   private renderRecommendation(recommendation: RankedRecommendation): void {
     this.ensureSpace(70);
-    this.flowText(`${recommendation.rank === null ? "Unscored partial comparison" : `Recommendation ${recommendation.rank}`}: ${recommendation.careerPath}`, 13, SAGE, "bold");
-    this.flowText(`Status: ${recommendation.status}. Alignment: ${formatScore(recommendation.alignmentScore)}. Aptitude: ${formatScore(recommendation.aptitudeFit)}. Demand: ${formatScore(recommendation.marketDemand)}. Feasibility: ${formatScore(recommendation.financialFeasibility)}.`, 9);
+    this.flowText(`${recommendation.rank === null ? "Unscored partial comparison" : `Recommendation ${recommendation.rank}`}: ${recommendation.careerPath}`, 14, SAGE, "bold");
+    this.flowText(`Status: ${recommendation.status}. Alignment: ${formatScore(recommendation.alignmentScore)}. Aptitude: ${formatScore(recommendation.aptitudeFit)}. Demand: ${formatScore(recommendation.marketDemand)}. Feasibility: ${formatScore(recommendation.financialFeasibility)}.`, DETAIL_SIZE);
     const weights = recommendation.weights;
-    this.flowText(weights ? `Applied weights: aptitude ${weights.aptitude}, demand ${weights.demand}, feasibility ${weights.feasibility}.` : "Applied weights unavailable.", 9, MUTED);
+    this.flowText(weights ? `Applied weights: aptitude ${weights.aptitude}, demand ${weights.demand}, feasibility ${weights.feasibility}.` : "Applied weights unavailable.", DETAIL_SIZE, MUTED);
     const formatted = formatReasoningSummary(recommendation, { maxLength: Number.MAX_SAFE_INTEGER });
-    this.flowText(formatted.summary, 10);
-    for (const concern of formatted.concerns) this.flowText(concern, 9, AMBER);
-    this.flowText("See Evidence References for Counselor Review for the supporting inputs and full sources.", 9, MUTED);
+    this.flowText(formatted.summary);
+    for (const concern of formatted.concerns) this.flowText(concern, DETAIL_SIZE, AMBER);
+    this.flowText("See Evidence References for Counselor Review for the supporting inputs and full sources.", DETAIL_SIZE, MUTED);
   }
 
   private renderEvidenceReferences(): void {
     this.y -= 8;
     this.ensureSpace(118);
     this.drawSectionLabel("Evidence References for Counselor Review");
-    this.flowText("AI-generated comparisons support counselor discussion, not educational decisions or probabilities of success.", 9, MUTED);
-    this.flowText("Source currency is unverified. Check for outdated or superseding evidence. An ingestion date is not a publication date.", 9, MUTED);
+    this.flowText("AI-generated comparisons support counselor discussion, not educational decisions or probabilities of success.", DETAIL_SIZE, MUTED);
+    this.flowText("Source currency is unverified. Check for outdated or superseding evidence. An ingestion date is not a publication date.", DETAIL_SIZE, MUTED);
     for (const recommendation of this.payload.rankedRecommendations.recommendations) {
       this.ensureSpace(60);
-      this.flowText(recommendation.careerPath, 11, INK, "bold");
+      this.flowText(recommendation.careerPath, BODY_SIZE, INK, "bold");
       const claims = formatReasoningSummary(recommendation, { maxLength: Number.MAX_SAFE_INTEGER }).claims;
       const references = [...new Set(claims.flatMap((claim) => claim.inputReferences))];
       const lines = [
@@ -331,10 +338,10 @@ class StyledReportPdf {
       for (const value of lines) {
         // Break long URLs/field paths without dropping their query or fragment.
         const wrapped = value.replace(/\S{70,}/g, (word) => word.match(/.{1,60}/g)!.join(" "));
-        for (const line of wrapText(wrapped, CONTENT_WIDTH, 8)) {
-          this.ensureSpace(14);
-          this.drawText(line, MARGIN_X, this.y, { size: 8, color: MUTED });
-          this.y -= 12;
+        for (const line of wrapText(wrapped, CONTENT_WIDTH, SOURCE_SIZE)) {
+          this.ensureSpace(15);
+          this.drawText(line, MARGIN_X, this.y, { size: SOURCE_SIZE, color: MUTED });
+          this.y -= 14;
         }
         this.y -= 2;
       }
@@ -348,11 +355,11 @@ class StyledReportPdf {
         line(MARGIN_X, 28, PAGE_WIDTH - MARGIN_X, 28, LINE),
         text("Kumpas | Generated as Draft. Approval recorded separately.", MARGIN_X, 16, {
           color: MUTED,
-          size: 7,
+          size: 8.5,
         }),
-        text(`Page ${index + 1} of ${this.pages.length}`, PAGE_WIDTH - MARGIN_X - 50, 16, {
+        text(`Page ${index + 1} of ${this.pages.length}`, PAGE_WIDTH - MARGIN_X - 68, 16, {
           color: MUTED,
-          size: 7,
+          size: 8.5,
         }),
       );
     });
@@ -362,9 +369,9 @@ class StyledReportPdf {
     this.drawText(label.toUpperCase(), MARGIN_X, this.y, {
       color: SAGE,
       font: "bold",
-      size: 9,
+      size: 10,
     });
-    this.y -= 14;
+    this.y -= SECTION_LABEL_HEIGHT;
   }
 
   private drawScoreBar(x: number, y: number, width: number, value: number | null): void {

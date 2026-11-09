@@ -166,6 +166,7 @@ it("puts the evidence decision before the options in a notes-only report", async
   expect(cover).toContain("Explore options before ranking them");
   expect(cover.indexOf("Explore options before ranking them")).toBeLessThan(cover.indexOf(paths[0]));
   expect(cover).toContain("Review the evidence gaps with the student");
+  expect(cover).toContain("No usable academic records were available");
   expect(cover).toContain("No total or rank");
   expect(result.studentText).not.toContain("Alignment score:");
   expect(result.studentText).toContain("No usable academic records are available");
