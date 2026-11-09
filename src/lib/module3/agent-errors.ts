@@ -1,5 +1,6 @@
 import { ProcessingBudget, ProcessingError, isTransientFailure } from "@/lib/processing-budget";
 import type { AgentName } from "./types";
+import type { ProviderFailure } from "@/lib/operational-log";
 
 export type AgentStage =
   | "embedding"
@@ -16,7 +17,7 @@ function getHttpStatus(error: unknown): number | undefined {
   }
 
   const status = (error as ErrorWithStatus).status;
-  return typeof status === "number" ? status : undefined;
+  return typeof status === "number" && Number.isInteger(status) && status >= 400 && status <= 599 ? status : undefined;
 }
 
 function getSafeMessage(
@@ -45,9 +46,23 @@ function getSafeMessage(
   }
 }
 
+function getFailureCategory(cause: unknown, status: number | undefined): ProviderFailure {
+  if (cause instanceof SyntaxError) return "invalid_response";
+  const message = cause instanceof Error ? cause.message : "";
+  if (status === 401 || /api[ _-]?key|credential/i.test(message)) return "credential";
+  if (status === 403) return "permission";
+  if (status === 429) return "quota";
+  if (status === 404 || /thinking.*(?:support|invalid)|(?:support|invalid).*thinking/i.test(message)) return "configuration";
+  if (status === 400) return "invalid_request";
+  if (status !== undefined && status >= 500) return "provider_unavailable";
+  return "unknown";
+}
+
 export class AgentOperationError extends Error {
   readonly status: number | undefined;
   readonly retryable: boolean;
+  readonly stage: AgentStage;
+  readonly category: ProviderFailure;
 
   constructor(
     agentName: AgentName,
@@ -60,6 +75,8 @@ export class AgentOperationError extends Error {
     this.name = "AgentOperationError";
     this.status = status;
     this.retryable = isTransientFailure(cause);
+    this.stage = stage;
+    this.category = getFailureCategory(cause, status);
   }
 }
 
