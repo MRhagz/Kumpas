@@ -1,5 +1,13 @@
 # SW-26 browser and accessibility verification
 
+SW-31 follow-up, 9 November 2026: Playwright 1.65.0 exposes Firefox's native
+cross-world `ariaLabelledByElements` crash during named role lookups and axe
+scans ([upstream #43967](https://github.com/microsoft/playwright/issues/43967)).
+Pin the test runner and axe's `playwright-core` peer to **1.64.1**, the upstream
+last working release. Keep the complete keyboard/name assertions, default axe
+aggregation, WCAG rules and crash-failure gate. Recheck the upstream regression
+before lifting the pin. This changes test tooling, not application ARIA labels.
+
 SW-31 follow-up, 8 November 2026: the legacy axe aggregation workaround also
 crashed on the macOS CI runner, including one unchanged retry. The current runner
 uses axe's default aggregation, retaining the fresh Firefox process per audit,
