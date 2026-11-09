@@ -47,7 +47,6 @@ export default async function InputPage({
                     <Link prefetch={false} className="underline" href={`/input?session=${encodeURIComponent(draft.id)}`}>
                       Resume draft created <time dateTime={draft.created_at}>{draftTime.format(new Date(draft.created_at))} UTC</time>
                     </Link>
-                    <p>Draft expires <time dateTime={draft.expires_at}>{draftTime.format(new Date(draft.expires_at))} UTC</time></p>
                   </li>
                 ))}
               </ul>

@@ -107,7 +107,7 @@ export default function DocumentUploadPanel({
       .filter(Boolean);
 
   return (
-    <fieldset disabled={disabled} className="min-w-0 p-6 sm:p-8">
+    <fieldset disabled={disabled} className="min-w-0 p-5 sm:p-8">
       <div className="flex items-start gap-3 mb-4">
         <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-ochre-pale text-ochre">
           <FolderOpen size={20} />

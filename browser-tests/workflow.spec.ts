@@ -30,9 +30,13 @@ for (const width of [375, 1280]) test(`keyboard workflow and WCAG 2.1 AA at ${wi
   await page.route('**/approved.pdf', route => route.fulfill({body:'%PDF-1.4\n%%EOF',headers:{'Content-Type':'application/pdf','Content-Disposition':'attachment; filename=fixture.pdf'}}));
   await page.goto('/');
   const goal = page.getByRole('textbox',{name:'Career Goal (required)'});
-  await expect(goal).toBeVisible();
   const notice = page.getByRole('checkbox',{name:/I have read this notice/});
+  await expect(notice).toBeVisible();
   await tabTo(page,notice); await page.keyboard.press('Space');
+  const continueIntake = page.getByRole('button',{name:'Continue to intake'});
+  await tabTo(page,continueIntake); await page.keyboard.press('Enter');
+  await expect(page.getByRole('dialog')).toBeHidden();
+  await expect(goal).toBeVisible();
   await tabTo(page,goal);
   expect(await goal.evaluate(e => getComputedStyle(e).outlineStyle)).not.toBe('none');
   const docType = page.getByRole('combobox',{name:'Document 1 type'});
@@ -55,10 +59,13 @@ for (const width of [375, 1280]) test(`keyboard workflow and WCAG 2.1 AA at ${wi
       await audit.setViewportSize({width, height: 900});
       await audit.route('**/api/**',handler);
       await audit.goto(stage === 'intake' ? '/' : '/#/analysis');
+      if (stage === 'intake') {
+        await audit.getByRole('checkbox',{name:/I have read this notice/}).check();
+        await audit.getByRole('button',{name:'Continue to intake'}).click();
+      }
       await expect(stage === 'intake' ? audit.getByRole('textbox',{name:'Career Goal (required)'})
         : audit.getByRole('heading',{name:'Counselor review',exact:true})).toBeVisible();
       if (stage === 'intake') {
-        await audit.getByRole('checkbox',{name:/I have read this notice/}).check();
         // Nested notes panels can start fading after the outer intake panel.
         // Audit the settled UI rather than transient low-opacity text.
         for (const panel of await audit.locator('.animate-fade-in').all()) {
