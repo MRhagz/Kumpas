@@ -57,6 +57,10 @@ RPO/RTO pass is inferred. Human/stakeholder validation remains after the midterm
   ready version. Recovery now rechecks the same unexpired owner, profile, run
   and report version in that case. The reproducing fixture fails before the fix.
   Superseded versions still fail, and legacy ready runs keep their stored pointer.
+- The desktop Firefox audit on `6b3717c` flagged the Personal Interests &
+  Strengths label for color contrast. The label now uses the darker color of its
+  icon, raising the nominal foreground/background ratio from 4.93:1 to 6.73:1.
+  The mobile scanner crash on that run recovered on a fresh-process retry.
 
 No production fault endpoint, deferred feature, schema migration, provider/model
 change, credential fallback or data migration is introduced. Existing warnings
@@ -392,7 +396,7 @@ Later human validation does not become an invented automated result.
 | KMP-NFR-010 | I09, S07 | Seeded safe-log and fixed-retention fixtures pass. Actual operational-log pruning fails on missing maintenance DSN; notification receipt unverified. |
 | KMP-NFR-011 | S10 | Real SQL deletion-ledger replay prevents revival. Hosted isolated S10/RPO/RTO excluded in SW-30 record; no hosted restore pass. |
 | KMP-NFR-012 | F10, R03, A03 | Evidence/silo/score invariants pass. Qualified counselor review of the twenty-case explanation set remains pending; no expert sign-off inferred. |
-| KMP-NFR-013 | S08 | Eight Chrome/Edge/Firefox/WebKit CI workflows and 24 scans pass on 1c6e388. Firefox scanner crashes recurred on 0f20df7 and b97801f. One fresh-process retry is permitted for the specific scanner crash. Actual Safari/spoken reader checks unexecuted. |
+| KMP-NFR-013 | S08 | Eight Chrome/Edge/Firefox/WebKit CI workflows and 24 scans pass on 1c6e388. Firefox scanner crashes recurred on 0f20df7 and b97801f. One fresh-process retry is permitted for the specific scanner crash. A separate desktop contrast violation on 6b3717c prompted a darker label. Actual Safari/spoken reader checks unexecuted. |
 | KMP-NFR-014 | F11, A02 | Student-summary wording/confidentiality fixtures pass. Intended-student comprehension study remains after the midterm deliverable. |
 | KMP-NFR-015 | S01, A02 | Keyboard/navigation fixtures and available-browser workflows run. Five-counselor unassisted usability study remains after the midterm deliverable. |
 | KMP-NFR-016 | I08, S07, S08 | Next/Vercel production and separate Actions topology observed; generated seven 300-second allowances and Fluid config verified. Authorized PR-preview login/save/refresh/recovery/approval-guard browser smoke passes; full live candidate qualification remains incomplete. |
