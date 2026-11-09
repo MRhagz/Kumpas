@@ -34,7 +34,7 @@ const SPACE_3 = 24;
 const BODY_SIZE = 12;
 const DETAIL_SIZE = 11;
 const SOURCE_SIZE = 10.5;
-const SECTION_LABEL_HEIGHT = 16;
+const SECTION_LABEL_HEIGHT = 19;
 const OVERVIEW_TITLE_SIZES = [12, 11, 10, 9];
 const COMPARISON_COLUMNS = [
   { x: 0, label: ["Pathway"] },
@@ -104,7 +104,7 @@ class StyledReportPdf {
     this.y -= 27;
     this.flowText(`Generated ${formatDate(this.payload.generatedAt)}. Report version: ${this.payload.reportVersion ?? "unavailable"}. Approved profile version: ${this.payload.approvedProfileVersion ?? "unavailable"}.`, DETAIL_SIZE, MUTED);
     this.flowText("Generated as Draft for counselor review. Approval is recorded separately.", SOURCE_SIZE, MUTED);
-    this.y -= 4;
+    this.y -= 10;
   }
 
   private renderStudentSummary(): void {
@@ -151,9 +151,10 @@ class StyledReportPdf {
 
   private renderStudentComparison(options: StudentReportSummary["options"]): void {
     if (!options.length) return;
-    this.ensureSpace(90);
+    this.ensureSpace(104);
     this.drawSectionLabel("Compare the pathways");
     this.flowText("Scores are out of 100. Unavailable indicates missing or unverified support.", DETAIL_SIZE, MUTED);
+    this.y -= 6;
     this.drawComparisonHeader();
     for (const [optionIndex, option] of options.entries()) {
       const recommendation = this.payload.rankedRecommendations.recommendations.find(({ id }) => id === option.id);
@@ -169,7 +170,7 @@ class StyledReportPdf {
       const scored = overall !== null;
       const alignment = overall?.toFixed(2) ?? "Unscored";
       const nameLines = wrapText(option.careerPath, COMPARISON_COLUMNS[1].x - 12, DETAIL_SIZE);
-      const height = Math.max(nameLines.length, scored ? 2 : 1) * 16 + 12;
+      const height = Math.max(nameLines.length, scored ? 2 : 1) * 17 + 18;
 
       if (height > PAGE_HEIGHT - 38 - MARGIN_BOTTOM - 35) {
         this.flowText(option.careerPath, BODY_SIZE, INK, "bold");
@@ -184,16 +185,16 @@ class StyledReportPdf {
         this.addPage();
         this.drawComparisonHeader();
       }
-      const baseline = this.y - 17;
-      nameLines.forEach((name, index) => this.drawText(name, MARGIN_X, baseline - index * 16, { size: DETAIL_SIZE, font: "bold" }));
+      const baseline = this.y - 20;
+      nameLines.forEach((name, index) => this.drawText(name, MARGIN_X, baseline - index * 17, { size: DETAIL_SIZE, font: "bold" }));
       [...components, alignment].forEach((value, index) => this.drawText(value, MARGIN_X + COMPARISON_COLUMNS[index + 1].x, baseline, {
         size: DETAIL_SIZE, color: value === "Unavailable" ? MUTED : INK,
       }));
-      if (scored) this.drawText(`Rank ${option.rank}`, MARGIN_X + COMPARISON_COLUMNS[4].x, baseline - 16, { size: SOURCE_SIZE, color: SAGE });
+      if (scored) this.drawText(`Rank ${option.rank}`, MARGIN_X + COMPARISON_COLUMNS[4].x, baseline - 17, { size: SOURCE_SIZE, color: SAGE });
       this.y -= height;
       this.currentPage.commands.push(line(MARGIN_X, this.y, PAGE_WIDTH - MARGIN_X, this.y, LINE, 0.6));
     }
-    this.y -= 18;
+    this.y -= 26;
   }
 
   private drawComparisonHeader(): void {
@@ -202,7 +203,7 @@ class StyledReportPdf {
         size: 10, color: SAGE, font: "bold",
       }));
     }
-    this.y -= 22;
+    this.y -= 27;
     this.currentPage.commands.push(line(MARGIN_X, this.y, PAGE_WIDTH - MARGIN_X, this.y, SAGE, 0.8));
   }
 
@@ -234,8 +235,8 @@ class StyledReportPdf {
   }
 
   private flowPanel(paragraphs: ReportParagraph[], background: Rgb | null, sectionLabel?: string): void {
-    const padding = background ? 12 : 0;
-    const gap = 3;
+    const padding = background ? 16 : 0;
+    const gap = background ? 5 : 6;
     const blocks = paragraphs.map(({ value, size = BODY_SIZE, ...options }) => ({
       lines: wrapText(value, CONTENT_WIDTH - padding * 2, size),
       lineHeight: Math.ceil(size * 1.3),
@@ -265,7 +266,7 @@ class StyledReportPdf {
       }
       top -= gap;
     }
-    this.y -= height + 12;
+    this.y -= height + (background ? 24 : 18);
   }
 
   private renderRecommendationOverview(): void {
