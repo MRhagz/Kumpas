@@ -35,5 +35,17 @@
     "incompleteChecks": 0,
     "hostedCi": "pending_on_followup_commit"
   },
+  "followupDeployment": {
+    "commit": "6c92aa77ea5af002185b9c2401abac11910782c1",
+    "deploymentId": "dpl_GQgg4t8dUQ5HyyVYxnjatK8vBUoS",
+    "identityVerifiedViaVercelApi": true,
+    "liveContractsPassed": 7,
+    "hostedFirefoxMobile": "pass_no_crash",
+    "hostedFirefoxDesktop": "intake_contrast_assertion_failed",
+    "readinessFixLocalWorkflows": 6,
+    "readinessFixLocalScans": 18,
+    "readinessFixLocalViolations": 0,
+    "readinessFixLocalIncompleteChecks": 0
+  },
   "releaseReady": false
 }

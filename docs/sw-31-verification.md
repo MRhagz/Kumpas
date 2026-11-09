@@ -124,6 +124,17 @@ open. See the [credential locations and execution handoff](sw-31-operator-handof
 and [sanitized follow-up evidence](evidence/sw-31-completion-followup.json).
 The live observations above attest `17ca70b`; they do not attest a later deployment.
 
+Follow-up `6c92aa7`, Vercel `dpl_GQgg4t8dUQ5HyyVYxnjatK8vBUoS`, is Ready;
+its exact Git SHA was verified through Vercel's deployment API. All seven live
+contracts pass again on that deployment. Hosted Firefox completes its mobile
+workflow without a crash, but the desktop intake scan reports a contrast
+assertion on nine targets within the nested editable-notes panel. The audit
+waited for only the first fade-in panel. It now waits for every fade-in panel's
+opacity to reach 1 before scanning, retaining the contrast assertions. Six
+local Firefox workflows and eighteen scans pass after this change with zero
+violations, incomplete checks or crash retries. The failed hosted contrast run
+is retained; the updated head still needs a complete passing CI run.
+
 ## Live runner
 
 `scripts/release/live-contracts.mjs` uses actual HTTP and Supabase Storage, with
