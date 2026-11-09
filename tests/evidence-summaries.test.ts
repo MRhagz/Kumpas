@@ -15,6 +15,7 @@ import { rankedRecommendationBuilder } from "@/lib/module3/ranked-recommendation
 import { runRecommendationProvider } from "@/lib/module3/recommendation-provider";
 import { assembleReportData } from "@/lib/report/assembler";
 import { buildReportPdf } from "@/lib/report/pdf-renderer";
+import { reportPdfText } from "./report-pdf-text";
 import { formatReasoningSummary } from "@/lib/report/reasoning-formatter";
 import { buildAuditTrail } from "@/lib/report/audit-trail";
 import { sourceDate, publicSourceUrl } from "@/lib/report/evidence-summary";
@@ -89,9 +90,10 @@ it.each(cases)("F10 / R03 frozen explanation profile: %s", async (name, a, d, f,
     expect(claim.inputReferences.length + claim.sourceReferences.length).toBeGreaterThan(0);
     for (const citation of claim.sourceReferences) expect(evidence.flatMap((o) => o.retrievedChunks).some((chunk) => chunk.source_url === citation.reference && chunk.chunk_index === citation.chunkIndex)).toBe(true);
   }
-  const pdf = buildReportPdf(payload), text = pdf.toString("latin1");
+  const pdf = buildReportPdf(payload), text = await reportPdfText(pdf);
   expect(text).not.toContain(PRIVATE); expect(text).not.toContain(RAW); expect(text).not.toContain("1970");
-  expect(text).toContain("AI-generated comparisons"); expect(text).toContain("Source currency is unverified");
+  expect(text).toContain("AI-generated comparisons");
+  expect(text).toContain(list.recommendations[0].sources.length ? "Source currency is unverified" : "No supporting reference sources are available");
   if (name.endsWith("dates")) {
     expect(text).toContain("Publication date unavailable"); expect(text).toContain("Ingestion date unavailable");
     expect(m.sources.every((source) => source.ingestion_timestamp === null && source.publication_date === null)).toBe(true);

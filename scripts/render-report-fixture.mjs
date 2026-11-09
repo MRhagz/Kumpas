@@ -1,178 +1,59 @@
-#!/usr/bin/env node
-// Generates a sample PDF using the renderer with a payload that mirrors the
-// original problem report (long career titles, file:// refs, duplicate
-// interests/strengths, raw enum source method, 3+ sources). Run with:
-//   npx tsx scripts/render-report-fixture.mjs
-
-import { writeFileSync } from "node:fs";
+#!/usr/bin/env bun
+// Reproducible, entirely synthetic report; no student information or live calls.
+// Run: bun scripts/render-report-fixture.mjs
+import { mkdirSync, writeFileSync } from "node:fs";
 import { resolve } from "node:path";
-import { renderReportPdf } from "../src/lib/report/pdf-renderer.ts";
+import { buildReportPdf } from "../src/lib/report/pdf-renderer.ts";
+import { buildStudentSummary } from "../src/lib/report/reasoning-formatter.ts";
+import { evidenceClaims, summaryText } from "../src/lib/report/evidence-summary.ts";
 
-const longText =
-  "The student is naturally gifted at logical puzzles and procedural reasoning, with a passion for math and creative writing.";
-
-const payload = {
-  sessionId: "9af2cfae-711d-4fde-a12a-29c52592859b",
-  generatedAt: "2026-05-24T08:00:00.000Z",
-  studentProfile: {
-    sessionId: "9af2cfae-711d-4fde-a12a-29c52592859b",
-    targetCareer:
-      "The student currently wants to pursue BS Computer Science with a Game Development specialization.",
-    interests: [longText],
-    strengths: [longText],
-    financialStatus: "constrained",
-    concerns: [],
-    approvedAt: "2026-05-24T07:30:00.000Z",
-  },
-  academicEvidence: {
-    availableDocuments: [],
-    missingDocuments: ["form137", "ncae", "nat"],
-    completenessNote:
-      "No academic documents were provided. Recommendations are based on counselor notes only.",
-  },
-  rankedRecommendations: {
-    sessionId: "9af2cfae-711d-4fde-a12a-29c52592859b",
-    generatedAt: "2026-05-24T07:55:00.000Z",
-    recommendations: [
-      makeRec({
-        id: "rec-1",
-        rank: 1,
-        careerPath:
-          "BS Computer Science (General Software Engineering/Specialized IT)",
-        scores: [87.0, 85.0, 98.0, 70.0],
-        sources: [
-          {
-            id: "src-a",
-            title: "PSA LFS 2026-Q1: Services and Sales Workers",
-            reference: "file:///home/milleza/projects/Kumpas/ingestion/psa-lfs-2026-q1-services.csv",
-            acquisitionMethod: "operator_curated_csv",
-            ingestionTimestamp: "2026-05-23T08:00:00.000Z",
-            relatedSignals: [],
-          },
-          {
-            id: "src-b",
-            title: "PSA LFS 2026-Q1: Professionals",
-            reference: "file:///home/milleza/projects/Kumpas/ingestion/psa-lfs-2026-q1-professionals.csv",
-            acquisitionMethod: "operator_curated_csv",
-            ingestionTimestamp: "2026-05-23T08:00:00.000Z",
-            relatedSignals: [],
-          },
-          {
-            id: "src-c",
-            title: "DOLE BLE Labor Market Information 2025-Q4",
-            reference: "https://ble.dole.gov.ph/wp-content/uploads/2025/lmi-2025-q4.pdf",
-            acquisitionMethod: "operator_curated_pdf",
-            ingestionTimestamp: "2026-05-23T08:00:00.000Z",
-            relatedSignals: [],
-          },
-        ],
-      }),
-      makeRec({
-        id: "rec-2",
-        rank: 2,
-        careerPath: "BS Computer Science (Game Development Specialization)",
-        scores: [85.0, 90.0, 95.0, 60.0],
-      }),
-      makeRec({
-        id: "rec-3",
-        rank: 3,
-        careerPath: "TESDA-Certified Programming/IT Specialist",
-        scores: [79.0, 80.0, 75.0, 85.0],
-        sources: [
-          {
-            id: "src-d",
-            title: "PSA LFS 2026-Q1: Technicians and Associate Professionals",
-            reference: "file:///home/milleza/projects/Kumpas/ingestion/psa-lfs-2026-q1-tech.csv",
-            acquisitionMethod: "operator_curated_csv",
-            ingestionTimestamp: "2026-05-23T08:00:00.000Z",
-            relatedSignals: [],
-          },
-          {
-            id: "src-e",
-            title: "DOLE BLE Labor Market Information Report",
-            reference: "https://ble.dole.gov.ph/wp-content/uploads/2025/lmi-tech-2025.pdf",
-            acquisitionMethod: "operator_curated_pdf",
-            ingestionTimestamp: "2026-05-23T08:00:00.000Z",
-            relatedSignals: [],
-          },
-        ],
-      }),
-    ],
-  },
-  auditTrail: [],
-};
-
-payload.auditTrail = payload.rankedRecommendations.recommendations.map((rec) => ({
-  recommendationId: rec.id,
-  careerPath: rec.careerPath,
-  sources: rec.sources,
-}));
-
-function makeRec({ id, rank, careerPath, scores, sources }) {
-  const [alignmentScore, aptitudeFit, marketDemand, financialFeasibility] = scores;
-  return {
-    id,
-    rank,
-    careerPath,
-    alignmentScore,
-    aptitudeFit,
-    marketDemand,
-    financialFeasibility,
-    reasoningSummary:
-      "This career path is ranked highest because it's a strong match for your skills and offers many exciting job opportunities, even with some financial considerations.",
-    keySignals: [
-      "Strong logical reasoning",
-      "Exceptional demand for IT professionals",
-    ],
-    keySignalDetails: [
-      {
-        label: "Academic Fit",
-        value: "Strong fit with logical, mathematical, and programming abilities.",
-        subNote: "Provides a solid foundation for diverse tech specializations.",
-        polarity: "positive",
-      },
-      {
-        label: "Labor Demand",
-        value: "Exceptional demand for general and specialized IT professionals.",
-        subNote: "Roles like Data, DevOps, and Cloud Engineers are on the rise.",
-        polarity: "positive",
-      },
-      {
-        label: "Financial Barrier",
-        value: "Requires investment in computing hardware not fully covered.",
-        subNote: "Remains a significant personal expense.",
-        polarity: "negative",
-      },
-      {
-        label: "Academic Risk",
-        value: "Potential struggle with advanced theoretical math.",
-        subNote: "Maintaining academic standing is crucial for scholarships.",
-        polarity: "negative",
-      },
-    ],
-    sources: sources ?? [
-      {
-        id: `${id}-src-default`,
-        title: "PSA LFS 2026-Q1: Services and Sales Workers",
-        reference: "file:///home/milleza/projects/Kumpas/ingestion/psa-lfs-2026-q1-services.csv",
-        acquisitionMethod: "operator_curated_csv",
-        ingestionTimestamp: "2026-05-23T08:00:00.000Z",
-        relatedSignals: [],
-      },
-      {
-        id: `${id}-src-default-2`,
-        title: "PSA LFS 2026-Q1: Professionals",
-        reference: "file:///home/milleza/projects/Kumpas/ingestion/psa-lfs-2026-q1-professionals.csv",
-        acquisitionMethod: "operator_curated_csv",
-        ingestionTimestamp: "2026-05-23T08:00:00.000Z",
-        relatedSignals: [],
-      },
-    ],
-    status: "complete",
+const generatedAt = "2026-11-10T08:00:00Z";
+const sessionId = "synthetic-career-guidance-sample";
+const documents = [
+  { title: "Synthetic employment outlook — ICT pathways", publisher: "Kumpas demonstration fixture", url: "https://example.org/synthetic-employment-outlook", siloId: "labor_demand" },
+  { title: "Synthetic programme requirements and support guide", publisher: "Kumpas demonstration fixture", url: "https://example.org/synthetic-training-guide", siloId: "path_feasibility" },
+];
+const recommendations = [
+  { careerPath: "Software development", scores: [85, 90, 75], input: "academicData.nat.subjects.Mathematics" },
+  { careerPath: "Applied ICT", scores: [80, 75, 98], input: "academicData.ncae.strand_scores.ICT" },
+  { careerPath: "Computer systems servicing", scores: [72, 78, 88], input: "academicData.form137.subjects.Technology" },
+].map(({ careerPath, scores: [aptitudeFit, marketDemand, financialFeasibility], input }, index) => {
+  const sources = documents.map((document, sourceIndex) => ({
+    id: `sample-${index + 1}-source-${sourceIndex + 1}`, title: document.title, publisher: document.publisher,
+    reference: document.url, sourceUrl: document.url, siloId: document.siloId, chunkIndex: index,
+    publicationDate: "2026-10-01", ingestionTimestamp: "2026-11-01T00:00:00Z", acquisitionMethod: "manual_curation", relatedSignals: [],
+  }));
+  const citation = (sourceIndex) => ({ reference: sources[sourceIndex].reference, chunkIndex: index, siloId: sources[sourceIndex].siloId });
+  const componentEvidence = {
+    aptitude: { inputReferences: [input], sourceReferences: [], explanation: "Synthetic evidence mapping." },
+    demand: { inputReferences: [], sourceReferences: [citation(0)], explanation: "Synthetic evidence mapping." },
+    feasibility: { inputReferences: ["counselorNotes.financial"], sourceReferences: [citation(1)], explanation: "Synthetic evidence mapping." },
   };
-}
-
-const buffer = await renderReportPdf(payload);
-const outPath = resolve("test/sample_report_refined.pdf");
-writeFileSync(outPath, buffer);
-console.log(`Wrote ${outPath} (${buffer.byteLength} bytes)`);
+  return {
+    id: `sample-path-${index + 1}`, careerPath, rank: index + 1,
+    alignmentScore: Math.round((35 * aptitudeFit + 40 * marketDemand + 25 * financialFeasibility)) / 100,
+    aptitudeFit, marketDemand, financialFeasibility, componentEvidence, sources,
+    reasoningSummary: summaryText(evidenceClaims({ componentEvidence, aptitudeScore: aptitudeFit, demandScore: marketDemand, feasibilityScore: financialFeasibility, sourceReferences: sources })),
+    weights: { aptitude: 0.35, demand: 0.4, feasibility: 0.25 }, approvedProfileVersion: 1,
+    status: "complete", keySignals: [], keySignalDetails: [],
+  };
+});
+const rankedRecommendations = { sessionId, generatedAt, recommendations, scoreContract: "0-100-v1" };
+const academicEvidence = {
+  availableDocuments: ["form137", "ncae", "nat"], missingDocuments: [],
+  documentStatuses: { form137: "provided", ncae: "provided", nat: "provided" },
+  completenessNote: "Synthetic academic records are available for this demonstration.",
+};
+const payload = {
+  sessionId, generatedAt, reportVersion: 1, approvedProfileVersion: 1,
+  studentProfile: { sessionId, interests: ["Synthetic ICT interest"], strengths: ["Synthetic academic input"], financialStatus: "unknown", concerns: [], approvedAt: generatedAt },
+  rankedRecommendations, academicEvidence, studentSummary: buildStudentSummary(rankedRecommendations, academicEvidence),
+  auditTrail: recommendations.map((recommendation) => ({ recommendationId: recommendation.id, careerPath: recommendation.careerPath, sources: recommendation.sources })),
+};
+payload.studentSummary.findings.unshift("LAYOUT DEMONSTRATION ONLY: All scores and references in this sample are synthetic. They are not findings about a student or verified career evidence.");
+const directory = resolve("test-results");
+mkdirSync(directory, { recursive: true });
+const path = resolve(directory, "kumpas-career-guidance-sample-v2.pdf");
+const pdf = buildReportPdf(payload);
+writeFileSync(path, pdf);
+console.log(`Wrote ${path} (${pdf.length} bytes). All scores and sources are synthetic.`);

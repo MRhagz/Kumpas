@@ -25,7 +25,7 @@ beforeEach(() => {
   vi.stubGlobal("fetch", vi.fn(async (url: string, init?: RequestInit) => {
     if (url === "/api/sessions/saved") return Response.json({ sessionId: "saved", nextStep: "input" });
     if (url !== "/api/sessions/saved/intake") throw new Error(`Unexpected request: ${url}`);
-    if (init?.method !== "PATCH") return Response.json({ profileVersion: 0, documents, notes: savedNotes, uploadPending });
+    if (init?.method !== "PATCH") return Response.json({ profileVersion: savedNotes.revision, documents, notes: savedNotes, uploadPending });
     if (failSave) return Response.json({ error: "Storage temporarily unavailable. Retry saving." }, { status: 500 });
     const body = JSON.parse(String(init.body));
     if (body.documentId) {
@@ -132,11 +132,12 @@ it("returns to an approved session for corrections and approves the saved revisi
     counselorNotes: { ...notes, careerGoal: "<p>Engineering</p>" } });
 });
 
-it.each([false, true])("removes a notes photograph and extracts the same file again after an initial failure: %s", async (initialFailure) => {
+it.each([false, true])("automatically saves image notes for approval, including re-extraction after failure: %s", async (initialFailure) => {
   savedNotes = { careerGoal: "", interests: "", financial: "", concerns: "", impression: "", revision: 0, source: null, original: null };
   const draftFetch = vi.mocked(fetch).getMockImplementation()!;
   const revisions: number[] = [];
   vi.mocked(fetch).mockImplementation(async (url, init) => {
+    if (url === "/api/sessions/saved/approve") return Response.json({ status: "approved" });
     if (url !== "/api/extract-notes") return draftFetch(url, init);
     const body = JSON.parse(String(init?.body));
     revisions.push(body.revision);
@@ -156,9 +157,20 @@ it.each([false, true])("removes a notes photograph and extracts the same file ag
   expect(screen.queryByText(/Notes source:/)).toBeNull();
   fireEvent.change(container.querySelector("#notes-file-input")!, { target: { files: [file] } });
   await waitFor(() => expect(uploadIntakeFile).toHaveBeenCalledTimes(2));
-  await screen.findByText("Extracted & ready to edit · Photograph released");
+  await screen.findByText("Extraction saved as draft · Photograph released");
   expect(revisions).toEqual(initialFailure ? [0, 0] : [0, 1]);
-  expect((screen.getByRole("button", { name: /Approve Inputs/ }) as HTMLButtonElement).disabled).toBe(true);
+  expect(screen.getByText("Draft saved")).toBeTruthy();
+  expect(vi.mocked(fetch).mock.calls.some(([, init]) => init?.method === "PATCH")).toBe(false);
+  fireEvent.click(screen.getByRole("checkbox", { name: /I have reviewed these notes/ }));
+  expect(screen.getByRole("button", { name: /Approve Inputs/ }).matches(":disabled")).toBe(false);
+  fireEvent.click(screen.getByRole("button", { name: /Approve Inputs/ }));
+  await waitFor(() => expect(m.router.push).toHaveBeenCalledWith("/analysis?session=saved"));
+  const approval = vi.mocked(fetch).mock.calls.find(([url]) => String(url).endsWith("/approve"));
+  expect(JSON.parse(String(approval?.[1]?.body))).toEqual({ notesReviewed: true, profileVersion: savedNotes.revision,
+    notesRevision: savedNotes.revision, documents: [], counselorNotes: notes });
+  fireEvent.input(screen.getByRole("textbox", { name: "Career Goal (required)" }), { target: { innerHTML: "<p>Engineering</p>" } });
+  expect(screen.getByText("Unsaved changes")).toBeTruthy();
+  expect(screen.getByRole("button", { name: /Approve Inputs/ }).matches(":disabled")).toBe(true);
 });
 
 it("removes an extracted document without saving first and permits uploading it again", async () => {
@@ -239,6 +251,7 @@ it.each([true, false])("runs notes, document removal and separate uploads indepe
   await act(async () => finishRemoval(Response.json({ status: "removed" })));
   expect(screen.queryByRole("button", { name: "Remove document 1" })).toBeNull();
   expect(screen.getByText("Reading handwriting with AI Vision…")).toBeTruthy();
+  savedNotes = { ...savedNotes, ...notes, revision: 1 };
   await act(async () => finishNotes(Response.json({ ...notes, revision: 1, source: { documentId: "notes-source", page: 1 } })));
   expect(screen.getByRole("textbox", { name: "Career Goal (required)" }).innerHTML).toBe(notes.careerGoal);
   expect(screen.getByRole("button", { name: "Save draft" }).matches(":disabled")).toBe(true);
@@ -247,5 +260,6 @@ it.each([true, false])("runs notes, document removal and separate uploads indepe
   expect(screen.getByRole("spinbutton", { name: "NAT composite" })).toBeTruthy();
   expect(screen.getByRole("button", { name: "Remove document 3" })).toBeTruthy();
   expect(screen.getByRole("button", { name: "Save draft" }).matches(":disabled")).toBe(false);
+  expect(screen.getByText("Unsaved changes")).toBeTruthy();
   expect(screen.getByRole("button", { name: /Approve Inputs/ }).matches(":disabled")).toBe(true);
 });

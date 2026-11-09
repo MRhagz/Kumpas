@@ -37,6 +37,14 @@ export default function StudentSummaryView({
           </p>
         </div>
       </div>
+      <div className="mb-5 space-y-2 border-l-2 border-forest/30 pl-4">
+        <h3 className="text-lg font-semibold text-forest">{summary.takeaway}</h3>
+        {summary.findings.map((finding) => (
+          <p key={finding} className="text-sm leading-relaxed text-muted-text">
+            {finding}
+          </p>
+        ))}
+      </div>
       <div className="mb-5 flex items-start gap-2 rounded-lg bg-forest/5 p-3 text-sm text-forest">
         <Info size={17} aria-hidden="true" className="mt-0.5 shrink-0" />
         <p>
