@@ -56,6 +56,31 @@ export function buildStudentSummary(
   list: RankedRecommendationList,
   evidence: AcademicEvidenceSummary,
 ): StudentReportSummary {
+  const scored = list.recommendations.filter((option) => option.rank !== null && option.alignmentScore !== null);
+  const leaders = scored.filter((option) => option.alignmentScore === scored[0]?.alignmentScore);
+  const gap = scored.length > 1 ? (scored[0].alignmentScore! - scored[1].alignmentScore!).toFixed(2) : null;
+  const takeaway = !scored.length ? "No overall ranking"
+    : leaders.length > 1 ? `${leaders.length} pathways share the top score`
+    : gap !== null ? `Top two pathways: ${gap} points apart`
+    : "One pathway has an overall score";
+  const findings = [!scored.length
+    ? "Review the evidence gaps with the student. No total or rank can be assigned from the available evidence."
+    : leaders.length > 1 ? "The overall score does not separate the leading pathways. Compare their components and your preferences."
+    : scored.length > 1 ? `The first-to-last score gap is ${(scored[0].alignmentScore! - scored[scored.length - 1].alignmentScore!).toFixed(2)} points. Use the component comparison to explore the differences.`
+    : "There is no other scored pathway to compare with this option."];
+  const attention = new Map<string, number>();
+  for (const option of scored) {
+    const components = supportedComponents(option);
+    if (components.length < 2) continue;
+    const lowest = Math.min(...components.map(({ score }) => score));
+    if (lowest === Math.max(...components.map(({ score }) => score))) continue;
+    for (const component of components.filter(({ score }) => score === lowest)) {
+      attention.set(component.label, (attention.get(component.label) ?? 0) + 1);
+    }
+  }
+  for (const [label, count] of attention) findings.push(
+    `${capitalize(label)} is the lowest supported component in ${count} of ${scored.length} ranked pathways; make it a discussion priority.`,
+  );
   const limitations = [
     list.recommendations.some((option) => option.sources.length)
       ? "Source currency is unverified. Ask your counselor to check for newer information."
@@ -77,35 +102,45 @@ export function buildStudentSummary(
     "Some specialist analysis is unavailable. Discuss the missing evidence before deciding.",
   );
   return {
+    takeaway,
+    findings,
     disclosure: "AI-generated comparisons use counselor-confirmed inputs and available reference sources. They support discussion, not a decision about your future. Your counselor reviews the evidence and helps you decide.",
-    scoreExplanation: "The alignment score compares supported options using aptitude (fit with available evidence), demand (work opportunities), and feasibility (practical requirements). Scores are points out of 100, not probabilities of career success. A higher score is not a guarantee.",
+    scoreExplanation: "Alignment combines aptitude (fit), demand (work opportunities), and feasibility (practical requirements). Scores are points out of 100, not probabilities of career success. Relative strengths describe scores, not confirmed personal strengths; a higher score is not a guarantee.",
     scope: "For Grade 10 and Senior High School (SHS) guidance. Your current education stage is not confirmed by this report.",
     options: list.recommendations.map((option) => {
       const formatted = formatReasoningSummary(option, { maxLength: Number.MAX_SAFE_INTEGER });
-      const reasons = formatted.claims.map((claim) => {
+      const basis = formatted.claims.map((claim) => {
         if (claim.dimension === "aptitude") {
           const basis = [];
           if (claim.inputReferences.some((ref) => ref.startsWith("academicData."))) basis.push("reviewed academic records");
           if (claim.inputReferences.some((ref) => ref.startsWith("counselorNotes."))) basis.push("reviewed, self-reported interests or goals (not measured academic performance)");
           if (claim.sourceReferences.length) basis.push("cited public records");
-          return `Aptitude comparison: ${option.aptitudeFit!.toFixed(2)} out of 100, supported by ${basis.join(" and ") || "reviewed input references"}.`;
+          return `aptitude uses ${basis.join(" and ") || "reviewed input references"}`;
         }
-        return claim.dimension === "demand"
-          ? `Work-opportunity comparison: ${option.marketDemand!.toFixed(2)} out of 100, using the cited public evidence.`
-          : `Practical-requirements comparison: ${option.financialFeasibility!.toFixed(2)} out of 100, using reviewed context and cited evidence. Personal details are withheld.`;
+        const context = [
+          ...(claim.inputReferences.length ? ["reviewed context"] : []),
+          ...(claim.sourceReferences.length ? ["cited public evidence"] : []),
+        ].join(" and ");
+        return `${claim.dimension} uses ${context}${claim.dimension === "feasibility" ? " (personal details withheld)" : ""}`;
       });
-      const missing = [option.aptitudeFit === null ? "aptitude" : "", option.marketDemand === null ? "work opportunities" : "", option.financialFeasibility === null ? "practical requirements" : ""].filter(Boolean);
-      const components = [{ label: "aptitude", score: option.aptitudeFit }, { label: "work opportunities", score: option.marketDemand }, { label: "practical requirements", score: option.financialFeasibility }];
-      const scores = components.flatMap((component) => component.score === null ? [] : [component.score]);
-      const lowest = Math.min(...scores);
-      const tradeOff = !missing.length && lowest < Math.max(...scores)
-        ? `Lowest component score: ${components.filter((component) => component.score === lowest).map((component) => component.label).join(" and ")} (${lowest.toFixed(2)}/100). Discuss this trade-off.` : null;
+      const components = supportedComponents(option);
+      const missing = ["aptitude", "demand", "feasibility"].filter((label) => !components.some((component) => component.label === label));
+      const scores = components.map(({ score }) => score);
+      const lowest = Math.min(...scores), highest = Math.max(...scores);
+      const strongest = components.filter(({ score }) => score === highest).map(({ label }) => label);
+      const weakest = components.filter(({ score }) => score === lowest);
+      const relativeFit = components.length < 2 ? null : lowest === highest
+        ? "The supported components have equal scores; they do not distinguish a relative strength."
+        : `Highest supported component: ${strongest.join(" and ")}.`;
       return {
         id: option.id, careerPath: option.careerPath, rank: option.rank, alignmentScore: option.alignmentScore,
-        reasons: reasons.length ? reasons : ["Evidence summary unavailable. Ask your counselor to review the inputs and sources before using this option."],
+        reasons: basis.length ? [...(relativeFit ? [relativeFit] : []), `Evidence used: ${basis.join("; ")}.`] : ["Evidence summary unavailable. Ask your counselor to review the inputs and sources before using this option."],
         considerations: [
-          ...(missing.length ? [`Evidence unavailable for ${missing.join(", ")}. This option is unscored and has no rank.`] : []),
-          ...(tradeOff ? [tradeOff] : []),
+          ...(missing.length ? [`Evidence unavailable or unverified for ${missing.join(", ")}.${option.rank === null ? " This option is unscored and has no rank." : " Verify the supporting evidence before relying on this ranking."}`] : []),
+          ...(lowest < highest ? [
+            `Trade-off: ${capitalize(weakest.map(({ label }) => label).join(" and "))} ${weakest.length === 1 ? "scores" : "score"} lower than the other supported components.`,
+            `Discuss: ${weakest.map(({ question }) => question).join(" ")}`,
+          ] : []),
         ],
       };
     }),
@@ -116,6 +151,22 @@ export function buildStudentSummary(
       "Check current entry requirements, costs and financial support with the relevant school or training provider. Review this comparison when missing information becomes available.",
     ],
   };
+}
+
+// Compare only components accepted by the evidence formatter. Never turn raw
+// model explanations, note values or an unsupported number into a fit claim.
+function supportedComponents(option: RankedRecommendation) {
+  const claims = formatReasoningSummary(option).claims;
+  return [
+    { label: "aptitude", score: option.aptitudeFit, question: "Which study or skill requirements should you review?" },
+    { label: "demand", score: option.marketDemand, question: "What current local opportunities and entry-level roles should you check?" },
+    { label: "feasibility", score: option.financialFeasibility, question: "Which costs, entry requirements or support options need checking?" },
+  ].flatMap((component) => component.score !== null && claims.some(({ dimension }) => dimension === component.label)
+    ? [{ ...component, score: component.score }] : []);
+}
+
+function capitalize(value: string): string {
+  return value[0].toUpperCase() + value.slice(1);
 }
 
 export function documentLabel(document: string): string {

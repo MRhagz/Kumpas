@@ -53,6 +53,7 @@ import { validateRankedRecommendationList } from "@/lib/report/types";
 import { runRecommendationProvider } from "@/lib/module3/recommendation-provider";
 import { assembleReportData } from "@/lib/report/assembler";
 import { buildReportPdf } from "@/lib/report/pdf-renderer";
+import { reportPdfText } from "./report-pdf-text";
 
 const agents = Object.keys(AGENT_SILO_MAP) as AgentName[];
 const profile: ApprovedProfile = { sessionId: "synthetic", sessionTimestamp: "2026-11-07T00:00:00Z",
@@ -155,8 +156,8 @@ it.each([[agents[0]], [agents[1]], [agents[2]], [agents[0], agents[1]], [agents[
     expect((await db().query<{ recommendations: unknown }>("select recommendations from analysis_runs where run_id=$1", [run.run_id])).rows[0].recommendations).toEqual(list);
     expect(await runRecommendationProvider(profile, list).getRankedRecommendations(run.session_id)).toEqual(list);
     const payload = await assembleReportData(run.session_id, { provider: runRecommendationProvider(profile, list) });
-    const pdf = buildReportPdf(payload).toString("latin1");
-    expect(pdf).toContain("UNSCORED PARTIAL COMPARISONS");
+    const pdf = await reportPdfText(buildReportPdf(payload));
+    expect(pdf).toContain("Unscored partial comparisons");
     for (const agent of failed) expect(pdf).toContain(agent);
   });
 

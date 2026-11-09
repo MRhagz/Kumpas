@@ -3,6 +3,7 @@ import { renderToStaticMarkup } from "react-dom/server";
 import { mkdirSync, writeFileSync } from "node:fs";
 import { expect, it } from "vitest";
 import { buildReportPdf } from "@/lib/report/pdf-renderer";
+import { reportPdfText } from "./report-pdf-text";
 import { validateRankedRecommendationList } from "@/lib/report/types";
 import type { RankedRecommendation, ReportPayload } from "@/lib/report/types";
 import ReportDownloadView from "@/components/analysis/report-download-view";
@@ -25,7 +26,7 @@ const payload: ReportPayload = {
   auditTrail: recommendations.map((r) => ({ recommendationId: r.id, careerPath: r.careerPath, sources: r.sources })),
 };
 
-it("DEF-005/007 preserves the three historical totals through calculation, UI and PDF disclosure", () => {
+it("DEF-005/007 preserves the three historical totals through calculation, UI and PDF disclosure", async () => {
   const scored = alignmentScoreCalculator.calculate({ candidates: [[85, 90, 75], [80, 88, 65], [75, 82, 50]].map(([a, d, f], index) => ({
     careerPath: `Historical option ${index + 1}`, aptitudeScore: a, demandScore: d, feasibilityScore: f,
     componentEvidence: { aptitude: null, demand: null, feasibility: null }, signals: [], keySignalDetails: [], sourceReferences: [],
@@ -34,10 +35,11 @@ it("DEF-005/007 preserves the three historical totals through calculation, UI an
     aptitudeFit: path.aptitudeScore, marketDemand: path.demandScore, financialFeasibility: path.feasibilityScore, sources: [] }));
   const historical = { ...payload, rankedRecommendations: { ...payload.rankedRecommendations, recommendations: paths },
     auditTrail: paths.map(path => ({ recommendationId: path.id, careerPath: path.careerPath, sources: [] })) };
-  const pdf = buildReportPdf(historical).toString("latin1");
+  const pdf = await reportPdfText(buildReportPdf(historical));
   const html = renderToStaticMarkup(createElement(ReportDownloadView, { report: { ...historical, reportVersion: 1,
     downloadUrl: null, expiresAt: "2099-01-01T00:00:00Z", byteLength: 1, recommendationCount: paths.length, recommendations: paths }, onNewSession: () => {} }));
-  for (const score of ["84.50/100", "79.45/100", "71.55/100"]) { expect(pdf).toContain(score); expect(html).toContain(score); }
+  for (const score of ["84.50", "79.45", "71.55"]) { expect(pdf).toContain(score); expect(html).toContain(`${score}/100`); }
+  expect(pdf).toContain("overall scores are 5.05 points apart");
   expect(pdf).toContain("AI"); expect(html).toContain("AI");
   expect(pdf).toContain("not probabilities"); expect(html).toContain("not probabilities");
   expect(pdf).not.toContain("1970");
@@ -62,11 +64,11 @@ it("renders exact scores and clearly unscored partial comparisons in the report 
   expect(html).toContain("Fewer than three scored paths");
 });
 
-it("renders two-decimal PDF scores, shared ranks, unavailable components and the separate partial heading", () => {
+it("renders two-decimal PDF scores, shared ranks, unavailable components and the separate partial heading", async () => {
   const pdf = buildReportPdf(payload);
-  const text = pdf.toString("latin1");
-  expect(text).toContain("74.50/100"); expect(text).not.toContain("7450/100");
-  expect(text).toContain("Unavailable"); expect(text).toContain("Unscored partial comparison");
+  const text = await reportPdfText(pdf);
+  expect(text).toContain("74.50"); expect(text).not.toContain("7450");
+  expect(text).toContain("Unavailable"); expect(text).toContain("Unscored partial comparisons");
   expect(text).not.toContain("Recommendation null");
   if (process.env.SW16_PDF_QA_DIR) {
     mkdirSync(process.env.SW16_PDF_QA_DIR, { recursive: true });

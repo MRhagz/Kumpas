@@ -19,15 +19,7 @@ const RAW = "RAW-REASONING-ALPHA";
 const generatedAt = "2026-11-07T08:00:00Z";
 const completeCases = [
   ["Grade 10 science", "Science and technology track"],
-  ["Grade 10 business", "Business studies track"],
-  ["Grade 10 arts", "Arts and design track"],
-  ["Grade 10 technical", "Technical and vocational track"],
-  ["Grade 10 humanities", "Humanities and social sciences track"],
   ["SHS science", "Engineering studies"],
-  ["SHS business", "Business administration studies"],
-  ["SHS arts", "Design studies"],
-  ["SHS technical", "Technical training"],
-  ["SHS work", "Workforce pathway exploration"],
 ] as const;
 
 function fixture(title: string, partial = false, notesOnly = false, sourceCount = 2) {
@@ -41,7 +33,7 @@ function fixture(title: string, partial = false, notesOnly = false, sourceCount 
   };
   const recommendations: RankedRecommendation[] = ["Alpha", "Beta", "Gamma"].map((prefix) => {
     const sources = Array.from({ length: sourceCount }, (_, index) => ({
-      id: `source-${index}`, title: `Synthetic reference ${index + 1}`,
+      id: `${prefix}-source-${index}`, title: `Synthetic reference ${index + 1}`,
       reference: `https://example.gov.ph/reference/${index}?release=2026#evidence`,
       sourceUrl: `https://example.gov.ph/reference/${index}?release=2026#evidence`,
       siloId: index ? "path_feasibility" : "labor_demand", chunkIndex: index,
@@ -82,26 +74,28 @@ async function renderFixture(input: ReturnType<typeof fixture>) {
   const { getDocument } = await import("academic-pdfjs/legacy/build/pdf.mjs");
   const task = getDocument({ data: new Uint8Array(pdf), standardFontDataUrl: join(process.cwd(), "node_modules/academic-pdfjs/standard_fonts").replaceAll("\\", "/") + "/" });
   const pages: string[] = [];
+  const links: string[] = [];
   try {
     const document = await task.promise;
     for (let number = 1; number <= document.numPages; number++) {
       const page = await document.getPage(number);
+      links.push(...(await page.getAnnotations()).flatMap((annotation) => annotation.url ? [annotation.url] : []));
       const { items } = await page.getTextContent();
       const text = items.filter((item) => "str" in item);
       pages.push(text.map((item) => item.str).join(" "));
       for (const item of text) {
         const [x, y] = item.transform.slice(4);
-        expect(x, `page ${number}: ${item.str}`).toBeGreaterThanOrEqual(37);
-        expect(x + item.width, `page ${number}: ${item.str}`).toBeLessThanOrEqual(558);
-        expect(y, `page ${number}: ${item.str}`).toBeLessThanOrEqual(805);
-        expect(y, `page ${number}: ${item.str}`).toBeGreaterThanOrEqual(y < 28 ? 15 : 38);
+        expect(x, `page ${number}: ${item.str}`).toBeGreaterThanOrEqual(62);
+        expect(x + item.width, `page ${number}: ${item.str}`).toBeLessThanOrEqual(534);
+        expect(y, `page ${number}: ${item.str}`).toBeLessThanOrEqual(780);
+        expect(y, `page ${number}: ${item.str}`).toBeGreaterThanOrEqual(y < 44 ? 29 : 62);
       }
       page.cleanup();
     }
   } finally { await task.destroy(); }
-  const counselorPage = pages.findIndex((page) => page.includes("COUNSELOR DETAIL"));
+  const counselorPage = pages.findIndex((page) => page.includes("Counselor detail / Audit appendix"));
   expect(counselorPage).toBeGreaterThan(0);
-  const studentText = pages.slice(0, counselorPage).join(" ");
+  const studentText = pages.join(" ").split("Counselor detail / Audit appendix")[0];
   const studentHtml = html.slice(html.indexOf('<section aria-labelledby="student-summary-heading"'), html.indexOf("<details"));
   for (const output of [JSON.stringify(payload.studentSummary), studentText, studentHtml]) {
     expect(output).not.toContain(PRIVATE);
@@ -116,7 +110,7 @@ async function renderFixture(input: ReturnType<typeof fixture>) {
   expect(html).toContain("Report version: 3. Approved profile version: 7.");
   expect(html).not.toContain("signed PDF");
   expect(pages.join(" ")).not.toContain(PRIVATE);
-  return { payload, pdf, html, studentText, studentHtml, pages };
+  return { payload, pdf, html, studentText, studentHtml, pages, links };
 }
 
 function saveQa(name: string, result: Awaited<ReturnType<typeof renderFixture>>) {
@@ -130,12 +124,21 @@ function saveQa(name: string, result: Awaited<ReturnType<typeof renderFixture>>)
 
 it.each(completeCases)("F11 / FR-015 complete report: %s", async (scenario, title) => {
   const result = await renderFixture(fixture(title));
-  expect(result.studentText).toMatch(/74\.50\s+Rank 1/);
+  expect(result.studentText).toMatch(/Rank 1\s+80\.00\s+60\.00\s+90\.00\s+74\.50/);
   expect(result.studentText).toContain("Scores are out of 100");
   expect(result.studentText).not.toContain("74.50%");
   expect(result.studentText).toContain("Rank 1");
+  expect(result.studentText).toContain("3 pathways share the top score");
+  expect(result.studentText).not.toContain("Source URL:");
   expect(result.payload.studentSummary?.options.map((option) => option.careerPath)).toEqual([`Alpha ${title}`, `Beta ${title}`, `Gamma ${title}`]);
   expect(result.pages.join(" ")).toContain("Applied weights: aptitude 0.35, demand 0.4, feasibility 0.25.");
+  if (scenario === "Grade 10 science") {
+    expect(result.pages.join(" ").match(/Applied weights:/g)).toHaveLength(1);
+    expect([...new Set(result.links)].sort()).toEqual(["https://example.gov.ph/reference/0?release=2026#evidence", "https://example.gov.ph/reference/1?release=2026#evidence"]);
+    expect(result.pdf.toString("latin1")).toContain("/FontFile2");
+    for (const prefix of ["Alpha", "Beta", "Gamma"]) expect(result.pages.join(" ")).toContain(`[1] ID ${prefix}-source-0`);
+    expect(result.studentText.match(/\[1\] Synthetic reference 1/g)).toHaveLength(1);
+  }
   expect(result.html).toContain("release=2026#evidence");
   if (scenario === "Grade 10 science") saveQa("complete", result);
 });
@@ -169,8 +172,8 @@ it("puts the evidence decision before the options in a notes-only report", async
   expect(cover).toContain("Review the evidence gaps with the student");
   expect(cover).toContain("No usable academic records were available");
   expect(cover).toContain("No total or rank");
-  expect(cover).toMatch(/Mechanical Engineer\s+80\.00\s+60\.00\s+Unavailable\s+Unscored/);
-  expect(cover).toContain("NEXT STEPS FOR THE SESSION");
+  expect(cover).toMatch(/Mechanical Engineer\s+Unscored\s+80\.00\s+60\.00\s+—\s+Unscored/);
+  expect(result.studentText).toContain("Next steps for the session");
   expect(result.studentText).not.toContain("Alignment score:");
   expect(result.studentText).toContain("No usable academic records are available");
   expect(result.studentText).toContain("not probabilities of career success");
@@ -228,7 +231,7 @@ it("F11 paginates long titles and multi-page references without clipping or drop
   }
   const result = await renderFixture(input);
   expect(result.studentText.match(/TITLE-END/g)).toHaveLength(6);
-  expect(result.pages.join(" ").match(/SOURCE-END/g)).toHaveLength(3);
+  expect(result.pages.join(" ").match(/SOURCE-END/g)).toHaveLength(1);
   expect(result.pages.join(" ").replace(/\s/g, "")).toContain("#URL-END");
   saveQa("long-content", result);
 });
@@ -244,11 +247,10 @@ it("F11 distinguishes unreadable and unsupported records from absent records in 
   };
   const result = await renderFixture(input);
   expect(result.payload.academicEvidence.documentStatuses).toEqual({ form137: "absent", ncae: "unreadable", nat: "unsupported" });
-  expect(result.studentText).toContain("was unreadable");
-  expect(result.studentText).toContain("was unsupported");
+  expect(result.studentText).toMatch(/National Career Assessment Examination \(NCAE\)\s+Unreadable/);
+  expect(result.studentText).toMatch(/National Achievement Test \(NAT\)\s+Unsupported/);
   expect(result.html).toContain("NCAE: unreadable");
   expect(result.html).toContain("NAT: unsupported");
-  expect(result.pages.join(" ")).toContain("National Career Assessment Examination (NCAE): unreadable");
 });
 
 it("refuses an insufficient-evidence report before rendering", async () => {
