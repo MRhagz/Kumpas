@@ -64,8 +64,8 @@ Credential verification on 9 November: [DOLE run 42575789219](https://github.com
 passes with three PDFs, zero failed files and 604 unchanged chunks. The
 [PSA run](https://github.com/MRhagz/Kumpas/actions/runs/42575765799) authenticates
 and writes its sanitized failure log, then rejects the missing `PSA_SOURCE_URL`.
-Its bundled CSV is documented as illustrative; the operator must supply verified
-data and its official table URL before a live refresh. The
+The operator confirmed the bundled CSV is correct and supplied
+`https://openstat.psa.gov.ph/Database` as its source URL on 9 November 2026. The
 [maintenance run](https://github.com/MRhagz/Kumpas/actions/runs/42575755668) fails
 before credential validity can be established. A direct libpq check with dummy
 credentials reproduces the URI/default-socket problem and verifies the explicit

@@ -57,7 +57,7 @@ government statistics belong here; never commit student/session content.
 ```bash
 python -m pip install -e './ingestion[psa]'
 export PSA_OPENSTAT_URL="file://$PWD/ingestion/data/psa/sample_lfs.csv"
-export PSA_SOURCE_URL="https://openstat.psa.gov.ph/" # use the exact official table URL
+export PSA_SOURCE_URL="https://openstat.psa.gov.ph/Database"
 # Set PSA_PUBLICATION_DATE=YYYY-MM-DD when the release date is known.
 python -m kumpas_ingestion.pipelines.psa --validate-only
 python -m unittest discover -s ingestion/tests -v
@@ -81,10 +81,6 @@ the operator's configured official source URL. It does not certify source data.
 - A validated replacement removes superseded PSA records atomically. Unchanged
   reruns reuse stored embeddings and preserve record timestamps and successful
   freshness markers. Embedding/write failures retain the previous valid batch.
-- The current `sample_lfs.csv` contains illustrative values — they
-  are not the real PSA-published numbers. Do not let placeholder rows
-  leak into a live counseling deployment without first replacing them
-  with verified PSA data through the refresh procedure above.
 
 ## Future automation paths
 
