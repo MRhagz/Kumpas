@@ -14,6 +14,7 @@ let failSave: boolean;
 let uploadPending: boolean;
 let savedNotes: typeof notes & { revision: number; source: null; original: null };
 beforeEach(() => {
+  localStorage.setItem("kumpas:processing-notice:v1", "acknowledged");
   m.search = "session=saved"; vi.clearAllMocks();
   failSave = false; uploadPending = false; documents = []; savedNotes = { ...notes, revision: 0, source: null, original: null };
   vi.stubGlobal("fetch", vi.fn(async (url: string, init?: RequestInit) => {
@@ -33,7 +34,7 @@ beforeEach(() => {
     return Response.json({ revision: savedNotes.revision });
   }));
 });
-afterEach(() => { cleanup(); vi.unstubAllGlobals(); });
+afterEach(() => { cleanup(); localStorage.clear(); vi.unstubAllGlobals(); });
 const types = ["ncae", "nat", "form_137"] as const;
 function seed(mask: number) {
   documents = types.flatMap((type, i) => {
@@ -51,12 +52,10 @@ it.each(Array.from({ length: 8 }, (_, i) => i))("restores optional document comb
   expect(calls).toHaveLength(2);
   expect(screen.getByRole("textbox", { name: "Career Goal (required)" }).innerHTML).toBe(notes.careerGoal);
   expect(screen.queryAllByText(/Review needed/).length > 0 || mask === 0).toBeTruthy();
-  expect((screen.getByRole("checkbox", { name: /I have read this notice/ }) as HTMLInputElement).checked).toBe(false);
 });
 it("edits/clears every academic category and notes, then restores exact saved values with provenance", async () => {
   seed(7); const view = render(<InputContainer />);
   await screen.findByRole("textbox", { name: "Career Goal (required)" });
-  fireEvent.click(screen.getByRole("checkbox", { name: /I have read this notice/ }));
   for (const label of ["Overall percentile", "NAT composite", "Mathematics · Grade level unavailable · 2025"]) {
     fireEvent.change(screen.getByRole("spinbutton", { name: label }), { target: { value: "" } });
   }
@@ -79,7 +78,6 @@ it("edits/clears every academic category and notes, then restores exact saved va
 });
 it("preserves edits on save failure and enables retry without allowing approval", async () => {
   render(<InputContainer />); await screen.findByRole("textbox", { name: "Career Goal (required)" });
-  fireEvent.click(screen.getByRole("checkbox", { name: /I have read this notice/ }));
   fireEvent.input(screen.getByRole("textbox", { name: "Career Goal (required)" }), { target: { innerHTML: "<p>Engineering</p>" } });
   failSave = true; fireEvent.click(screen.getByRole("button", { name: "Save draft" }));
   await screen.findByRole("alert");
@@ -92,7 +90,7 @@ it("preserves edits on save failure and enables retry without allowing approval"
 it("shows unsupported evidence without invented editable scores or a retained-image viewer", async () => {
   seed(2); documents[0].evidence_state = "unsupported"; documents[0].structured_data = normalizeAcademicData("nat", {});
   render(<InputContainer />); await screen.findByRole("textbox", { name: "Career Goal (required)" });
-  expect(screen.getByText(/No usable scores/)).toBeTruthy();
+  expect(screen.getByText(/No usable scores were extracted/)).toBeTruthy();
   expect(screen.queryByRole("spinbutton")).toBeNull();
   expect(screen.queryByRole("img")).toBeNull();
 });
@@ -117,7 +115,6 @@ it("returns to an approved session for corrections and approves the saved revisi
   render(<InputContainer />);
   await screen.findByRole("textbox", { name: "Career Goal (required)" });
   expect(m.router.replace).not.toHaveBeenCalled();
-  fireEvent.click(screen.getByRole("checkbox", { name: /I have read this notice/ }));
   fireEvent.input(screen.getByRole("textbox", { name: "Career Goal (required)" }), { target: { innerHTML: "<p>Engineering</p>" } });
   fireEvent.click(screen.getByRole("button", { name: "Save draft" }));
   await waitFor(() => expect(screen.getByText(/Draft saved/)).toBeTruthy());
