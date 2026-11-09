@@ -156,6 +156,23 @@ it("F11 renders partial, fewer-path and missing-date evidence without inventing 
   saveQa("partial", result);
 });
 
+it("puts the evidence decision before the options in a notes-only report", async () => {
+  const input = fixture("Career exploration", true, true);
+  const paths = ["Electronics / Electrical Technician", "Mechanical Engineer", "Software Engineer"];
+  input.list.recommendations.forEach((option, index) => { option.careerPath = paths[index]; });
+  const result = await renderFixture(input);
+  const cover = result.pages[0];
+
+  expect(cover).toContain("Explore options before ranking them");
+  expect(cover.indexOf("Explore options before ranking them")).toBeLessThan(cover.indexOf(paths[0]));
+  expect(cover).toContain("Review the evidence gaps with the student");
+  expect(cover).toContain("No total or rank");
+  expect(result.studentText).not.toContain("Alignment score:");
+  expect(result.studentText).toContain("No usable academic records are available");
+  expect(result.studentText).toContain("not probabilities of career success");
+  saveQa("counselor-discussion-sample", result);
+});
+
 it("F11 keeps notes-only evidence self-reported and withholds an echoed confidential option title", async () => {
   const input = fixture(`${PRIVATE}-FINANCIAL training`, true, true);
   const result = await renderFixture(input);
