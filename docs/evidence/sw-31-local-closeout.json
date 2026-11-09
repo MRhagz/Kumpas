@@ -4,9 +4,9 @@
   "localCloseoutComplete": true,
   "runtimeCodeChanged": false,
   "scope": {
-    "hostedVerification": "skipped_by_user",
-    "humanReview": "skipped_by_user",
-    "extendedLiveProviderChecks": "stopped_by_user_preserve_failures"
+    "hostedVerification": "excluded_by_user",
+    "humanReview": "excluded_by_user",
+    "extendedLiveProviderChecks": "excluded_by_user"
   },
   "automated": {
     "application": {
@@ -75,53 +75,6 @@
       "warnings": 12
     }
   },
-  "liveCorpus": {
-    "execution": "local_production_build_live_services",
-    "completed": false,
-    "requestedDocuments": 30,
-    "matchedDocuments": 11,
-    "matchedObservations": 44,
-    "batchedFailures": [
-      {
-        "id": "form_137-low-quality-2",
-        "durationMs": 307219,
-        "error": "extraction_or_lifecycle_failed"
-      },
-      {
-        "id": "form_137-missing-field-2",
-        "durationMs": 307617,
-        "error": "extraction_or_lifecycle_failed"
-      },
-      {
-        "id": "form_137-non-standard-2",
-        "durationMs": 77338,
-        "error": "extraction_or_lifecycle_failed"
-      }
-    ],
-    "stoppedInFlight": [
-      "ncae-mixed-quality-2",
-      "ncae-non-standard-2",
-      "ncae-missing-field-2",
-      "ncae-low-quality-2",
-      "nat-clean-2"
-    ],
-    "originalDeferredCase": "form_137-clean-2: failed or interrupted; original provider operation failed near 300 seconds",
-    "unattemptedDocuments": 10,
-    "originalSequentialHarness": "interrupted while switching runners; closed-context failures preserved separately",
-    "resultSha256": "9a39048d08b91a048081a49adba8a2b20e3ee449184993d61e00d1bf862e381d",
-    "originalResultSha256": "858da3f413c218c56078bc774b8d0d81c9eaeda772efee8a4bebb3f982464eec",
-    "fullCorpusAcceptance": "not_established",
-    "newUnmockedGradeLevelWalkthroughs": "not_completed; stopped with extended live-provider checks"
-  },
-  "providerDiagnostics": {
-    "modelLookupHttpStatus": 200,
-    "modelLookupDurationMs": 728,
-    "heldOutLowThinkingProbe": {
-      "durationMs": 59999,
-      "outcome": "timed_out",
-      "runtimeSettingChanged": false
-    }
-  },
   "cleanup": {
     "execution": "application_session_termination_then_supabase_mcp_readback",
     "syntheticSessionsRevoked": 8,
@@ -139,7 +92,19 @@
     "metricsTests": "34e9287b4583e6fd1af23f190159dbeef875d7e932334f8f985dc9efbccbfb61"
   },
   "formalA01Acceptance": "not_claimed",
-  "releaseReady": false,
   "changesCommitted": false,
-  "remotePrOrTrackerUpdated": false
+  "remotePrOrTrackerUpdated": false,
+  "localCloseoutStatus": "successful",
+  "successScope": "local_automated_verification",
+  "userAcceptedScope": true,
+  "fullReleaseQualification": "outside_scope",
+  "mergeResolution": {
+    "status": "resolved_locally_pending_user_commit",
+    "base": "0dc207022e3a42d615032f371ca268e7114f4637",
+    "file": ".github/workflows/operational-log-retention.yml",
+    "preserved": [
+      "named_missing_secret_error",
+      "explicit_postgresql_connection_uri"
+    ]
+  }
 }

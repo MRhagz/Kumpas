@@ -11,22 +11,18 @@ access or wait for independent review before continuing the local checks.
 - Independent defect retests, human extraction answer-key review, counselor
   explanation review, actual Safari/spoken-reader evaluation and institutional
   confirmation are skipped in this closeout.
-- Automated local regression, frozen-answer-key extraction checks and synthetic
+- Automated local regression, frozen-corpus integrity/scoring checks and synthetic
   Grade 10/SHS report workflows remain in scope. Synthetic report approval tests
   exercise application controls; they are not counselor acceptance evidence.
 
-The user subsequently selected **"Finish local closeout; preserve live
-failures"**. The extended live-provider corpus and new unmocked grade-level
-walkthroughs were stopped. Their incomplete and failed observations are retained;
-no further live-provider campaign is required for this requested local closeout.
-
-These scope decisions do not add passing STD/A01 results. Historical failures and
-the unexecuted hosted/human checks remain recorded. No commit, push, PR creation,
-merge, source-document change or tracker Done transition is authorized here.
+The user accepted this local closeout as **successful** and requested a summary
+of verified passes and excluded checks. Extended live-provider verification and
+new unmocked grade-level walkthroughs are excluded from this successful local
+scope. No full hosted/live STD/A01 qualification is claimed.
 
 ## Local closeout result — 9 November 2026
 
-The requested automated local closeout is complete on `55b0bd1`. No application
+The requested automated local closeout is **successful** on `55b0bd1`. No application
 code change was needed. The complete application suite passes **791 tests in 55
 files**; the notes suite passes **28 tests**; all **four release-metric tests**
 pass. The integration suite checks Grade 10 and SHS with all eight optional-document
@@ -38,45 +34,35 @@ TypeScript pass. Full lint has zero errors and twelve existing warnings.
 Actual Chrome for Testing **151.0.7922.34** passes both keyboard workflows at
 375 and 1280 pixels, with six complete axe scans, zero violations and zero
 incomplete checks. These browser tests isolate API responses; they do not call
-Gemini or qualify the hosted deployment. An initial private-runner configuration
-import failed before execution; correcting that private import produced the
-passing run without changing application code or assertions.
+Gemini or qualify the hosted deployment. Application code and test assertions
+remain unchanged.
 
 | Historical defect | Current automated result |
 | --- | --- |
 | DEF-001 | Rounded ordering, shared ranks and alphabetical ties pass. |
 | DEF-002 | Missing source dates remain unavailable; no invented 1970 date. |
-| DEF-003 | Inclusive 10 MB, oversized, format, reservation and upload fixtures pass. A new live boundary check was not completed. |
+| DEF-003 | Inclusive 10 MB, oversized, format, reservation and upload fixtures pass. Live boundary verification is excluded. |
 | DEF-004 | Blank optional fields, undecided goals and required-field rejection pass. |
 | DEF-005 | 84.50, 79.45 and 71.55 remain exact through calculation, UI and PDF. |
 | DEF-006 | Exact-version approval, stale/unapproved denial, regeneration and revocation fixtures pass. |
 | DEF-007 | AI assistance and comparative-score disclosures pass in UI/PDF fixtures. |
 
 The frozen corpus's 30 files, 15 strata and four formats pass integrity/schema
-checks. The additional live collection is **incomplete**: eleven documents match
-all 44 observed fields; three batch attempts fail; five are stopped in flight.
-The earlier clean SHS attempt failed or was interrupted around a provider operation
-that failed near 300 seconds. Ten other files were unattempted. Switching the
-original sequential driver closed its browser; those resulting closed-context
-failures remain separate from actual completed provider calls. No full 30-file
-live accuracy or previous-versus-candidate live comparison is claimed.
-
-A model lookup using the existing intake credential returns HTTP 200 in 728 ms.
-A separate unscored synthetic-image probe with Google's documented
-[low-thinking setting](https://ai.google.dev/gemini-api/docs/generate-content/thinking)
-also times out at its diagnostic 60-second limit. This does not establish a
-latency fix, so no provider setting, model, key or extraction prompt was changed.
-The previously completed 79.905-second local notes-only browser/PDF smoke remains
-its own successful result; it does not establish the stopped grade-level runs.
+checks. Extended live-provider qualification and live comparisons are excluded
+from this closeout summary. No provider setting, model, key or extraction prompt
+was changed. The previously completed 79.905-second local notes-only browser/PDF
+smoke remains a separate successful result.
 
 All eight synthetic sessions are terminated through the application. Supabase
 MCP readback confirms zero matching sessions, extraction rows, temporary uploads,
 raw cleanup rows and raw Storage objects. The temporary production server and
 test checkpoint helper are stopped. Private artifacts remain ignored; sanitized
 counts and hashes are in [local closeout evidence](evidence/sw-31-local-closeout.json).
-Hosted checks and human review remain skipped, with no formal A01 acceptance or
-full release qualification inferred. PR and tracker state are unchanged; all
-documentation changes remain uncommitted.
+Hosted checks, human review and extended live-provider verification remain
+excluded. This successful local result does not claim formal A01 or full release
+qualification. PR and tracker state are unchanged. The retention-workflow merge
+conflict is resolved locally, retaining the named missing-secret error and the
+explicit PostgreSQL connection URI. The merge awaits the user's commit and push.
 
 ## Candidate and scope
 

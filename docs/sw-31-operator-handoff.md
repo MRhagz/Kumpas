@@ -10,14 +10,15 @@ requirements below describe the original full qualification, which is not
 claimed by this reduced scope. The [current verification record](sw-31-verification.md#current-user-scope--9-november-2026)
 tracks the decision; skipped checks do not become passing evidence.
 
-Local closeout is complete: 791 application tests, 28 notes tests, four metric
+Local closeout is successful: 791 application tests, 28 notes tests, four metric
 tests, two Chrome fixture workflows and six complete axe scans pass. Build,
 TypeScript and runtime checks pass; lint has zero errors and twelve existing
-warnings. The user stopped the extended live-provider checks and requested that
-their failures be preserved. No additional provider run or human approval is
+warnings. The user accepted the local result with hosted verification, human
+review and extended live-provider verification excluded. No additional provider run or human approval is
 needed to finish this reduced scope. See [the final evidence](evidence/sw-31-local-closeout.json)
-for the incomplete live corpus and Supabase MCP's zero-artifact cleanup readback.
-No commit, push, merge or tracker Done transition was performed.
+for the verified results and Supabase MCP's zero-artifact cleanup readback.
+The retention-workflow merge conflict is resolved locally; the merge awaits the
+user's commit and push. PR and tracker state are unchanged.
 
 Earlier current-environment checkpoint: the supplied existing counselor account
 authenticates successfully. All three specialists and a complete synthetic
