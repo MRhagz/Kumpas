@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { cleanup, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import ConfirmationApprovalBar from "@/components/input/confirmation-approval-bar";
 import InputContainer from "@/components/input/input-container";
@@ -12,7 +12,7 @@ vi.mock("@/components/input/ingestion-freshness-panel", () => ({ default: () => 
 vi.mock("@/components/input/document-upload-panel", () => ({ default: () => <p>Optional academic documents</p> }));
 
 const notes = { careerGoal: "<b>Undecided</b>", interests: "<ul><li>Mathematics</li></ul>", financial: "", concerns: "", impression: "" };
-afterEach(() => { cleanup(); vi.unstubAllGlobals(); });
+afterEach(() => { cleanup(); localStorage.clear(); vi.unstubAllGlobals(); });
 
 describe("F04 client approval", () => {
   it.each(["financial", "concerns", "impression"])("allows a blank %s", (field) => {
@@ -37,6 +37,7 @@ describe("F04 client approval", () => {
 describe("F05 / S01 / S02 typed-only intake", () => {
   let outbound: ReturnType<typeof vi.fn>;
   beforeEach(() => {
+    localStorage.clear();
     push.mockClear();
     outbound = vi.fn(async (url: string) => {
       if (url === "/api/sessions") return Response.json({ sessionId: "test" });
@@ -50,9 +51,17 @@ describe("F05 / S01 / S02 typed-only intake", () => {
     const user = userEvent.setup();
     render(<InputContainer />);
     await waitFor(() => expect(outbound).toHaveBeenCalled());
-    expect(screen.getByRole("complementary", { name: "Processing and privacy notice" })).toBeTruthy();
+    const orientation = await screen.findByRole("dialog", { name: "Your counseling workflow" });
+    await user.click(within(orientation).getByRole("button", { name: "Skip orientation" }));
+    const notice = await screen.findByRole("dialog", { name: "Before processing student information" });
+    expect(within(notice).getByText(/Grade 10 and Senior High School students/)).toBeTruthy();
     expect((document.querySelector("#notes-file-input") as HTMLInputElement).disabled || document.querySelector("fieldset[disabled]")).toBeTruthy();
-    await user.click(screen.getByRole("checkbox", { name: /I have read this notice/ }));
+    const continueIntake = within(notice).getByRole("button", { name: "Continue to intake" });
+    expect((continueIntake as HTMLButtonElement).disabled).toBe(true);
+    await user.click(within(notice).getByRole("checkbox", { name: /I have read this notice/ }));
+    expect((continueIntake as HTMLButtonElement).disabled).toBe(false);
+    await user.click(continueIntake);
+    await waitFor(() => expect(screen.queryByRole("dialog", { name: "Before processing student information" })).toBeNull());
     await user.click(screen.getByRole("tab", { name: /Manual Input/ }));
     const goal = screen.getByRole("textbox", { name: "Career Goal (required)" });
     const interests = screen.getByRole("textbox", { name: "Personal Interests & Strengths (required)" });
@@ -77,6 +86,5 @@ describe("F05 / S01 / S02 typed-only intake", () => {
     const payload = JSON.parse(outbound.mock.calls.at(-1)![1].body);
     expect(payload).toEqual({ notesReviewed: true, counselorNotes: { ...notes, careerGoal: "<p>Undecided</p>", interests: `<p>${scope}; mathematics</p>` }, profileVersion: 0, notesRevision: 1, documents: [] });
     expect(JSON.stringify(payload)).not.toContain("PRIVATE-NOTE-ALPHA");
-    expect(screen.getByText(/Grade 10 and Senior High School students/)).toBeTruthy();
   });
 });
