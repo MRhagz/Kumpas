@@ -59,7 +59,11 @@ for (const width of [375, 1280]) test(`keyboard workflow and WCAG 2.1 AA at ${wi
         : audit.getByRole('heading',{name:'Counselor review',exact:true})).toBeVisible();
       if (stage === 'intake') {
         await audit.getByRole('checkbox',{name:/I have read this notice/}).check();
-        await expect(audit.locator('.animate-fade-in').first()).toHaveCSS('opacity','1');
+        // Nested notes panels can start fading after the outer intake panel.
+        // Audit the settled UI rather than transient low-opacity text.
+        for (const panel of await audit.locator('.animate-fade-in').all()) {
+          await expect(panel).toHaveCSS('opacity','1');
+        }
       }
       expect(await audit.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
       expect(await audit.locator('iframe, frame').count()).toBe(0);
