@@ -54,3 +54,20 @@ The original checkout initially protected `.git` as read-only, so the first comm
 - Student reasons and lowest-component considerations separate the numeric values from explanatory prose. The two known stored-summary sentence formats are split for browser presentation; other wording is retained verbatim. Stored report content and PDF generation are unchanged.
 - Approval is the primary filled green action; preview uses a secondary outlined treatment. Input correction and regeneration share a separate revision group, and rejection has its own red action row. Icons, descriptive groups and disabled states retain existing review behavior.
 - Follow-up validation: 79 focused tests passed. All eight Chrome scenarios passed across the initial successful cases and the three report comparison reruns after correcting a test selector for the separate score denominator. Responsive screenshots were inspected; report WCAG AA scans found zero violations. TypeScript, targeted lint and whitespace checks passed.
+
+## Final counselor UX pass
+
+Remaining issues identified before this pass:
+
+1. Source-currency jargon remained in the supporting sources and student limitations.
+2. The approved download button blended into its dark card.
+3. A temporarily disabled download incorrectly used the expired-link label.
+4. A rejected version still displayed draft/download-approval instructions in its download card.
+5. Mobile path selection lacked a nearby way to jump to the updated evidence, and long reports required scrolling back to the comparison or review controls.
+6. Fragment targets and the sticky academic panel could overlap the application's sticky header; expandable details had small phone touch targets.
+
+Changes: plain-language source warnings and an “Information to check” disclosure; a full-width, high-contrast download button; separate disabled and expired states; accurate draft/approved/rejected guidance; live selection announcements with explicit detail/comparison/review links; keyboard-focusable fragment targets with header clearance; larger disclosure targets and accessible new-tab descriptions for source links. The agreed green component scores and visual size hierarchy are retained. Generation, scoring, report approval rules and PDF content are unchanged.
+
+Validation: reproduced the rejected-state and disabled-download label defects with regression tests before fixing them. All 117 focused tests across ten suites passed. All ten Chrome browser scenarios passed, covering responsive report comparison, partial/long/expired mobile reports, rejected-state recovery at mobile/desktop widths and the existing intake-to-download keyboard workflows. Draft, approved-download and rejected-state WCAG AA scans found zero violations. TypeScript, targeted lint, whitespace checks and the production build passed. Desktop/mobile screenshots were inspected using synthetic reports; no live student records were required.
+
+Assessment: no further major layout change is indicated by this pass. The remaining validation opportunity is observing counselors use representative reports in actual counseling sessions, especially comparing several paths and locating missing evidence.

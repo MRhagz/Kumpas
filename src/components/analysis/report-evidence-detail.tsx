@@ -100,7 +100,7 @@ export default function ReportEvidenceDetail({
                   )}
                   {claim && (
                     <details className="mt-3 text-xs text-muted-text">
-                      <summary className="cursor-pointer font-medium">
+                      <summary className="min-h-8 cursor-pointer py-1 font-medium">
                         Evidence trail
                       </summary>
                       <ul className="mt-2 list-disc space-y-1 pl-4">
@@ -151,8 +151,11 @@ export default function ReportEvidenceDetail({
                 aria-hidden="true"
                 className="mt-0.5 shrink-0"
               />
-              Source currency is unverified. Check for outdated or superseding
-              evidence.
+              Sources may be outdated. Check for newer information before using
+              this guidance.
+            </p>
+            <p id={`${prefix}-new-tab`} className="sr-only">
+              Source links open in a new tab.
             </p>
             <ol className="mt-4 space-y-3">
               {sources.map((source, index) => {
@@ -165,7 +168,7 @@ export default function ReportEvidenceDetail({
                     key={`${source.id}-${index}`}
                     id={`${prefix}-source-${index}`}
                     tabIndex={-1}
-                    className="scroll-mt-6 rounded-lg border border-black/10 p-3 target:ring-2 target:ring-forest/40"
+                    className="scroll-mt-32 rounded-lg border border-black/10 p-3 target:ring-2 target:ring-forest/40"
                   >
                     <div className="flex items-start gap-3">
                       <span className="flex size-7 shrink-0 items-center justify-center rounded bg-forest/10 text-xs font-bold text-forest">
@@ -177,12 +180,13 @@ export default function ReportEvidenceDetail({
                             href={url}
                             target="_blank"
                             rel="noopener noreferrer"
-                            className="inline-flex items-start gap-2 text-sm font-semibold text-forest underline decoration-forest/30 underline-offset-4"
+                            aria-describedby={`${prefix}-new-tab`}
+                            className="inline-flex min-h-6 items-start gap-2 text-sm font-semibold text-forest underline decoration-forest/30 underline-offset-4"
                           >
                             {source.title}
                             <ExternalLink
                               size={14}
-                              aria-label="Opens in a new tab"
+                              aria-hidden="true"
                               className="mt-0.5 shrink-0"
                             />
                           </a>
@@ -198,7 +202,7 @@ export default function ReportEvidenceDetail({
                           {!url && " · Public link unavailable"}
                         </p>
                         <details className="mt-2 text-xs text-muted-text">
-                          <summary className="cursor-pointer font-medium">
+                          <summary className="min-h-8 cursor-pointer py-1 font-medium">
                             Source details
                           </summary>
                           <dl className="mt-2 space-y-2 break-words">

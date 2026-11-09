@@ -124,8 +124,8 @@ export function reportFixture(scenario = "complete"): ReportGenerationResponse {
     reportVersion: 2,
     approvedProfileVersion: 3,
     runId: "synthetic-run",
-    reviewStatus: "draft",
-    previewUrl: "/synthetic-preview.pdf",
+    reviewStatus: scenario === "rejected" ? "rejected" : "draft",
+    previewUrl: scenario === "rejected" ? null : "/synthetic-preview.pdf",
     downloadUrl: null,
     generatedAt: "2026-11-10T08:00:00Z",
     expiresAt:

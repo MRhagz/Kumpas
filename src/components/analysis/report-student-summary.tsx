@@ -11,8 +11,9 @@ export default function StudentSummaryView({
   return (
     <section
       id="student-summary"
+      tabIndex={-1}
       aria-labelledby="student-summary-heading"
-      className="mb-8 scroll-mt-6 rounded-xl border border-black/10 bg-white p-5 shadow-card sm:p-6"
+      className="mb-8 scroll-mt-32 rounded-xl border border-black/10 bg-white p-5 shadow-card sm:p-6"
     >
       <div className="mb-5 flex items-start gap-3">
         <Compass
@@ -62,7 +63,7 @@ export default function StudentSummaryView({
               label={`${option.careerPath} alignment`}
             />
             <details className="group mt-4 border-t border-black/10 pt-3">
-              <summary className="cursor-pointer text-sm font-semibold text-forest">
+              <summary className="min-h-8 cursor-pointer py-1 text-sm font-semibold text-forest">
                 Why this option?
               </summary>
               <ul className="mt-3 space-y-3 text-sm leading-relaxed text-muted-text">
@@ -89,7 +90,7 @@ export default function StudentSummaryView({
       </div>
       <div className="mt-5 divide-y divide-black/10 rounded-lg border border-black/10">
         <details className="p-3 text-sm">
-          <summary className="cursor-pointer font-semibold text-ink">
+          <summary className="min-h-8 cursor-pointer py-1 font-semibold text-ink">
             How to read these comparisons
           </summary>
           <div className="mt-3 space-y-2 leading-relaxed text-muted-text">
@@ -100,15 +101,20 @@ export default function StudentSummaryView({
         </details>
         {summary.limitations.length > 0 && (
           <details className="p-3 text-sm">
-            <summary className="cursor-pointer font-semibold text-amber-900">
-              Limits to discuss{" "}
+            <summary className="min-h-8 cursor-pointer py-1 font-semibold text-amber-900">
+              Information to check{" "}
               <span className="ml-1 rounded-full bg-amber-100 px-2 py-0.5 text-xs">
                 {summary.limitations.length}
               </span>
             </summary>
             <ul className="mt-3 list-disc space-y-2 pl-5 leading-relaxed text-muted-text">
               {summary.limitations.map((limitation) => (
-                <li key={limitation}>{limitation}</li>
+                <li key={limitation}>
+                  {limitation.replace(
+                    "Source currency is unverified.",
+                    "These sources may be outdated.",
+                  )}
+                </li>
               ))}
             </ul>
           </details>
