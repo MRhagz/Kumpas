@@ -14,6 +14,7 @@ const nextConfig: NextConfig = {
     "/api/**": ["./node_modules/@img/sharp-linux-x64/**/*", "./node_modules/@img/sharp-libvips-linux-x64/**/*"],
     "/api/sessions/*/upload": pdfAssets,
     "/api/extract-document": pdfAssets,
+    "/api/reports": ["./node_modules/academic-pdfjs/standard_fonts/LiberationSans-{Regular,Bold}.ttf"],
   },
 };
 

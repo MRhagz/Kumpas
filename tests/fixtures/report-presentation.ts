@@ -150,6 +150,10 @@ export function reportFixture(scenario = "complete"): ReportGenerationResponse {
         : {}),
     },
     studentSummary: {
+      takeaway: "Top two pathways: 7.50 points apart",
+      findings: [
+        "Review practical requirements and any missing evidence with your counselor.",
+      ],
       disclosure:
         "AI-generated comparisons use counselor-confirmed inputs. Your counselor reviews the evidence and helps you decide.",
       scoreExplanation:

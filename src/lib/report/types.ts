@@ -30,6 +30,7 @@ export interface StudentProfile {
 export interface RecommendationSource {
   id: string;
   title: string;
+  publisher?: string | null;
   reference: string;
   acquisitionMethod: SourceAcquisitionMethod;
   ingestionTimestamp: string | null;
@@ -86,6 +87,8 @@ export interface AcademicEvidenceSummary {
 }
 
 export interface StudentReportSummary {
+  takeaway: string;
+  findings: string[];
   disclosure: string;
   scoreExplanation: string;
   scope: string;
@@ -103,7 +106,7 @@ export interface StudentReportSummary {
 
 /** Bump the content version when changing the assembled student projection. */
 export function reportContentMarker(reportVersion: number | null | undefined, profileVersion: number | null | undefined): string {
-  return `% Kumpas two-audience-v1 report=${reportVersion ?? "unavailable"} profile=${profileVersion ?? "unavailable"}\n`;
+  return `% Kumpas two-audience-v2 report=${reportVersion ?? "unavailable"} profile=${profileVersion ?? "unavailable"}\n`;
 }
 
 export interface AuditTrailEntry {
