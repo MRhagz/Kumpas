@@ -130,7 +130,8 @@ function saveQa(name: string, result: Awaited<ReturnType<typeof renderFixture>>)
 
 it.each(completeCases)("F11 / FR-015 complete report: %s", async (scenario, title) => {
   const result = await renderFixture(fixture(title));
-  expect(result.studentText).toContain("74.50 out of 100");
+  expect(result.studentText).toMatch(/74\.50\s+Rank 1/);
+  expect(result.studentText).toContain("Scores are out of 100");
   expect(result.studentText).not.toContain("74.50%");
   expect(result.studentText).toContain("Rank 1");
   expect(result.payload.studentSummary?.options.map((option) => option.careerPath)).toEqual([`Alpha ${title}`, `Beta ${title}`, `Gamma ${title}`]);
@@ -163,11 +164,13 @@ it("puts the evidence decision before the options in a notes-only report", async
   const result = await renderFixture(input);
   const cover = result.pages[0];
 
-  expect(cover).toContain("Explore options before ranking them");
-  expect(cover.indexOf("Explore options before ranking them")).toBeLessThan(cover.indexOf(paths[0]));
+  expect(cover).toContain("No overall ranking");
+  expect(cover.indexOf("No overall ranking")).toBeLessThan(cover.indexOf(paths[0]));
   expect(cover).toContain("Review the evidence gaps with the student");
   expect(cover).toContain("No usable academic records were available");
   expect(cover).toContain("No total or rank");
+  expect(cover).toMatch(/Mechanical Engineer\s+80\.00\s+60\.00\s+Unavailable\s+Unscored/);
+  expect(cover).toContain("NEXT STEPS FOR THE SESSION");
   expect(result.studentText).not.toContain("Alignment score:");
   expect(result.studentText).toContain("No usable academic records are available");
   expect(result.studentText).toContain("not probabilities of career success");
@@ -188,6 +191,8 @@ it("F11 withholds legacy explanation prose rather than rewriting it as establish
   for (const option of input.list.recommendations) option.reasoningSummary = RAW;
   const result = await renderFixture(input);
   expect(result.studentText).toContain("Evidence summary unavailable");
+  expect(result.pages[0]).not.toContain("80.00");
+  expect(result.pages[0]).toContain("Unavailable");
   expect(result.payload.studentSummary?.options[0].reasons).toHaveLength(1);
 });
 
@@ -222,7 +227,7 @@ it("F11 paginates long titles and multi-page references without clipping or drop
     option.sources[17].sourceUrl = `https://example.gov.ph/${"longpath".repeat(35)}?release=2026#URL-END`;
   }
   const result = await renderFixture(input);
-  expect(result.studentText.match(/TITLE-END/g)).toHaveLength(3);
+  expect(result.studentText.match(/TITLE-END/g)).toHaveLength(6);
   expect(result.pages.join(" ").match(/SOURCE-END/g)).toHaveLength(3);
   expect(result.pages.join(" ").replace(/\s/g, "")).toContain("#URL-END");
   saveQa("long-content", result);
