@@ -29,6 +29,13 @@ for (const width of [375, 768, 1280])
     await expect(
       detail.getByRole("heading", { name: "BS Information Systems" }),
     ).toBeVisible();
+    await page
+      .getByRole("link", { name: "View selected path details" })
+      .click();
+    await expect(detail).toBeFocused();
+    expect(
+      await detail.evaluate((element) => element.getBoundingClientRect().top),
+    ).toBeGreaterThanOrEqual(96);
     const meaning = detail.getByRole("region", { name: "What this means" });
     await expect(meaning.getByText(/^82\.00\s*\/\s*100$/)).toBeVisible();
     await expect(
@@ -80,6 +87,15 @@ for (const width of [375, 768, 1280])
     await expect(
       page.getByRole("button", { name: "Download PDF" }),
     ).toBeVisible();
+    const download = page.getByRole("region", { name: "Report download" });
+    await download.screenshot({
+      path: info.outputPath(`approved-download-${width}.png`),
+    });
+    const approvedAudit = await new AxeBuilder({ page })
+      .include('[aria-label="Report download"]')
+      .withTags(["wcag2a", "wcag2aa", "wcag21a", "wcag21aa"])
+      .analyze();
+    expect(approvedAudit.violations).toEqual([]);
   });
 
 for (const scenario of ["partial", "long", "expired"])
@@ -123,6 +139,42 @@ for (const scenario of ["partial", "long", "expired"])
     ).toBe(true);
     await page.screenshot({
       path: info.outputPath(`report-${scenario}.png`),
+      fullPage: true,
+    });
+  });
+
+for (const width of [375, 1280])
+  test(`rejected report gives a clear recovery path at ${width}px`, async ({
+    page,
+  }, info) => {
+    await page.setViewportSize({ width, height: 900 });
+    await page.goto("/report-preview?scenario=rejected");
+    const download = page.getByRole("region", { name: "Report download" });
+    await expect(
+      download.getByText("Rejected report", { exact: true }),
+    ).toBeVisible();
+    await expect(
+      download.getByRole("heading", { name: "Create a new draft" }),
+    ).toBeVisible();
+    await expect(
+      page.getByRole("button", { name: "Approve report v2" }),
+    ).toHaveCount(0);
+    await expect(
+      page.getByRole("link", { name: "Preview Draft PDF" }),
+    ).toHaveCount(0);
+    await page.getByRole("link", { name: "Review & release" }).click();
+    await expect(
+      page.getByRole("button", { name: "Correct Inputs" }),
+    ).toBeVisible();
+    await expect(
+      page.getByRole("button", { name: "Regenerate report" }),
+    ).toBeVisible();
+    const audit = await new AxeBuilder({ page })
+      .withTags(["wcag2a", "wcag2aa", "wcag21a", "wcag21aa"])
+      .analyze();
+    expect(audit.violations).toEqual([]);
+    await page.screenshot({
+      path: info.outputPath(`rejected-report-${width}.png`),
       fullPage: true,
     });
   });

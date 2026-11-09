@@ -110,7 +110,7 @@ export default function ReportDownloadView({
               Career guidance report
             </h1>
             <p className="mt-2 text-sm text-muted-text">
-              Review the options and evidence, then approve this version for release.
+              {isApproved ? "This report has been approved for release." : report.reviewStatus === "rejected" ? "Create a new draft to continue with counselor review." : "Review the options and evidence, then approve this version for release."}
             </p>
             <p className="mt-2 text-sm text-muted-text">
               Report version: {report.reportVersion}. Approved profile version: {report.approvedProfileVersion ?? "unavailable"}.
@@ -148,7 +148,7 @@ export default function ReportDownloadView({
           </ul>
         </section>
       )}
-      <section id="counselor-detail" aria-labelledby="counselor-detail-heading" className="mb-8 scroll-mt-6">
+      <section id="counselor-detail" tabIndex={-1} aria-labelledby="counselor-detail-heading" className="mb-8 scroll-mt-32">
         <div className="mb-4"><p className="text-xs font-semibold uppercase tracking-wider text-muted-text">For counselor review</p><h2 id="counselor-detail-heading" className="mt-1 font-heading text-2xl font-bold text-ink">Counselor detail</h2><p className="mt-2 text-sm text-muted-text">Select a path to inspect its findings and supporting sources.</p></div>
       <div className="mb-5 grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
         {report.recommendations.filter((r) => r.rank !== null).map((recommendation) => (
@@ -177,8 +177,12 @@ export default function ReportDownloadView({
         <p className="mb-5 text-sm text-muted-text">Fewer than three scored paths are supported by the available evidence. Missing components remain unscored.</p>
       )}
 
+      {selectedRecommendation && <div className="mb-4 flex justify-end">
+        <p id="selected-path-announcement" aria-live="polite" aria-atomic="true" className="sr-only">Showing evidence for {selectedRecommendation.careerPath}.</p>
+        <a href="#selected-recommendation" aria-describedby="selected-path-announcement" className="inline-flex min-h-9 items-center gap-1 rounded-lg px-2 py-1 text-sm font-semibold text-forest underline underline-offset-4">View selected path details<ChevronRight size={15} aria-hidden="true" /></a>
+      </div>}
       <section className="grid items-start gap-5 lg:grid-cols-[minmax(0,1fr)_340px]">
-        <aside className="lg:sticky lg:top-6 lg:order-last">
+        <aside className="lg:sticky lg:top-24 lg:order-last">
           <AcademicEvidencePanel evidence={report.academicEvidence} />
         </aside>
         <div className="min-w-0 space-y-5">
@@ -196,7 +200,7 @@ export default function ReportDownloadView({
       </section>
       </section>
 
-      <div id="report-review" className="grid scroll-mt-6 items-start gap-5 lg:grid-cols-[minmax(0,1fr)_340px]">
+      <div id="report-review" tabIndex={-1} className="grid scroll-mt-32 items-start gap-5 lg:grid-cols-[minmax(0,1fr)_340px]">
       <section aria-labelledby="report-review-heading" aria-busy={reviewBusy} className="mb-6 space-y-3 rounded-lg border border-black/10 bg-white p-5 shadow-card">
         <h2 ref={reviewHeading} tabIndex={-1} id="report-review-heading" className="text-lg font-semibold">Counselor review</h2>
         <ol className="grid gap-2 text-sm text-muted-text sm:grid-cols-3">{["Compare student options", "Check evidence & sources", "Preview the exact PDF"].map((step, index) => <li key={step} className="rounded-lg bg-background p-3"><span className="mb-1 block text-xs font-bold text-forest">0{index + 1}</span>{step}</li>)}</ol>
@@ -306,20 +310,22 @@ export default function ReportDownloadView({
         )}
 
       </section>
-          <section className="rounded-lg bg-ink p-5 text-white shadow-card">
+          <section aria-label="Report download" className="rounded-lg bg-ink p-5 text-white shadow-card">
             <div className="flex items-center gap-2 text-xs font-semibold uppercase tracking-wider text-white/60">
-              <CheckCircle2 size={15} />
-              {report.downloadUrl ? "Approved report" : "Draft report"}
+              {report.reviewStatus === "rejected" ? <CircleX size={15} aria-hidden="true" /> : <CheckCircle2 size={15} aria-hidden="true" />}
+              {isApproved ? "Approved report" : report.reviewStatus === "rejected" ? "Rejected report" : "Draft report"}
             </div>
             <h2 className="mt-3 text-lg font-bold">
-              {report.downloadUrl ? "Download the counselor report" : "Review the counselor report"}
+              {isApproved ? "Download the counselor report" : report.reviewStatus === "rejected" ? "Create a new draft" : "Review the counselor report"}
             </h2>
             <p className="mt-2 text-sm leading-relaxed text-white/70">
               {isDownloadExpired
                 ? "This report has expired. Start a new session to generate a report."
-                : report.downloadUrl
-                  ? "The report opens in a new tab. Save the approved copy using your school’s process."
-                  : "Final download is available after this report version is approved."}
+                : report.reviewStatus === "rejected"
+                  ? "This version cannot be released. Correct the inputs or regenerate the report, then review the new draft."
+                  : report.downloadUrl
+                    ? "The report opens in a new tab. Save the approved copy using your school’s process."
+                    : "Final download is available after this report version is approved."}
             </p>
             <div className="mt-4 space-y-3 rounded-lg border border-white/10 bg-white/5 p-3">
               <MetadataRow label="Generated" value={generatedAt} />
@@ -333,7 +339,8 @@ export default function ReportDownloadView({
               {isApproved && report.downloadUrl && <PdfDownloadButton
                 downloadUrl={report.downloadUrl}
                 fileName={fileName}
-                disabled={isDownloadExpired || reviewLocked || reviewBusy}
+                disabled={reviewLocked || reviewBusy}
+                expired={isDownloadExpired}
               />}
             </div>
           </section>
@@ -378,7 +385,7 @@ function RecommendationDetail({
   recommendation: ReportRecommendationSummary;
 }) {
   return (
-    <section id="selected-recommendation" aria-label="Selected recommendation" className="min-w-0 rounded-xl border border-black/10 bg-white p-5 shadow-card sm:p-6">
+    <section id="selected-recommendation" tabIndex={-1} aria-label="Selected recommendation" className="min-w-0 scroll-mt-32 rounded-xl border border-black/10 bg-white p-5 shadow-card sm:p-6">
       <p className="text-xs font-semibold uppercase tracking-wider text-muted-text">Selected path · Evidence review</p>
       <h3 className="mt-2 text-2xl font-bold text-ink [overflow-wrap:anywhere]">{recommendation.careerPath}</h3>
 
@@ -393,6 +400,10 @@ function RecommendationDetail({
         </section>;
       })}
       <ReportEvidenceDetail recommendation={recommendation} />
+      <div className="mt-5 flex flex-wrap justify-between gap-3 border-t border-black/10 pt-4 text-sm font-semibold text-forest">
+        <a href="#counselor-detail" className="inline-flex min-h-9 items-center rounded-lg px-2 py-1 underline underline-offset-4">Compare paths</a>
+        <a href="#report-review" className="inline-flex min-h-9 items-center gap-1 rounded-lg px-2 py-1 underline underline-offset-4">Continue to review<ChevronRight size={15} aria-hidden="true" /></a>
+      </div>
     </section>
   );
 }
@@ -449,7 +460,7 @@ function AcademicEvidencePanel({ evidence }: { evidence: AcademicEvidenceSummary
       </ul>
       {provided < 3 && <p className="mt-3 text-xs leading-relaxed text-amber-900">Unavailable records do not contribute evidence to this comparison.</p>}
       <details className="mt-4 border-t border-black/10 pt-3 text-xs text-muted-text">
-        <summary className="cursor-pointer font-semibold">About evidence coverage</summary>
+        <summary className="min-h-8 cursor-pointer py-1 font-semibold">About evidence coverage</summary>
         <p className="mt-2 leading-relaxed">{evidence.completenessNote}</p>
         <p className="mt-2 leading-relaxed">Form 137: school academic record. NCAE: National Career Assessment Examination. NAT: National Achievement Test.</p>
       </details>

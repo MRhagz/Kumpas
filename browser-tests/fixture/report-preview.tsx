@@ -18,6 +18,7 @@ export default function ReportPreview() {
             setReport((current) => ({
               ...current,
               reviewStatus: decision,
+              previewUrl: null,
               downloadUrl:
                 decision === "approved" ? "/synthetic-approved.pdf" : null,
             }));

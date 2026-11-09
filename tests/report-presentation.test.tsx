@@ -31,6 +31,16 @@ it("compares options visually and exposes selection without copying counselor de
   fireEvent.click(option);
   expect(option.getAttribute("aria-pressed")).toBe("true");
   expect(
+    screen
+      .getByText("Showing evidence for BS Information Systems.")
+      .getAttribute("aria-live"),
+  ).toBe("polite");
+  expect(
+    screen
+      .getByRole("link", { name: "View selected path details" })
+      .getAttribute("href"),
+  ).toBe("#selected-recommendation");
+  expect(
     within(
       screen.getByRole("region", { name: "Selected recommendation" }),
     ).getByRole("heading", { name: "BS Information Systems" }),
@@ -185,4 +195,31 @@ it("groups release, revision and rejection actions separately", () => {
       screen.getByRole("group", { name: "Reject this version" }),
     ).getByRole("button", { name: "Reject report" }),
   ).toBeTruthy();
+});
+
+it("explains that a rejected version needs a new draft in the download panel", () => {
+  const report = {
+    ...reportFixture(),
+    reviewStatus: "rejected" as const,
+    previewUrl: null,
+  };
+  render(
+    <ReportDownloadView
+      report={report}
+      onNewSession={() => {}}
+      onReview={vi.fn()}
+    />,
+  );
+  const download = screen.getByRole("region", { name: "Report download" });
+  expect(within(download).getByText("Rejected report")).toBeTruthy();
+  expect(
+    within(download).getByRole("heading", { name: "Create a new draft" }),
+  ).toBeTruthy();
+  expect(download.textContent).not.toContain("Draft report");
+  expect(download.textContent).not.toContain(
+    "after this report version is approved",
+  );
+  expect(
+    screen.queryByRole("button", { name: "Approve report v2" }),
+  ).toBeNull();
 });
