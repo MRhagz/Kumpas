@@ -47,3 +47,10 @@ Validate recommendation selection, missing scores, legacy report fallback, acade
 ## Git workspace
 
 The original checkout initially protected `.git` as read-only, so the first commit was prepared in `/tmp/kumpas-report-review`. After the session permissions were updated, the branch was transferred into the original repository. Local `main` was fast-forwarded to `origin/main` at `f5f37a7`, and `feat/counselor-report-presentation` was rebased onto it without conflicts. All 14 transferred files were verified against the prepared commit before removing the temporary transfer stash. No remote changes were pushed.
+
+## Follow-up: score clarity and review action hierarchy
+
+- Component scores now use a standalone numeric display and meter, with score-free evidence explanations underneath.
+- Student reasons and lowest-component considerations separate the numeric values from explanatory prose. The two known stored-summary sentence formats are split for browser presentation; other wording is retained verbatim. Stored report content and PDF generation are unchanged.
+- Approval is the primary filled green action; preview uses a secondary outlined treatment. Input correction and regeneration share a separate revision group, and rejection has its own red action row. Icons, descriptive groups and disabled states retain existing review behavior.
+- Follow-up validation: 79 focused tests passed. All eight Chrome scenarios passed across the initial successful cases and the three report comparison reruns after correcting a test selector for the separate score denominator. Responsive screenshots were inspected; report WCAG AA scans found zero violations. TypeScript, targeted lint and whitespace checks passed.
