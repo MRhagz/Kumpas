@@ -17,7 +17,7 @@ export default function ReportScore({
   return (
     <div>
       <p
-        className={`tabular-nums ${subtle ? "text-sm font-medium text-muted-text" : "text-2xl font-bold text-forest"}`}
+        className={`tabular-nums text-forest ${subtle ? "text-sm font-medium" : "text-2xl font-bold"}`}
       >
         {score.toFixed(2)}
         <span
@@ -36,7 +36,7 @@ export default function ReportScore({
         className={`overflow-hidden rounded-full bg-forest/10 ${subtle ? "mt-1.5 h-1" : "mt-2 h-2"}`}
       >
         <div
-          className={`h-full rounded-full ${subtle ? "bg-muted-text" : "bg-forest"}`}
+          className="h-full rounded-full bg-forest"
           style={{ width: `${score}%` }}
         />
       </div>
