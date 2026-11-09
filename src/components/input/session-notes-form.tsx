@@ -20,7 +20,7 @@ const FIELDS = [
     icon: Heart,
     iconBg: "#fef08a",
     iconFg: "#854d0e",
-    labelColor: "#b45309",
+    labelColor: "#854d0e",
     ph: "Describe the student's interests and natural strengths…",
   },
   {

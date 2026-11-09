@@ -5,10 +5,10 @@ import sys
 import unittest
 from contextlib import ExitStack
 from pathlib import Path
+from tempfile import TemporaryDirectory
 from unittest.mock import Mock, patch
 
 import httpx
-
 from kumpas_ingestion.pipelines import psa
 from test_embedding_contract import CONFIG, LOG, database, stored
 
@@ -22,6 +22,15 @@ ENV = {
 
 
 class PSATests(unittest.TestCase):
+    def test_local_file_uri_decodes_spaces_and_preserves_platform_drive(self):
+        with TemporaryDirectory() as directory:
+            path = Path(directory) / "quarter #1 data.csv"
+            path.write_bytes(b"operator-curated fixture")
+            self.assertEqual(psa.download_csv(path.as_uri()), path.read_bytes())
+        for url in ("file://remote-host/lfs.csv", "file:///lfs.csv?query=1", "file:///lfs.csv#fragment"):
+            with self.subTest(url=url), self.assertRaises(psa.IngestionFailure):
+                psa.download_csv(url)
+
     def configured(self, raw=None):
         stack = ExitStack()
         self.addCleanup(stack.close)
@@ -150,7 +159,7 @@ class PSATests(unittest.TestCase):
                    {"SUPABASE_URL", "SUPABASE_INGESTION_TOKEN", "SUPABASE_PUBLISHABLE_KEY", "GEMINI_API_KEY"}}
             env.update(ENV, PSA_OPENSTAT_URL=(FIXTURES / filename).as_uri())
             result = subprocess.run([sys.executable, "-m", "kumpas_ingestion.pipelines.psa",
-                                     "--validate-only"], env=env, capture_output=True, text=True)
+                                     "--validate-only"], check=False, env=env, capture_output=True, text=True)
             self.assertEqual(result.returncode, expected, result.stdout + result.stderr)
             self.assertNotIn(filename, result.stdout)
             self.assertIn("validated" if expected == 0 else "validation_failed", result.stdout)

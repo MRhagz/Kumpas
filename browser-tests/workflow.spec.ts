@@ -44,11 +44,11 @@ for (const width of [375, 1280]) test(`keyboard workflow and WCAG 2.1 AA at ${wi
   const selecting = page.waitForEvent('filechooser'); await page.keyboard.press('Enter');
   await (await selecting).setFiles({name:'fixture.txt',mimeType:'text/plain',buffer:Buffer.from('Synthetic invalid document')});
   await expect(page.getByRole('alert')).toContainText('Choose a JPEG');
-  const scan = async (stage: string) => {
-    expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
-    // Firefox crashes on repeated axe injection in one process. Give each scan
-    // its own process; keep the keyboard browser and all audit rules unchanged.
-    const auditBrowser = info.project.name === 'firefox' ? await firefox.launch() : null;
+  const scanOnce = async (stage: string) => {
+    // Isolate each Firefox audit from the keyboard browser and other scans.
+    // Hosted scanner crashes remain failures; all audit rules stay enabled.
+    const auditBrowser = info.project.name === 'firefox'
+      ? await firefox.launch() : null;
     const auditContext = await (auditBrowser ?? browser).newContext({ viewport: {width, height: 900} });
     const audit = await auditContext.newPage();
     try {
@@ -59,18 +59,33 @@ for (const width of [375, 1280]) test(`keyboard workflow and WCAG 2.1 AA at ${wi
         : audit.getByRole('heading',{name:'Counselor review',exact:true})).toBeVisible();
       if (stage === 'intake') {
         await audit.getByRole('checkbox',{name:/I have read this notice/}).check();
-        await expect(audit.locator('.animate-fade-in').first()).toHaveCSS('opacity','1');
+        // Nested notes panels can start fading after the outer intake panel.
+        // Audit the settled UI rather than transient low-opacity text.
+        for (const panel of await audit.locator('.animate-fade-in').all()) {
+          await expect(panel).toHaveCSS('opacity','1');
+        }
       }
       expect(await audit.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
-      // Firefox's default axe results-aggregation page crashes this engine. Legacy mode
-      // disables cross-origin frame traversal only; there are no frames in this fixture.
       expect(await audit.locator('iframe, frame').count()).toBe(0);
-      const result = await new AxeBuilder({page:audit}).setLegacyMode(info.project.name === 'firefox').withTags(['wcag2a','wcag2aa','wcag21a','wcag21aa']).analyze();
+      const result = await new AxeBuilder({page:audit}).withTags(['wcag2a','wcag2aa','wcag21a','wcag21aa']).analyze();
       console.log(`${stage}: violations=${result.violations.length}, needs-review=${result.incomplete.length}`);
       await info.attach(`${stage}-axe`,{body:JSON.stringify(result,null,2),contentType:'application/json'});
       expect(result.violations.map(v=>({id:v.id,nodes:v.nodes.map(n=>n.target)}))).toEqual([]);
       await audit.screenshot({path:info.outputPath(`${stage}.png`),fullPage:true});
     } finally { await auditContext.close(); await auditBrowser?.close(); }
+  };
+  const scan = async (stage: string) => {
+    expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
+    try {
+      await scanOnce(stage);
+    } catch (error) {
+      if (info.project.name !== 'firefox' || !(error instanceof Error) ||
+          !error.message.includes('frame.evaluate: Page crashed')) throw error;
+      const diagnostic = `${stage}: Firefox accessibility scan crashed. Retrying once in a fresh process.`;
+      console.warn(diagnostic);
+      await info.attach(`${stage}-firefox-crash`, { body: diagnostic, contentType: 'text/plain' });
+      await scanOnce(stage);
+    }
   };
   await scan('intake');
   const cancel = page.getByRole('button',{name:'Cancel session',exact:true});

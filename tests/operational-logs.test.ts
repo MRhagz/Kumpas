@@ -2,8 +2,29 @@ import { afterEach, expect, it, vi } from "vitest";
 import { ProcessingBudget, ProviderError } from "@/lib/processing-budget";
 import { authorizeMaintenance } from "@/lib/auth/maintenance";
 import { buildAgentPanels } from "@/lib/analysis-helpers";
+import { AgentOperationError } from "@/lib/module3/agent-errors";
+import { operationalEvent } from "@/lib/operational-log";
 
 afterEach(() => { vi.restoreAllMocks(); vi.useRealTimers(); });
+it("keeps bounded specialist diagnostics without logging provider messages", () => {
+  const marker = "PRIVATE_student_prompt_api_key";
+  const error = new AgentOperationError("FeasibilityStrategist", "analysis generation",
+    Object.assign(new Error(`API key not valid ${marker}`), { status: 400 }));
+  const warn = vi.fn();
+  operationalEvent("feasibility_analysis", "failure", Date.now(), {
+    log: { info: vi.fn(), warn }, code: "operation_failed",
+    providerStatus: error.status, agentStage: error.stage, providerFailure: error.category,
+  });
+  expect(warn).toHaveBeenCalledWith("operational_event", expect.objectContaining({
+    providerStatus: 400, agentStage: "analysis generation", providerFailure: "credential",
+  }));
+  expect(JSON.stringify(warn.mock.calls)).not.toContain(marker);
+});
+it("classifies malformed provider output separately from HTTP errors", () => {
+  const error = new AgentOperationError("FeasibilityStrategist", "analysis generation", new SyntaxError("PRIVATE"));
+  expect(error.category).toBe("invalid_response");
+  expect(error.status).toBeUndefined();
+});
 it("S06 drops seeded content from provider failures, stage names and run IDs while keeping retry measurements", async () => {
   vi.useFakeTimers();
   const calls: unknown[] = [];

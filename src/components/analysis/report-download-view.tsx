@@ -106,7 +106,7 @@ export default function ReportDownloadView({
               Career guidance report
             </h1>
             <p className="mt-2 text-sm text-muted-text">
-              Career comparisons with academic evidence and a
+              AI-assisted career comparisons with academic evidence and a
               versioned PDF report. Scores compare supported options; they are not probabilities of career success.
             </p>
             <p className="mt-2 text-sm text-muted-text">
