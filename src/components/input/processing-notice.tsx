@@ -34,8 +34,8 @@ export default function ProcessingNotice({ confirmed, onConfirm, autoOpen = true
 
   return (
     <Dialog.Root open={open} onOpenChange={setOpen}>
-        <Dialog.Trigger className="inline-flex min-h-11 cursor-pointer items-center text-xs text-muted-text underline-offset-4 transition-colors hover:text-forest hover:underline">
-          Processing &amp; privacy notice
+        <Dialog.Trigger className="inline-flex min-h-11 cursor-pointer items-center gap-2 rounded-xl border border-black/[0.08] bg-cream-light px-3 text-xs font-medium text-charcoal-2 transition-colors hover:border-forest/25 hover:bg-forest/5 hover:text-forest focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-forest">
+          <ShieldCheck size={15} aria-hidden="true" />Processing &amp; privacy notice
         </Dialog.Trigger>
       <Dialog.Portal>
         <Dialog.Overlay className="fixed inset-0 z-50 bg-charcoal/40 backdrop-blur-[3px] duration-200 data-[state=open]:animate-in data-[state=open]:fade-in-0 data-[state=closed]:animate-out data-[state=closed]:fade-out-0" />
