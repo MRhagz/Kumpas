@@ -20,7 +20,7 @@ jobs:
             echo '::error::INGESTION_LOG_MAINTENANCE_DATABASE_URL is missing; configure the maintenance environment'
             exit 1
           fi
-          if ! result=$(psql -X -qAt -v ON_ERROR_STOP=1 -c 'select public.prune_ingestion_logs()' 2>/dev/null); then
+          if ! result=$(psql -X -qAt --dbname="$PGDATABASE" -v ON_ERROR_STOP=1 -c 'select public.prune_ingestion_logs()' 2>/dev/null); then
             echo '::error::ingestion_log_cleanup_failed; retry required'
             exit 1
           fi

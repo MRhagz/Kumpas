@@ -9,8 +9,8 @@ named GitHub environment secrets, Vercel settings or an ignored private env file
 | --- | --- | --- |
 | `SUPABASE_URL`, `GEMINI_API_KEY` | GitHub repository secrets, inherited by `ingestion` | Names present. The importer still needs the two scoped settings below. |
 | `SUPABASE_PUBLISHABLE_KEY` | GitHub `ingestion` environment secret | Configured with the project's existing active publishable key on 9 November. This is the public gateway key, not the worker's authorization token. |
-| `SUPABASE_INGESTION_TOKEN` | GitHub `ingestion` environment secret | Missing. The deployment owner must supply a project-signed JWT with `role: ingestion_worker` and a bounded future `exp`, then arrange rotation before expiry. Keep its signing credentials outside CI and the application. Never substitute a service-role token. |
-| `INGESTION_LOG_MAINTENANCE_DATABASE_URL` | GitHub `maintenance` environment secret | Missing. Supply a TLS connection for a dedicated database LOGIN with only membership in `ingestion_log_maintenance` and required connection/schema access. The existing group role is NOLOGIN; its name alone is not a connection credential. Verify the login can execute `public.prune_ingestion_logs()` and cannot access student tables or private Storage. |
+| `SUPABASE_INGESTION_TOKEN` | GitHub `ingestion` environment secret | Configured 9 November. Hosted DOLE ingestion validates the worker JWT and processes all three PDFs successfully (604 unchanged chunks). Rotate before its expiry; keep signing credentials outside CI and the application. |
+| `INGESTION_LOG_MAINTENANCE_DATABASE_URL` | GitHub `maintenance` environment secret | Configured 9 November. The dedicated `kumpas_log_maintenance` login can execute pruning and cannot read student sessions or Storage. The main workflow fails because a connection URI in `PGDATABASE` is not expanded; this branch passes it explicitly with `--dbname`. Actual connection/password verification remains pending execution of the corrected workflow. |
 | `SESSION_CLEANUP_SECRET`, `REPORT_RETENTION_SECRET` | Vercel server environment and matching GitHub `maintenance` secrets | Both GitHub secret names are present; the existing private operator record contains them. Preserve separate values and verify they match the deployed app. |
 | `KUMPAS_APP_URL` | GitHub `maintenance` environment variable | Present. Use the canonical deployed HTTPS application origin. This is not a secret. |
 | `NEXT_PUBLIC_SUPABASE_URL`, `NEXT_PUBLIC_SUPABASE_ANON_KEY`, `SUPABASE_SERVICE_ROLE_KEY` | Vercel app / private local env | Present locally; authenticated preview access and live Storage checks succeed. The service key stays server-only. |
@@ -31,6 +31,17 @@ The scoped roles already exist in the hosted database and have no BYPASSRLS.
 Provisioning a login or signing a worker token is an operator credential action,
 not an application migration. See [SW-27 provisioning](../ingestion/README.md#operational-privacy-and-deployment-sw-27).
 No new Gemini key or broader credential fallback is required by this follow-up.
+
+Credential verification on 9 November: [DOLE run 42575789219](https://github.com/MRhagz/Kumpas/actions/runs/42575789219)
+passes with three PDFs, zero failed files and 604 unchanged chunks. The
+[PSA run](https://github.com/MRhagz/Kumpas/actions/runs/42575765799) authenticates
+and writes its sanitized failure log, then rejects the missing `PSA_SOURCE_URL`.
+Its bundled CSV is documented as illustrative; the operator must supply verified
+data and its official table URL before a live refresh. The
+[maintenance run](https://github.com/MRhagz/Kumpas/actions/runs/42575755668) fails
+before credential validity can be established. A direct libpq check with dummy
+credentials reproduces the URI/default-socket problem and verifies the explicit
+dbname fix. No logs met the 90-day deletion cutoff at the preflight check.
 
 ## Execution order
 
