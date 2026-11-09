@@ -6,15 +6,17 @@ interface PdfDownloadButtonProps {
   downloadUrl: string;
   fileName: string;
   disabled?: boolean;
+  expired?: boolean;
 }
 
 export default function PdfDownloadButton({
   downloadUrl,
   fileName,
   disabled = false,
+  expired = false,
 }: PdfDownloadButtonProps) {
   const handleDownload = () => {
-    if (disabled) {
+    if (disabled || expired) {
       return;
     }
 
@@ -26,18 +28,17 @@ export default function PdfDownloadButton({
     document.body.appendChild(anchor);
     anchor.click();
     anchor.remove();
-
   };
 
   return (
     <button
       type="button"
       onClick={handleDownload}
-      disabled={disabled}
-      className="inline-flex items-center justify-center gap-2 rounded-lg bg-ink px-4 py-2.5 text-sm font-semibold text-white transition-colors hover:bg-forest disabled:cursor-not-allowed disabled:bg-muted-text disabled:opacity-70"
+      disabled={disabled || expired}
+      className="inline-flex min-h-11 w-full cursor-pointer items-center justify-center gap-2 rounded-lg bg-white px-4 py-2.5 text-sm font-semibold text-ink transition-colors hover:bg-cream-light disabled:cursor-not-allowed disabled:opacity-60"
     >
       <Download size={16} />
-      {disabled ? "Link Expired" : "Download PDF"}
+      {expired ? "Link Expired" : "Download PDF"}
     </button>
   );
 }
