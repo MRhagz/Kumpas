@@ -1,6 +1,7 @@
 import { ArrowRight, Compass, Info } from "lucide-react";
 import type { StudentReportSummary } from "@/lib/report/types";
 import ReportScore from "./report-score";
+import ReportScoreStatement from "./report-score-statement";
 
 export default function StudentSummaryView({
   summary,
@@ -67,7 +68,7 @@ export default function StudentSummaryView({
               <ul className="mt-3 space-y-3 text-sm leading-relaxed text-muted-text">
                 {option.reasons.map((reason) => (
                   <li key={reason} className="border-l-2 border-forest/25 pl-3">
-                    {reason}
+                    <ReportScoreStatement text={reason} />
                   </li>
                 ))}
               </ul>
@@ -76,7 +77,10 @@ export default function StudentSummaryView({
               <div className="mt-4 rounded-lg bg-amber-50 p-3 text-sm leading-relaxed text-amber-900">
                 <p className="mb-1 font-semibold">Discuss together</p>
                 {option.considerations.map((consideration) => (
-                  <p key={consideration}>{consideration}</p>
+                  <ReportScoreStatement
+                    key={consideration}
+                    text={consideration}
+                  />
                 ))}
               </div>
             )}

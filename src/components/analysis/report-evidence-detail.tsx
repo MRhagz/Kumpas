@@ -10,6 +10,7 @@ import {
   publicSourceUrl,
   sourceDate,
 } from "@/lib/report/evidence-summary";
+import ReportScore from "./report-score";
 
 const dimensionLabels = {
   aptitude: "Aptitude fit",
@@ -64,24 +65,22 @@ export default function ReportEvidenceDetail({
                     </span>
                   </div>
                   {isAlignmentScore(claim?.score) && (
-                    <div
-                      role="meter"
-                      aria-label={`${dimensionLabels[dimension]} component`}
-                      aria-valuemin={0}
-                      aria-valuemax={100}
-                      aria-valuenow={claim.score}
-                      aria-valuetext={`${claim.score} points out of 100`}
-                      className="mt-3 h-2 overflow-hidden rounded-full bg-forest/10"
-                    >
-                      <div
-                        className="h-full rounded-full bg-forest"
-                        style={{ width: `${claim.score}%` }}
+                    <div className="mt-3">
+                      <ReportScore
+                        score={claim.score}
+                        label={`${dimensionLabels[dimension]} component`}
                       />
                     </div>
                   )}
-                  <p className="mt-2 text-sm leading-relaxed text-muted-text">
-                    {claim?.text ??
-                      "No supported comparison is available for this dimension."}
+                  <p className="mt-3 text-sm leading-relaxed text-muted-text">
+                    {claim
+                      ? `Based on ${[
+                          ...claim.inputReferences.map(inputLabel),
+                          ...(claim.sourceReferences.length
+                            ? ["cited public evidence"]
+                            : []),
+                        ].join(" and ")}.`
+                      : "No supported comparison is available for this dimension."}
                   </p>
                   {references.length > 0 && (
                     <div className="mt-3 flex flex-wrap items-center gap-2 text-xs">

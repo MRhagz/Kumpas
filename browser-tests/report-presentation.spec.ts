@@ -15,11 +15,7 @@ for (const width of [375, 768, 1280])
     await reasons.focus();
     await page.keyboard.press("Enter");
     await expect(
-      summary
-        .getByText(
-          "Aptitude comparison is supported by reviewed academic records.",
-        )
-        .first(),
+      summary.getByText("Supported by reviewed academic records.").first(),
     ).toBeVisible();
     const second = page.getByRole("button", {
       name: /Rank 2.*BS Information Systems/,
@@ -32,6 +28,11 @@ for (const width of [375, 768, 1280])
     });
     await expect(
       detail.getByRole("heading", { name: "BS Information Systems" }),
+    ).toBeVisible();
+    const meaning = detail.getByRole("region", { name: "What this means" });
+    await expect(meaning.getByText(/^82\.00\s*\/\s*100$/)).toBeVisible();
+    await expect(
+      meaning.getByText("Based on Form 137 subjects Mathematics."),
     ).toBeVisible();
     const citation = detail
       .getByRole("link", { name: "Source 1: Labor market outlook 2026" })
@@ -62,6 +63,19 @@ for (const width of [375, 768, 1280])
       fullPage: true,
     });
     await page.getByRole("link", { name: "Review & release" }).click();
+    const review = page.getByRole("region", { name: "Counselor review" });
+    await expect(
+      review.getByRole("group", { name: "Release this report" }),
+    ).toBeVisible();
+    await expect(
+      review.getByRole("group", { name: "Revise this report" }),
+    ).toBeVisible();
+    await expect(
+      review.getByRole("group", { name: "Reject this version" }),
+    ).toBeVisible();
+    await review.screenshot({
+      path: info.outputPath(`review-actions-${width}.png`),
+    });
     await page.getByRole("button", { name: "Approve report v2" }).click();
     await expect(
       page.getByRole("button", { name: "Download PDF" }),

@@ -6,6 +6,11 @@ import {
   FileText,
   AlertCircle,
   ChevronRight,
+  CircleX,
+  FileSearch,
+  Printer,
+  RefreshCw,
+  SquarePen,
   Minus,
   RotateCcw,
   TrendingDown,
@@ -201,17 +206,105 @@ export default function ReportDownloadView({
         {report.reviewStatus === "rejected" && <p role="status" className="text-sm">This version was rejected. Correct inputs or regenerate, then review the new draft.</p>}
         {reviewError && <p role="alert" className="text-sm text-red-700">{reviewError}</p>}
         {reviewBusy && <p role="status" className="text-sm">Confirming report action…</p>}
-        <div className="flex flex-wrap gap-3 text-sm">
-          {report.previewUrl && !reviewLocked && !isDownloadExpired && <a href={report.previewUrl} target="_blank" rel="noopener noreferrer" className="rounded-lg border px-4 py-2 underline">Preview Draft PDF</a>}
-          {isApproved && report.downloadUrl && !reviewLocked && !isDownloadExpired && <a href={report.downloadUrl.replace("&download=1", "")} target="_blank" rel="noopener noreferrer" className="rounded-lg border px-4 py-2 underline">Open approved PDF / Print</a>}
-          {report.reviewStatus === "draft" && <>
-            <button type="button" disabled={reviewDisabled || !report.previewUrl} onClick={() => void decide("approved")} className="rounded-lg bg-forest px-4 py-2 text-white disabled:opacity-50">Approve report v{report.reportVersion}</button>
-            <button type="button" disabled={reviewDisabled} onClick={() => void decide("rejected")} className="rounded-lg border border-red-200 px-4 py-2 text-red-800 disabled:opacity-50">Reject report</button>
-          </>}
-          <button type="button" disabled={reviewDisabled} onClick={() => void decide("correct")} className="rounded-lg border px-4 py-2 disabled:opacity-50">Correct Inputs</button>
-          <button type="button" disabled={reviewDisabled} onClick={() => void decide("regenerate")} className="rounded-lg border px-4 py-2 disabled:opacity-50">Regenerate report</button>
-          {reviewLocked && <button type="button" onClick={() => void onReload?.()} className="rounded-lg border px-4 py-2">Reload current report</button>}
+        <div
+          role="group"
+          aria-label="Release this report"
+          className="flex flex-col gap-3 pt-2 text-sm sm:flex-row sm:flex-wrap"
+        >
+          {report.reviewStatus === "draft" && (
+            <button
+              type="button"
+              disabled={reviewDisabled || !report.previewUrl}
+              onClick={() => void decide("approved")}
+              className="inline-flex cursor-pointer items-center justify-center gap-2 rounded-lg border border-forest bg-forest px-5 py-3 font-semibold text-white shadow-sm transition-colors hover:bg-forest/90 disabled:cursor-not-allowed disabled:opacity-50"
+            >
+              <CheckCircle2 size={18} aria-hidden="true" />
+              Approve report v{report.reportVersion}
+            </button>
+          )}
+          {report.previewUrl && !reviewLocked && !isDownloadExpired && (
+            <a
+              href={report.previewUrl}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="inline-flex items-center justify-center gap-2 rounded-lg border border-forest/40 bg-forest/5 px-4 py-3 font-semibold text-forest transition-colors hover:bg-forest/10"
+            >
+              <FileSearch size={18} aria-hidden="true" />
+              Preview Draft PDF
+            </a>
+          )}
+          {isApproved &&
+            report.downloadUrl &&
+            !reviewLocked &&
+            !isDownloadExpired && (
+              <a
+                href={report.downloadUrl.replace("&download=1", "")}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="inline-flex items-center justify-center gap-2 rounded-lg border border-forest/40 bg-forest/5 px-4 py-3 font-semibold text-forest transition-colors hover:bg-forest/10"
+              >
+                <Printer size={18} aria-hidden="true" />
+                Open approved PDF / Print
+              </a>
+            )}
         </div>
+        <div
+          role="group"
+          aria-label="Revise this report"
+          className="border-t border-black/10 pt-4"
+        >
+          <p className="mb-3 text-xs font-semibold uppercase tracking-wider text-muted-text">
+            Need to make changes?
+          </p>
+          <div className="flex flex-wrap gap-3 text-sm">
+            <button
+              type="button"
+              disabled={reviewDisabled}
+              onClick={() => void decide("correct")}
+              className="inline-flex cursor-pointer items-center justify-center gap-2 rounded-lg border border-black/15 bg-white px-4 py-2 font-medium text-ink transition-colors hover:bg-background disabled:cursor-not-allowed disabled:opacity-50"
+            >
+              <SquarePen size={16} aria-hidden="true" />
+              Correct Inputs
+            </button>
+            <button
+              type="button"
+              disabled={reviewDisabled}
+              onClick={() => void decide("regenerate")}
+              className="inline-flex cursor-pointer items-center justify-center gap-2 rounded-lg border border-black/15 bg-white px-4 py-2 font-medium text-ink transition-colors hover:bg-background disabled:cursor-not-allowed disabled:opacity-50"
+            >
+              <RefreshCw size={16} aria-hidden="true" />
+              Regenerate report
+            </button>
+          </div>
+        </div>
+        {report.reviewStatus === "draft" && (
+          <div
+            role="group"
+            aria-label="Reject this version"
+            className="flex flex-wrap items-center justify-between gap-3 border-t border-red-100 pt-4"
+          >
+            <p className="text-xs text-muted-text">Block release of this version</p>
+            <button
+              type="button"
+              disabled={reviewDisabled}
+              onClick={() => void decide("rejected")}
+              className="inline-flex cursor-pointer items-center justify-center gap-2 rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-sm font-medium text-red-800 transition-colors hover:border-red-300 hover:bg-red-100 disabled:cursor-not-allowed disabled:opacity-50"
+            >
+              <CircleX size={16} aria-hidden="true" />
+              Reject report
+            </button>
+          </div>
+        )}
+        {reviewLocked && (
+          <button
+            type="button"
+            onClick={() => void onReload?.()}
+            className="rounded-lg border border-forest px-4 py-2 text-sm font-semibold text-forest"
+          >
+            Reload current report
+          </button>
+        )}
+
       </section>
           <section className="rounded-lg bg-ink p-5 text-white shadow-card">
             <div className="flex items-center gap-2 text-xs font-semibold uppercase tracking-wider text-white/60">

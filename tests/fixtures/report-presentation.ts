@@ -163,13 +163,13 @@ export function reportFixture(scenario = "complete"): ReportGenerationResponse {
         alignmentScore: r.alignmentScore,
         reasons: [
           partial
-            ? "Aptitude comparison uses self-reported interests, not measured academic performance."
-            : "Aptitude comparison is supported by reviewed academic records.",
-          "Work-opportunity comparison uses cited public evidence.",
+            ? "Aptitude comparison: 82.00 out of 100, supported by self-reported interests (not measured academic performance)."
+            : "Aptitude comparison: 82.00 out of 100, supported by reviewed academic records.",
+          "Work-opportunity comparison: 90.00 out of 100, using the cited public evidence.",
           ...(r.rank === null
             ? []
             : [
-                "Practical requirements use reviewed context; personal details are withheld.",
+                "Practical-requirements comparison: 72.00 out of 100, using reviewed context and cited evidence. Personal details are withheld.",
               ]),
         ],
         considerations: [

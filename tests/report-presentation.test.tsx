@@ -72,9 +72,7 @@ it("renders a claim once, links it to a numbered source and keeps provenance beh
     name: "Selected recommendation",
   });
   expect(
-    within(detail).getAllByText(
-      "Aptitude comparison 82/100 uses reviewed academic records.",
-    ),
+    within(detail).getAllByText("Based on Form 137 subjects Mathematics."),
   ).toHaveLength(1);
   const citation = within(detail).getAllByRole("link", {
     name: "Source 1: Labor market outlook 2026",
@@ -119,5 +117,72 @@ it("preserves the summary-unavailable and legacy-explanation fallback", () => {
   ).toBeTruthy();
   expect(
     screen.getByText(report.recommendations[0].reasoningSummary),
+  ).toBeTruthy();
+});
+
+it("separates component scores from evidence explanations", () => {
+  mount();
+  const meaning = screen.getByRole("region", { name: "What this means" });
+  for (const [label, score] of [
+    ["Aptitude fit", "82.00"],
+    ["Work opportunities", "90.00"],
+    ["Practical requirements", "72.00"],
+  ]) {
+    const card = within(meaning)
+      .getByRole("heading", { name: label })
+      .closest("article")!;
+    expect(within(card).getByText(score)).toBeTruthy();
+    expect(within(card).getByRole("meter").getAttribute("aria-valuenow")).toBe(
+      String(Number(score)),
+    );
+    expect(
+      Array.from(card.querySelectorAll("p"))
+        .filter((p) => p.textContent?.startsWith("Based on"))
+        .every((p) => !p.textContent?.includes("/100")),
+    ).toBe(true);
+  }
+  expect(meaning.textContent).not.toContain("comparison 82/100");
+});
+
+it("separates student reason and trade-off values while preserving explanatory context", () => {
+  const report = reportFixture("partial");
+  report.studentSummary!.options[0].reasons[0] =
+    "Aptitude comparison: 0.00 out of 100, supported by self-reported interests (not measured academic performance).";
+  render(<ReportDownloadView report={report} onNewSession={() => {}} />);
+  const first = within(
+    screen.getByRole("region", { name: "Student summary" }),
+  ).getAllByRole("article")[0];
+  expect(within(first).getByText("0.00")).toBeTruthy();
+  expect(
+    within(first).getByText(
+      "Supported by self-reported interests (not measured academic performance).",
+    ),
+  ).toBeTruthy();
+  expect(
+    within(first).getByText("Lowest component: practical requirements"),
+  ).toBeTruthy();
+  expect(within(first).getAllByText("72.00")).toHaveLength(2);
+  expect(first.textContent).not.toContain("out of 100, supported by");
+});
+
+it("groups release, revision and rejection actions separately", () => {
+  mount();
+  const release = screen.getByRole("group", { name: "Release this report" });
+  expect(
+    within(release).getByRole("button", { name: "Approve report v2" }),
+  ).toBeTruthy();
+  expect(
+    within(release).getByRole("link", { name: "Preview Draft PDF" }),
+  ).toBeTruthy();
+  const revise = screen.getByRole("group", { name: "Revise this report" });
+  expect(
+    within(revise)
+      .getAllByRole("button")
+      .map((button) => button.textContent),
+  ).toEqual(["Correct Inputs", "Regenerate report"]);
+  expect(
+    within(
+      screen.getByRole("group", { name: "Reject this version" }),
+    ).getByRole("button", { name: "Reject report" }),
   ).toBeTruthy();
 });
