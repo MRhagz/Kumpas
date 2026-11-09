@@ -61,7 +61,7 @@ describe("SW-15 production operation wiring", () => {
     await vi.advanceTimersByTimeAsync(4999); expect(target).toHaveBeenCalledTimes(1);
     await vi.advanceTimersByTimeAsync(1); await pending;
     expect(target).toHaveBeenCalledTimes(2);
-    for (const [options] of provider.constructors.mock.calls) expect(options.httpOptions.retryOptions.attempts).toBe(1);
+    for (const [options] of provider.constructors.mock.calls) expect(options.httpOptions.retryOptions).toBeUndefined();
     for (const [request] of target.mock.calls) expect(request.config.abortSignal).toBeInstanceOf(AbortSignal);
     if (stage === "specialist") { expect(provider.embed).toHaveBeenCalledTimes(1); expect(provider.query).toHaveBeenCalledTimes(1); }
   });

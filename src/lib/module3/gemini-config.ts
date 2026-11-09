@@ -27,7 +27,9 @@ export function createGeminiClient(apiKey: string): GoogleGenAI {
   return new GoogleGenAI({
     apiKey: requireApiKey("Gemini", apiKey),
     vertexai: false,
-    httpOptions: { baseUrl: GEMINI_ORIGIN, apiVersion: getGeminiApiVersion(), retryOptions: { attempts: 1 } },
+    // In SDK 2.6, omitting retryOptions makes a single fetch and preserves ApiError
+    // metadata. Enabling its retry wrapper strips status/body even at one attempt.
+    httpOptions: { baseUrl: GEMINI_ORIGIN, apiVersion: getGeminiApiVersion() },
   });
 }
 
