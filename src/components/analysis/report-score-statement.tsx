@@ -22,7 +22,10 @@ export default function ReportScoreStatement({ text }: { text: string }) {
   const label = comparison
     ? comparisonLabels[comparison[1] as keyof typeof comparisonLabels]
     : `Lowest component: ${match[1]}`;
-  const explanation = match[3][0].toUpperCase() + match[3].slice(1);
+  const explanation =
+    tradeOff && match[3] === "Discuss this trade-off."
+      ? null
+      : match[3][0].toUpperCase() + match[3].slice(1);
   return (
     <div>
       <div className="flex flex-wrap items-baseline justify-between gap-x-3 gap-y-1">
@@ -32,7 +35,9 @@ export default function ReportScoreStatement({ text }: { text: string }) {
           <span className="ml-1 text-xs font-normal">/ 100</span>
         </p>
       </div>
-      <p className="mt-1 text-sm leading-relaxed">{explanation}</p>
+      {explanation && (
+        <p className="mt-1 text-sm leading-relaxed">{explanation}</p>
+      )}
     </div>
   );
 }
