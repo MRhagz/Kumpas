@@ -1,5 +1,5 @@
 {
-  "recordedAt": "2026-11-08T12:43:03.407Z",
+  "recordedAt": "2026-11-09T02:29:36.320Z",
   "hostedCommit": "bc336abb1422832141ab089557d14ad842fb38c9",
   "deploymentId": "DzRMcmxe3srR7ihoPoPZzznkY1zN",
   "execution": "unmocked_hosted_http",
@@ -12,7 +12,8 @@
     "contracts": "bcd1093d29bcfd3c83dfb331f80b1d977253040d8c0800327644b03e9de60728",
     "extraction": "e2fa906257e91ee667214be0db7c475315db97c611531fdc29695500f783621a",
     "download": "52e2515ac5d0c82f2feca8ab9defb3e6c43c7a301820e09e96fdcc275c84545a",
-    "diagnostic": "09f09087b2bdcd0031f82fbf89a45435df5edde74eba09f459eb9c359173d4f7"
+    "diagnostic": "09f09087b2bdcd0031f82fbf89a45435df5edde74eba09f459eb9c359173d4f7",
+    "performance": "941cbd65f1ca8fcddcc015331b67ef25fc1b141023ddf965d3758d823e40ca00"
   },
   "contracts": [
     {
@@ -332,7 +333,7 @@
   "limitations": [
     "Live provider corpus and performance target merged bc336ab. PR preview browser smoke is recorded separately; full candidate live qualification remains incomplete.",
     "Independent human answer-key/explanation review remains pending.",
-    "One diagnostic is not P01/P02 qualification; frozen campaign is in progress.",
+    "Baseline campaign completed with nine sequential timeouts; candidate qualification remains pending.",
     "Cold-server control and hosted isolated restore are unexecuted."
   ],
   "previewSmoke": {
@@ -358,5 +359,195 @@
       }
     ],
     "providerInvoked": false
+  },
+  "candidateCi": {
+    "commit": "1c6e38822118c185f27ef600a8fa00fcf267fcf9",
+    "deploymentId": "G7pqCm2nqt8RV9p81a9Fv2fK4wFw",
+    "workflowsPassed": 19,
+    "browserRun": 42482444321,
+    "keyboardWorkflows": 8,
+    "wcagScans": 24,
+    "violations": 0,
+    "incomplete": 0,
+    "versions": {
+      "chrome": "157.0.8103.38",
+      "edge": "157.0.4341.42",
+      "firefox": "159.0",
+      "webkit": "27.2"
+    },
+    "limitations": [
+      "Earlier Firefox scanner crashes remain unexplained; current pass is retained alongside failures.",
+      "WebKit is not actual Safari. Fixture APIs are isolated, not live acceptance."
+    ]
+  },
+  "baselinePerformance": {
+    "schema": 1,
+    "hostedCommit": "bc336abb1422832141ab089557d14ad842fb38c9",
+    "deploymentId": "DzRMcmxe3srR7ihoPoPZzznkY1zN",
+    "startedAt": "2026-11-08T11:28:18.821Z",
+    "finishedAt": "2026-11-08T13:28:29.421Z",
+    "browser": "158.0.8127.18",
+    "manifestSha256": "e33dc025a46fd2eda53294aaa6afbb54c84b130de5f9bf805670678cbf59d933",
+    "environment": {
+      "hardware": "Windows; AMD Ryzen 7 170 with Radeon Graphics; 8 cores/16 logical processors; reported 3201 MHz; 15.3 GiB RAM",
+      "network": "5 live login HTTP round trips: median 392 ms, range 354-1777 ms; bandwidth and physical RTT unmeasured",
+      "providerQuota": "Approved paid project per SW-30; quota values not independently inspected",
+      "databaseTier": "Existing hosted Kumpas database; account tier not independently inspected",
+      "sourceSnapshot": "81854c6ab22b43eb433d4384a7da2845f963aa85d7f06669f65229b5635581de; 2177 public chunks; timestamps/model/dimensions captured",
+      "providerVerificationRecord": "Merged SW-30 paid-project deployment confirmation; docs/sw-30-runtime.md, 8 November 2026"
+    },
+    "coverage": {
+      "P01": false,
+      "P02": true
+    },
+    "summaries": {
+      "warmup": {
+        "attempts": 5,
+        "successful": 4,
+        "failures": 1,
+        "errorRate": 0.2,
+        "throughputPerSecond": 0.007320872641583829,
+        "latencyMs": {
+          "min": 76545.40000009537,
+          "median": 81004.25,
+          "p95": 277494.80000019073,
+          "max": 277494.80000019073
+        },
+        "within300Seconds": false
+      },
+      "sequential": {
+        "attempts": 30,
+        "successful": 21,
+        "failures": 9,
+        "errorRate": 0.3,
+        "throughputPerSecond": 0.003674390921441647,
+        "latencyMs": {
+          "min": 69548.60000038147,
+          "median": 93697.80000019073,
+          "p95": 293748.2000002861,
+          "max": 295786.39999961853
+        },
+        "within300Seconds": false
+      },
+      "cold": {
+        "attempts": 0,
+        "successful": 0,
+        "failures": 0,
+        "errorRate": 0,
+        "throughputPerSecond": 0,
+        "latencyMs": null,
+        "within300Seconds": false
+      },
+      "concurrent": {
+        "attempts": 25,
+        "successful": 25,
+        "failures": 0,
+        "errorRate": 0,
+        "throughputPerSecond": 0.0579722038336841,
+        "latencyMs": {
+          "min": 57653.7999997139,
+          "median": 73613.30000019073,
+          "p95": 90067.80000019073,
+          "max": 115181.7000002861
+        },
+        "within300Seconds": true
+      },
+      "stress": {
+        "attempts": 10,
+        "successful": 10,
+        "failures": 0,
+        "errorRate": 0,
+        "throughputPerSecond": 0.11517946149328585,
+        "latencyMs": {
+          "min": 63643.40000009537,
+          "median": 72358.55000019073,
+          "p95": 86668,
+          "max": 86668
+        },
+        "within300Seconds": true
+      }
+    },
+    "sequentialByProfile": {
+      "full": {
+        "attempts": 10,
+        "successful": 7,
+        "failures": 3,
+        "partialDrafts": 0,
+        "errorRate": 0.3,
+        "throughputPerSecond": 0.0029751286198961397,
+        "latencyMs": {
+          "min": 93360.40000009537,
+          "median": 217005.7000002861,
+          "p95": 293748.2000002861,
+          "max": 293748.2000002861
+        },
+        "within300Seconds": false
+      },
+      "partial": {
+        "attempts": 10,
+        "successful": 6,
+        "failures": 4,
+        "partialDrafts": 0,
+        "errorRate": 0.4,
+        "throughputPerSecond": 0.0029595740856305014,
+        "latencyMs": {
+          "min": 72705.80000019073,
+          "median": 86793.24999976158,
+          "p95": 295786.39999961853,
+          "max": 295786.39999961853
+        },
+        "within300Seconds": false
+      },
+      "notes": {
+        "attempts": 10,
+        "successful": 8,
+        "failures": 2,
+        "partialDrafts": 0,
+        "errorRate": 0.2,
+        "throughputPerSecond": 0.006000250936937157,
+        "latencyMs": {
+          "min": 69548.60000038147,
+          "median": 87439.9500002861,
+          "p95": 147205,
+          "max": 147205
+        },
+        "within300Seconds": false
+      }
+    },
+    "qualification": "not_accepted",
+    "limitations": [
+      "Nine sequential client timeouts; no failed attempt excluded.",
+      "Three genuine cold-server attempts unavailable.",
+      "Schema v1 did not capture specialist statuses; draft-ready success cannot attest full analysis.",
+      "Separate controlled live retry/fault injection and semantic isolation review remain unexecuted.",
+      "Client-side fixture checks and non-provider preview smoke overlapped parts of this baseline campaign; no ingestion or extra live provider workload was launched."
+    ]
+  },
+  "grade10Preview": {
+    "commit": "1c6e38822118c185f27ef600a8fa00fcf267fcf9",
+    "deploymentId": "G7pqCm2nqt8RV9p81a9Fv2fK4wFw",
+    "execution": "actual_browser",
+    "startedAt": "2026-11-08T16:18:14.296Z",
+    "draftObservedAt": "2026-11-08T16:22:21.893Z",
+    "observedUpperBoundMs": 247597,
+    "workload": "typed-only synthetic Grade 10",
+    "outcome": "partial_draft",
+    "specialists": {
+      "AcademicAuditor": "SUCCESS",
+      "IndustryAnalyst": "SUCCESS",
+      "FeasibilityStrategist": "FAILED"
+    },
+    "explanations": "unavailable",
+    "draftPdf": {
+      "bytes": 16141,
+      "sha256": "b2b9337b7b7bb1038cdafcee6df6179e4777d69ab890722fa57ca0f5d0e0b7ec",
+      "pages": 4,
+      "draftFooterPages": 4,
+      "outOfPageCharacters": 0,
+      "visualReview": "No clipping observed on four rendered A4 pages"
+    },
+    "draftExpirySingapore": "2026-11-09 20:37",
+    "pdfExpirySingapore": "2026-11-10 00:21",
+    "qualifiesP01": false
   }
 }

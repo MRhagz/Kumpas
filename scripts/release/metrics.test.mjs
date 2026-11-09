@@ -1,6 +1,6 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { summarize, qualificationCoverage, validateWorkload } from "./metrics.mjs";
+import { summarize, qualificationCoverage, validateWorkload, draftOutcome } from "./metrics.mjs";
 
 test("keeps failures in error rate and the gate while using nearest-rank successful p95", () => {
   const samples = Array.from({ length: 20 }, (_, n) => ({ outcome: "success", durationMs: (n + 1) * 1000 }));
@@ -13,6 +13,29 @@ test("keeps failures in error rate and the gate while using nearest-rank success
   assert.equal(result.within300Seconds, false);
   assert.equal(summarize([], 0).within300Seconds, false);
   assert.equal(summarize([{ outcome: "success", durationMs: 300001 }], 300001).within300Seconds, false);
+});
+
+test("partial recovery remains visible and does not pass healthy-provider qualification", () => {
+  const agentStatuses = ["AcademicAuditor", "IndustryAnalyst", "FeasibilityStrategist"].map(agent => ({ agent, status: "SUCCESS" }));
+  assert.equal(draftOutcome({ agentStatuses }, 300000).outcome, "success");
+  assert.equal(draftOutcome({ agentStatuses }, 300001).outcome, "timeout");
+  agentStatuses[2].status = "FAILED";
+  const partial = draftOutcome({ agentStatuses }, 180000);
+  assert.equal(partial.outcome, "partial");
+  assert.equal(partial.draftReady, true);
+  assert.equal(partial.failedSpecialists, 1);
+  assert.equal(partial.specialists[2].status, "FAILED");
+  const result = summarize([{ ...partial, durationMs: 180000 }], 180000);
+  assert.equal(result.partialDrafts, 1);
+  assert.equal(result.successful, 0);
+  assert.equal(result.errorRate, 1);
+  assert.equal(result.within300Seconds, false);
+  agentStatuses[2].status = "UNAVAILABLE";
+  assert.equal(draftOutcome({ agentStatuses }, 180000).outcome, "success");
+  assert.equal(draftOutcome({ agentStatuses }, 180000).unavailableSpecialists, 1);
+  assert.equal(draftOutcome({}, 180000).outcome, "identity_mismatch");
+  assert.equal(draftOutcome({ agentStatuses: [null, ...agentStatuses.slice(1)] }, 180000).outcome, "identity_mismatch");
+  assert.equal(draftOutcome({ agentStatuses: [agentStatuses[0], agentStatuses[0], agentStatuses[2]] }, 180000).outcome, "identity_mismatch");
 });
 
 test("qualification coverage requires the whole sequential and distinct-account concurrent workloads", () => {

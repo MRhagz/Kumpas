@@ -45,6 +45,12 @@ RPO/RTO pass is inferred. Human/stakeholder validation remains after the midterm
   for explicitly partial synthesis. A global deadline or stale version still
   stops the run. Fake-clock regressions pass; live candidate qualification is
   pending and the original measured failures remain unchanged.
+- The ranking response example omitted `siloId` although strict citation
+  validation requires the supplied silo identity. A contract regression fails
+  against that example and passes after it is corrected. Foreign-silo and
+  unsupported-citation rejection remain unchanged. This mismatch can make valid
+  explanations unavailable; the observed live case's precise provider response
+  was not logged, so no raw-response cause is asserted.
 
 No production fault endpoint, deferred feature, schema migration, provider/model
 change, credential fallback or data migration is introduced. Existing warnings
@@ -112,6 +118,14 @@ workload defined in `docs/sw-30-runtime.md`. Keep every setup failure/timeout an
 all warm-up, sequential, cold, concurrent and stress cohorts separate. A single
 successful diagnostic is not a qualification pass. Quota, knowledge snapshot,
 hardware/network, ingestion overlap and genuine cold-server evidence are gates.
+Measurement schema v2 records runner commit/hash/dirty state and a hash of each
+prepared synthetic input without storing its notes or academic contents. It
+also records each specialist's status. A usable draft with a failed specialist
+is a `partial` outcome, counted as nonqualifying for the healthy-provider
+zero-failure gate; partial recovery is not silently relabeled full success.
+Unavailable evidence is counted separately. The baseline campaign already
+running with schema v1 is preserved as v1, including its failures; its draft
+success counts did not capture specialist status and cannot prove full analysis.
 
 ## Evidence and active requirement mapping
 
@@ -149,6 +163,11 @@ passed again; full lint remains zero errors and 12 existing warnings. Scoped
 ESLint and actionlint for the three changed workflows passed. The browser's
 unsuccessful windowed diagnostic was removed; the normal headless job retains
 all assertions and remains an open CI gate rather than a claimed fix.
+After the ranking example correction, the full application suite passes
+**781 tests in 53 files**; the targeted explanation/scoring/report command
+passes 80. The measurement contract suite now passes four tests, including a
+partial draft counting as nonqualifying rather than full healthy-provider
+success. Type checking and scoped ESLint pass again.
 
 The production build passed with the existing private environment loaded into
 the parent process, followed by `node node_modules/next/dist/bin/next build --webpack`.
@@ -180,7 +199,7 @@ the ignored, private operator directory. The first hosted contract/corpus/
 download runs target merged `bc336abb1422832141ab089557d14ad842fb38c9`, Vercel
 deployment `DzRMcmxe3srR7ihoPoPZzznkY1zN`; they do not attest the later PR preview.
 
-The 70-attempt performance campaign preserves five warm-ups, 30 sequential
+The completed 70-attempt baseline performance campaign preserves five warm-ups, 30 sequential
 attempts, five waves of five distinct counselors and a separate ten-session
 stress wave. Three genuine cold starts cannot be controlled here and are not
 claimed. Several measured attempts reached 300 seconds before a draft appeared.
@@ -188,6 +207,22 @@ Narrow processing metadata identifies FeasibilityStrategist generation as the
 failed stage in several runs. One client timeout has a completed report, so its
 client end-to-end failure is retained despite the eventual server completion.
 No failed attempt is removed or silently retried to improve the result.
+It ran 8 November 2026 11:28:18.821–13:28:29.421 UTC, from runner `b4dba07`.
+
+| Cohort | Draft-ready / attempts | Failures | Successful median / p95 / max (seconds) |
+| --- | --- | --- | --- |
+| Excluded warm-ups | 4 / 5 | 1 pre-approval workflow error | 81.004 / 277.495 / 277.495 |
+| Sequential | 21 / 30 | 9 timeouts; 30% error rate | 93.698 / 293.748 / 295.786 |
+| Five-counselor concurrent | 25 / 25 | 0 | 73.613 / 90.068 / 115.182 |
+| Ten-session stress | 10 / 10 | 0 | 72.359 / 86.668 / 86.668 |
+
+P01 fails this baseline; three required cold attempts are also unavailable.
+The concurrent/stress draft timing observations do not complete P02's separate
+fault/retry checks or establish semantic isolation/complete specialist output.
+V1 did not capture specialist status. Its immutable result SHA-256 is
+`941cbd65f1ca8fcddcc015331b67ef25fc1b141023ddf965d3758d823e40ca00`.
+Local fixture checks and non-provider preview smoke overlapped parts of the
+baseline, with no extra live provider campaign or ingestion launched here.
 
 PR preview access became available on 8 November. The Vercel status for
 `af48364acc807ee49ff5418bef7ead64e33e63e3` identifies deployment
@@ -207,6 +242,43 @@ Chrome, Edge and WebKit CI pass. Local default-aggregation Firefox passes both
 widths, but that does not close the CI failure. No rule, assertion or failure
 gate is disabled. Actual Safari and spoken screen-reader verification remain
 unexecuted.
+
+On the later timeout-fix commit
+`1c6e38822118c185f27ef600a8fa00fcf267fcf9`, **all 19 workflows pass**.
+[Browser run 42482444321](https://github.com/MRhagz/Kumpas/actions/runs/42482444321)
+executes eight keyboard workflows and 24 complete axe scans, all with zero
+violations and zero incomplete checks:
+
+| Engine/channel | Actual version | Platform | Widths |
+| --- | --- | --- | --- |
+| Chrome | 157.0.8103.38 | Ubuntu runner | 375, 1280 |
+| Edge | 157.0.4341.42 | Ubuntu runner | 375, 1280 |
+| Firefox | 159.0 | Windows runner | 375, 1280 |
+| WebKit engine | 27.2 | Ubuntu runner | 375, 1280 |
+
+This successful Firefox run does not explain or erase the previous native
+scanner crashes. They remain an intermittent test reliability concern. These
+are component workflows with isolated API responses, not live-provider or
+actual-Safari acceptance evidence. The candidate's successful Vercel deployment
+is `G7pqCm2nqt8RV9p81a9Fv2fK4wFw`; its timeout policy still requires live retest.
+An actual typed-only Grade 10 preview run on that deployment reached a draft
+with AcademicAuditor/IndustryAnalyst complete and FeasibilityStrategist failed.
+The UI/PDF mark it partial, withhold totals/ranks for missing feasibility and
+show unavailable explanations. This verifies bounded partial recovery, not a
+healthy-provider qualification pass. Its four-page authenticated PDF was
+downloaded, rendered with `pdftoppm -scale-to 1400 -png` and inspected. PDFium
+character bounds remain within all four A4 pages; Draft origin, AI disclosure,
+missing evidence, unknown publication date and source provenance are visible.
+The original draft expiry stays 9 November 20:37 Singapore; PDF expiry is
+10 November 00:21, demonstrating the independent generation-based clock.
+
+On 9 November Singapore time, the user approved existing automation access.
+The unlinked CLI could not resolve the deployment's project, used no bypass
+token and received Vercel HTTP 302. Explicit team-scope lookup was unavailable.
+No token was created and protection settings were not changed. Browser checks
+continue; automated candidate qualification needs an existing authorized token
+or execution by the deployment owner. A token is a testing method, not an app
+runtime dependency.
 
 Actual hosted ingestion jobs failed for missing `SUPABASE_INGESTION_TOKEN` and
 `SUPABASE_PUBLISHABLE_KEY`; operational-log pruning failed for missing
@@ -234,10 +306,11 @@ before closing each defect.
 | KMP-DEF-006 | Hosted unapproved/stale/cross-owner download denial and exact approval/stream/revocation pass; Draft markings and regeneration are covered by fixtures. | Candidate live review/regeneration walkthrough and independent retest. |
 | KMP-DEF-007 | AI/comparative-score disclosure assertions pass in PDF/UI. A missing AI label in the legacy summary-absent UI was reproduced and fixed here. | Candidate live visual report review and independent retest. |
 
-Current additional open observations are measured analysis-to-draft timeouts,
-Firefox's CI scanner crash and the operational configuration failures above.
-They prevent A01 acceptance; successful extraction and green unit tests do not
-override them.
+Current additional open observations are measured analysis-to-draft timeouts
+and the operational configuration failures above. Earlier Firefox scanner
+crashes remain a reliability concern despite the later passing run. A01 is not
+accepted; successful extraction and green unit tests do not override the
+unresolved performance and operational gates.
 
 ### Current active-row disposition
 
@@ -274,15 +347,15 @@ Later human validation does not become an invented automated result.
 | KMP-NFR-002 | I05, I14, S07, S11 | Server-only bundle scan and secret-marker fixtures pass; paid-project confirmation retained from SW-30. No unapproved key fallback added. |
 | KMP-NFR-003 | F05, I01, S07, A01 | Processing notice and SW-05/SW-30 decisions recorded; school policy/contact and provider account controls require institutional verification. |
 | KMP-NFR-004 | F05, I10, I11, S04, S05, S06, S07, S10, S11, A01 | All separate clocks/retry/replay fixtures and real SQL pass; hosted raw deletion passes. Hosted elapsed-time/failure isolation remains partial. |
-| KMP-NFR-005 | I07, P01, P02 | One real browser diagnostic completed in 86.740 s. Frozen sequential/concurrent campaign is in progress; no P01/P02 pass or cold-server claim. |
+| KMP-NFR-005 | I07, P01, P02 | Completed baseline: sequential 21/30 draft-ready with 9 timeouts; concurrent 25/25 and stress 10/10 within 300 s. No full P01/P02 pass or cold-server claim; candidate qualification pending. |
 | KMP-NFR-006 | S09, R03 | 30 hosted extractions matched 120/120 frozen observations. Independent human corpus verification remains pending. |
-| KMP-NFR-007 | F07, F08, F12, I04, S03, R01 | 780 application and 28 legacy regressions pass; remaining live/independent gates prevent broad release acceptance. |
+| KMP-NFR-007 | F07, F08, F12, I04, S03, R01 | 781 application and 28 legacy regressions pass; remaining live/independent gates prevent broad release acceptance. |
 | KMP-NFR-008 | F09, I06 | Malformed/partial/missing-evidence and specialist-failure fixtures pass. Controlled hosted provider fault injection is not claimed. |
 | KMP-NFR-009 | I06, I07, P02 | Retry/deadline/quota/stale-write fixtures pass. Live diagnostic passes; concurrent workload and fault qualification remain separate. |
 | KMP-NFR-010 | I09, S07 | Seeded safe-log and fixed-retention fixtures pass. Actual operational-log pruning fails on missing maintenance DSN; notification receipt unverified. |
 | KMP-NFR-011 | S10 | Real SQL deletion-ledger replay prevents revival. Hosted isolated S10/RPO/RTO excluded in SW-30 record; no hosted restore pass. |
 | KMP-NFR-012 | F10, R03, A03 | Evidence/silo/score invariants pass. Qualified counselor review of the twenty-case explanation set remains pending; no expert sign-off inferred. |
-| KMP-NFR-013 | S08 | Edge/WebKit local and Chrome/Edge/WebKit CI scans pass. Firefox scanner crashes are retained; current-platform CI under investigation. Actual Safari/spoken reader checks unexecuted. |
+| KMP-NFR-013 | S08 | All eight latest Chrome/Edge/Firefox/WebKit CI workflows and 24 scans pass on 1c6e388. Previous Firefox scanner crashes remain recorded as intermittent reliability risk. Actual Safari/spoken reader checks unexecuted. |
 | KMP-NFR-014 | F11, A02 | Student-summary wording/confidentiality fixtures pass. Intended-student comprehension study remains after the midterm deliverable. |
 | KMP-NFR-015 | S01, A02 | Keyboard/navigation fixtures and available-browser workflows run. Five-counselor unassisted usability study remains after the midterm deliverable. |
 | KMP-NFR-016 | I08, S07, S08 | Next/Vercel production and separate Actions topology observed; generated seven 300-second allowances and Fluid config verified. Authorized PR-preview login/save/refresh/recovery/approval-guard browser smoke passes; full live candidate qualification remains incomplete. |
