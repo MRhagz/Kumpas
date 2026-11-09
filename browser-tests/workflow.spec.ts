@@ -44,8 +44,7 @@ for (const width of [375, 1280]) test(`keyboard workflow and WCAG 2.1 AA at ${wi
   const selecting = page.waitForEvent('filechooser'); await page.keyboard.press('Enter');
   await (await selecting).setFiles({name:'fixture.txt',mimeType:'text/plain',buffer:Buffer.from('Synthetic invalid document')});
   await expect(page.getByRole('alert')).toContainText('Choose a JPEG');
-  const scan = async (stage: string) => {
-    expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
+  const scanOnce = async (stage: string) => {
     // Isolate each Firefox audit from the keyboard browser and other scans.
     // Hosted scanner crashes remain failures; all audit rules stay enabled.
     const auditBrowser = info.project.name === 'firefox'
@@ -70,6 +69,19 @@ for (const width of [375, 1280]) test(`keyboard workflow and WCAG 2.1 AA at ${wi
       expect(result.violations.map(v=>({id:v.id,nodes:v.nodes.map(n=>n.target)}))).toEqual([]);
       await audit.screenshot({path:info.outputPath(`${stage}.png`),fullPage:true});
     } finally { await auditContext.close(); await auditBrowser?.close(); }
+  };
+  const scan = async (stage: string) => {
+    expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
+    try {
+      await scanOnce(stage);
+    } catch (error) {
+      if (info.project.name !== 'firefox' || !(error instanceof Error) ||
+          !error.message.includes('frame.evaluate: Page crashed')) throw error;
+      const diagnostic = `${stage}: Firefox accessibility scan crashed. Retrying once in a fresh process.`;
+      console.warn(diagnostic);
+      await info.attach(`${stage}-firefox-crash`, { body: diagnostic, contentType: 'text/plain' });
+      await scanOnce(stage);
+    }
   };
   await scan('intake');
   const cancel = page.getByRole('button',{name:'Cancel session',exact:true});

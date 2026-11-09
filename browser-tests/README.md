@@ -9,7 +9,9 @@ below are historical. Current candidate results and exceptions are recorded in
 Hosted headless scans also crashed with default aggregation. A windowed-mode
 diagnostic retained native browser logs and reproduced the crash inside axe;
 it is not a fix or a passing result. The runner returns to the default headless
-mode with complete assertions and the Firefox CI failure remains open.
+mode with complete assertions. If Firefox reports `frame.evaluate: Page crashed`,
+the audit retains a diagnostic and retries that stage once in a fresh process.
+Accessibility assertion failures and a second crash fail the job.
 
 Prerequisite SW-25 is merged in base `4b0f9cc`. The supplied SRS accessibility
 section targets WCAG 2.1 AA; STD S08 requires keyboard/focus/contrast/status

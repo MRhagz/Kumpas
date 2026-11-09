@@ -304,6 +304,11 @@ approves version 1 and downloads the five-page PDF. Its actual bytes contain
 the evidence explanations, Draft footer on every page, AI disclosure and
 missing-evidence notices. This single interrupted workflow is a smoke check.
 
+On preview `b97801fc19b85f6d3685d769e475cfd2dba97907`, deployment
+`4YTo1HpU31GeL9qq9odEiUtYMdo6`, the same approved SHS version and its download
+control were restored on reload. The interleaved publication reads are exercised
+by the deterministic regression, separate from this hosted readback.
+
 On 9 November Singapore time, the user approved existing automation access.
 The unlinked CLI could not resolve the deployment's project, used no bypass
 token and received Vercel HTTP 302. Explicit team-scope lookup was unavailable.
@@ -367,14 +372,14 @@ Later human validation does not become an invented automated result.
 | KMP-FR-014 | F08, F09, I04, I06, R02, R03, U01 | Historical 84.50/79.45/71.55 and rounding/tie/null guards pass through calculator/UI/PDF; hosted semantic quality is not inferred from arithmetic tests. |
 | KMP-FR-015 | F10, F11, R02, R03 | PDF content/missing evidence/confidential-marker fixtures and actual approved PDF stream pass. Independent explanation review remains pending. |
 | KMP-FR-016 | F12, I04, I10, S08, R02 | Hosted unapproved/stale/cross-owner denial, exact approval, PDF stream and termination revocation pass; broader regeneration cases have fixture coverage. |
-| KMP-FR-017 | S01, S05, R01 | Five-stage fixtures and browser contracts cover flow. Hosted diagnostic/download pass; both-grade full browser walkthrough remains incomplete. |
-| KMP-FR-018 | S03, S04 | Refresh/login/stale/expired owner-draft fixtures pass. Full hosted logout/login recovery walkthrough remains incomplete. |
+| KMP-FR-017 | S01, S05, R01 | Five-stage fixtures and browser contracts cover flow. Both hosted grade groups reached approved download on the identified previews. Full live qualification on a single final build remains open. |
+| KMP-FR-018 | S03, S04 | Refresh/login/stale/expired owner-draft fixtures pass. Hosted typed draft restored after logout/login. SHS refresh exposed a publication race, now covered by a regression and a hosted approved-version readback. |
 | KMP-FR-019 | I01, I11, S04, S05 | Independent draft/PDF clocks and retry/tombstone real SQL pass; hosted extraction raw deletion passes. Hosted 24-hour boundary and injected-delete-failure drill not run. |
 | KMP-FR-020 | F03, F04, F06, S02 | Eight optional-document combinations have fixture coverage; hosted notes-only diagnostic and corpus uploads pass. Full hosted combination matrix not run. |
-| KMP-FR-021 | F12, I10 | AI/score disclosures and provenance fixtures pass; a legacy UI disclosure gap was reproduced and fixed. Final preview-specific validation remains pending. |
+| KMP-FR-021 | F12, I10 | AI/score disclosures and provenance fixtures pass. A legacy UI disclosure gap was reproduced and fixed. The preview Grade 10 and SHS downloads include AI disclosures and missing-evidence indicators. |
 | KMP-FR-022 | F03, F05, I02 | Hosted notes photograph review gate, required-field and upload boundary denials pass. SRS/STD masking wording requires later reconciliation. |
 | KMP-FR-023 | F05, A02 | Onboarding/notice/control semantics have fixture/browser coverage. Human orientation/comprehension remains after the midterm deliverable. |
-| KMP-FR-029 | S01 | Grade 10/SHS validation fixtures and both grade-level corpus records pass. Completed live browser workflows for both groups remain incomplete. |
+| KMP-FR-029 | S01 | Grade 10/SHS validation fixtures and both grade-level corpus records pass. The hosted Grade 10 typed-only and SHS Form 137 cases reached approved download with partial analyses. |
 | KMP-NFR-001 | F01, I03, I10, S03, S06, S11 | Owner/role/version SQL and API fixtures plus hosted cross-owner denials pass; full direct hosted child-table/storage policy matrix remains partial. |
 | KMP-NFR-002 | I05, I14, S07, S11 | Server-only bundle scan and secret-marker fixtures pass; paid-project confirmation retained from SW-30. No unapproved key fallback added. |
 | KMP-NFR-003 | F05, I01, S07, A01 | Processing notice and SW-05/SW-30 decisions recorded; school policy/contact and provider account controls require institutional verification. |
@@ -387,7 +392,7 @@ Later human validation does not become an invented automated result.
 | KMP-NFR-010 | I09, S07 | Seeded safe-log and fixed-retention fixtures pass. Actual operational-log pruning fails on missing maintenance DSN; notification receipt unverified. |
 | KMP-NFR-011 | S10 | Real SQL deletion-ledger replay prevents revival. Hosted isolated S10/RPO/RTO excluded in SW-30 record; no hosted restore pass. |
 | KMP-NFR-012 | F10, R03, A03 | Evidence/silo/score invariants pass. Qualified counselor review of the twenty-case explanation set remains pending; no expert sign-off inferred. |
-| KMP-NFR-013 | S08 | All eight latest Chrome/Edge/Firefox/WebKit CI workflows and 24 scans pass on 1c6e388. Previous Firefox scanner crashes remain recorded as intermittent reliability risk. Actual Safari/spoken reader checks unexecuted. |
+| KMP-NFR-013 | S08 | Eight Chrome/Edge/Firefox/WebKit CI workflows and 24 scans pass on 1c6e388. Firefox scanner crashes recurred on 0f20df7 and b97801f. One fresh-process retry is permitted for the specific scanner crash. Actual Safari/spoken reader checks unexecuted. |
 | KMP-NFR-014 | F11, A02 | Student-summary wording/confidentiality fixtures pass. Intended-student comprehension study remains after the midterm deliverable. |
 | KMP-NFR-015 | S01, A02 | Keyboard/navigation fixtures and available-browser workflows run. Five-counselor unassisted usability study remains after the midterm deliverable. |
 | KMP-NFR-016 | I08, S07, S08 | Next/Vercel production and separate Actions topology observed; generated seven 300-second allowances and Fluid config verified. Authorized PR-preview login/save/refresh/recovery/approval-guard browser smoke passes; full live candidate qualification remains incomplete. |
