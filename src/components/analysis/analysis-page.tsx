@@ -226,29 +226,20 @@ function AnalysisContent() {
   };
 
   return (
-    <main className="min-h-screen bg-background">
-      {sessionId && <div className="mx-auto max-w-6xl px-4">
-        <SessionTerminationControl sessionId={sessionId} open={terminationOpen} onOpenChange={setTerminationOpen}
+    <main className={`min-h-screen ${state.phase === "processing" ? "bg-[var(--cream)]" : "bg-background"}`}>
+      {sessionId && <div className="mx-auto mb-1 flex max-w-6xl justify-end px-4 pt-6">
+        <SessionTerminationControl compact sessionId={sessionId} open={terminationOpen} onOpenChange={setTerminationOpen}
           onTerminating={() => { recoveryRequest.current?.abort(); setTerminating(true); }} />
       </div>}
       <div hidden={terminating}>
-      <div className="pt-6 pb-2">
+      <div className={sessionId ? "pb-2" : "pt-6 pb-2"}>
         <SessionProgressIndicator
           sessionId={sessionId}
           fallbackStep={state.phase === "reportReady" ? "report" : "analysis"}
           refreshToken={state.phase === "reportReady" ? `${state.report.reportVersion}-${state.report.reviewStatus}` : state.phase}
           className="max-w-6xl"
         />
-        {sessionId && <div className="mx-auto max-w-6xl px-4 pt-3 text-sm">
-          <Link className="underline" href={`/input?session=${encodeURIComponent(sessionId)}&edit=1`} onClick={(event) => {
-            if (state.phase === "reportReady") {
-              event.preventDefault();
-              void reviewReport("correct").catch(() => setState({ phase: "error", message: "This report changed. Reload before correcting inputs." }));
-            }
-          }}>
-            Review or correct inputs
-          </Link>
-        </div>}
+
       </div>
       {state.phase === "processing" && (
         <LoadingScreen completedStages={state.completedStages} agentStatuses={state.agentStatuses} isPartial={state.isPartial} />

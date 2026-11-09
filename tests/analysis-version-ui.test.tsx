@@ -41,8 +41,8 @@ it("sends the saved approval/run token when starting analysis", async () => {
   await act(async () => { await vi.advanceTimersByTimeAsync(800); });
   const call = vi.mocked(fetch).mock.calls.find(([url]) => String(url).includes("/analyze"));
   expect(JSON.parse(String(call?.[1]?.body))).toEqual({ runId: "run-1", profileVersion: 1 });
-  expect(screen.getByRole("link", { name: "Review or correct inputs" }).getAttribute("href"))
-    .toBe("/input?session=session&edit=1");
+  expect(screen.queryByRole("link", { name: "Review or correct inputs" })).toBeNull();
+  expect(screen.getByRole("button", { name: "End Session" }).getAttribute("data-size")).toBe("sm");
 });
 
 it.each(["analysis", "report", "network"])("a hosting interruption during %s preserves actionable recovery", async stage => {
