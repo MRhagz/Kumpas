@@ -29,6 +29,7 @@ for (const width of [375, 1280]) test(`keyboard workflow and WCAG 2.1 AA at ${wi
   await page.route('**/api/**', handler);
   await page.route('**/approved.pdf', route => route.fulfill({body:'%PDF-1.4\n%%EOF',headers:{'Content-Type':'application/pdf','Content-Disposition':'attachment; filename=fixture.pdf'}}));
   await page.goto('/');
+  await page.getByRole('button',{name:'Skip orientation'}).click();
   const goal = page.getByRole('textbox',{name:'Career Goal (required)'});
   const notice = page.getByRole('checkbox',{name:/I have read this notice/});
   await expect(notice).toBeVisible();
@@ -60,6 +61,7 @@ for (const width of [375, 1280]) test(`keyboard workflow and WCAG 2.1 AA at ${wi
       await audit.route('**/api/**',handler);
       await audit.goto(stage === 'intake' ? '/' : '/#/analysis');
       if (stage === 'intake') {
+        await audit.getByRole('button',{name:'Skip orientation'}).click();
         await audit.getByRole('checkbox',{name:/I have read this notice/}).check();
         await audit.getByRole('button',{name:'Continue to intake'}).click();
       }

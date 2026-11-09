@@ -15,6 +15,7 @@ let uploadPending: boolean;
 let savedNotes: typeof notes & { revision: number; source: null; original: null };
 beforeEach(() => {
   localStorage.setItem("kumpas:processing-notice:v1", "acknowledged");
+  localStorage.setItem("kumpas:workflow-orientation:v1", "seen");
   m.search = "session=saved"; vi.clearAllMocks();
   failSave = false; uploadPending = false; documents = []; savedNotes = { ...notes, revision: 0, source: null, original: null };
   vi.stubGlobal("fetch", vi.fn(async (url: string, init?: RequestInit) => {
