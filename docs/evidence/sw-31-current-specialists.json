@@ -1,0 +1,58 @@
+{
+  "recordedOn": "2026-11-09",
+  "commit": "55b0bd1aea987f46a9802bfd5d5df06e07aadb27",
+  "syntheticOnly": true,
+  "localSpecialistDiagnostic": {
+    "execution": "local_candidate_live_providers_and_database",
+    "durationMs": 17943,
+    "specialists": [
+      { "agent": "AcademicAuditor", "status": "SUCCESS", "retrievedChunks": 5, "hasAnalysis": true },
+      { "agent": "IndustryAnalyst", "status": "SUCCESS", "retrievedChunks": 5, "hasAnalysis": true },
+      { "agent": "FeasibilityStrategist", "status": "SUCCESS", "retrievedChunks": 5, "hasAnalysis": true }
+    ]
+  },
+  "localBrowserDiagnostic": {
+    "execution": "local_production_build_actual_browser_live_services",
+    "startedAt": "2026-11-09T10:13:00.843Z",
+    "browserVersion": "151.0.7922.34",
+    "completed": true,
+    "profile": "notes",
+    "durationMs": 79905.2,
+    "specialists": [
+      { "agent": "AcademicAuditor", "status": "SUCCESS" },
+      { "agent": "IndustryAnalyst", "status": "SUCCESS" },
+      { "agent": "FeasibilityStrategist", "status": "SUCCESS" }
+    ],
+    "recommendationCount": 3,
+    "draftPdfBytes": 18619,
+    "pdfSha256": "c803b18fec22c237658c5df63581309e95552e09a0cbba45d43c7e9d96208564",
+    "reviewStatus": "draft",
+    "hasStudentSummary": true,
+    "pdfPreview": "pass",
+    "sessionTermination": "terminated"
+  },
+  "verification": {
+    "providerAndBudgetRegressionTests": 36,
+    "maintenanceTestsOutsideProcessSandbox": 8,
+    "typecheck": "pass",
+    "productionWebpackBuild": "pass",
+    "buildRuntimeAndNativeDependencies": "pass"
+  },
+  "hostedPreview": {
+    "gitHubDeploymentRecord": 7649469942,
+    "gitHubDeploymentState": "success",
+    "url": "https://kumpas-6y5czpvz3-moen-malone-rago-s-projects.vercel.app",
+    "loginHttpStatus": 302,
+    "redirectDestination": "Vercel SSO",
+    "counselorAuthentication": "active_counselor_verified_against_existing_supabase_project",
+    "cliAuthentication": "no_active_saved_token_in_current_environment",
+    "runtimeLogsInspected": false,
+    "vercelApiIdentityVerified": false
+  },
+  "hostedQualification": false,
+  "P01": "not_run_on_current_deployment",
+  "P02": "not_run_on_current_deployment",
+  "coldServerEvidence": "not_obtained",
+  "releaseReady": false,
+  "limitations": "Two local synthetic diagnostics use existing local credentials and live services. They do not establish deployed credential identity, hosted specialist health, repeated performance, fault/isolation behavior, or genuine server cold starts. No runtime code, credential, deployment setting, commit, push, PR, or tracker status was changed."
+}

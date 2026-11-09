@@ -46,7 +46,8 @@ beforeEach(() => {
 });
 
 describe("U01 / F08 deterministic scoring", () => {
-  it.each([[80, 60, 90, 74.5], [0, 0, 0, 0], [100, 100, 100, 100], [74.505, 74.505, 74.505, 74.51], [1.005, 1.005, 1.005, 1.01]])("calculates %s/%s/%s = %s", (a, d, f, expected) => {
+  it.each([[80, 60, 90, 74.5], [85, 90, 75, 84.5], [80, 88, 65, 79.45], [75, 82, 50, 71.55],
+    [0, 0, 0, 0], [100, 100, 100, 100], [74.505, 74.505, 74.505, 74.51], [1.005, 1.005, 1.005, 1.01]])("calculates %s/%s/%s = %s", (a, d, f, expected) => {
     expect(alignmentScoreCalculator.calculate({ candidates: [candidate("Alpha", a, d, f)] })[0].alignmentScore).toBe(expected);
   });
   it("rounds before ordering, shares competition ranks and sorts ties alphabetically", () => {

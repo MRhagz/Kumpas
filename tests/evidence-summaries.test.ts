@@ -108,6 +108,18 @@ it.each(cases)("F10 / R03 frozen explanation profile: %s", async (name, a, d, f,
   }
 });
 
+it("the ranking response example preserves the silo identity required by citation validation", async () => {
+  m.generate.mockResolvedValueOnce({ text: JSON.stringify({ candidates: [candidate(80, 60, 90)] }) });
+  const scored = alignmentScoreCalculator.calculate(await synthesisInterpreter.synthesize(outputs, profile));
+  m.generate.mockResolvedValueOnce({ text: JSON.stringify({ rankings: scored.map(path => ({ careerPath: path.careerPath,
+    claims: Object.entries(path.componentEvidence).flatMap(([dimension, support]) => support
+      ? [{ dimension, inputReferences: support.inputReferences, sourceReferences: support.sourceReferences }] : []) })) }) });
+  await rankingAgent.generateReasoning(scored);
+  const prompt = m.generate.mock.calls[1][0].contents as string;
+  const example = JSON.parse(prompt.split("Return JSON only:\n")[1].split("\nEvidence:")[0]);
+  expect(example.rankings[0].claims[0].sourceReferences[0]).toHaveProperty("siloId");
+});
+
 it.each(["invented URL", "foreign chunk", "foreign silo", "unapproved input", "missing claim", "duplicate claim", "unknown career", "free prose only"])("rejects %s instead of publishing an unsupported explanation", async (mode) => {
   m.generate.mockResolvedValueOnce({ text: JSON.stringify({ candidates: [candidate(80, 60, 90)] }) });
   const scored = alignmentScoreCalculator.calculate(await synthesisInterpreter.synthesize(outputs, profile));

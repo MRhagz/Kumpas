@@ -63,7 +63,7 @@ export default function PdfModal({ isOpen, onClose, pdfUrl }: PdfModalProps) {
                         className="w-full h-full rounded shadow-sm bg-white"
                     >
                         <div className="flexh-full items-center justify-center flex-col gap-2 p-8 text-center text-muted-text">
-                            <p>Your browser doesn't support viewing PDFs directly.</p>
+                            <p>Your browser does not support viewing PDFs directly.</p>
                             <a href={pdfUrl} download className="text-forest underline font-semibold">Download it here</a>
                         </div>
                     </object>

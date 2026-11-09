@@ -1,0 +1,51 @@
+{
+  "recordedOn": "2026-11-09",
+  "hostedCommit": "17ca70ba7c6a92ad2e5d05d797bce2ca129a0986",
+  "deploymentId": "HYgQzDgeuXf7AuDDY3G6ieHYxDAw",
+  "privateEvidenceSha256": {
+    "initialContractsWithHostingRedirectFailure": "6592adf01b65030c9a36259846f739d080c406f45b3d102fe5a6f1a90792a8ae",
+    "protectedContracts": "c202f30cca42941110b48529bceea0cd987de3856d0456173fe907977987ba15",
+    "diagnostic": "51910f98f8da8512e5b29ecf94bf650c9ddd696bc5a7219e97a4c324f9c2e1d1"
+  },
+  "liveContracts": { "execution": "unmocked_hosted_http", "passed": 7, "failed": 0 },
+  "diagnostic": {
+    "execution": "actual_browser",
+    "profile": "notes",
+    "attempts": 1,
+    "outcome": "partial",
+    "durationMs": 139776.7,
+    "specialists": {
+      "AcademicAuditor": "SUCCESS",
+      "IndustryAnalyst": "SUCCESS",
+      "FeasibilityStrategist": "FAILED"
+    },
+    "qualifiesP01": false,
+    "qualifiesP02": false
+  },
+  "localBrowserTooling": {
+    "playwright": "1.64.1",
+    "firefox": "157.0",
+    "firefoxWorkflows": 10,
+    "firefoxScans": 30,
+    "firefoxCrashRetries": 0,
+    "chrome": "157.0.8103.38",
+    "chromeWorkflows": 2,
+    "chromeScans": 6,
+    "violations": 0,
+    "incompleteChecks": 0,
+    "hostedCi": "pending_on_followup_commit"
+  },
+  "followupDeployment": {
+    "commit": "6c92aa77ea5af002185b9c2401abac11910782c1",
+    "deploymentId": "dpl_GQgg4t8dUQ5HyyVYxnjatK8vBUoS",
+    "identityVerifiedViaVercelApi": true,
+    "liveContractsPassed": 7,
+    "hostedFirefoxMobile": "pass_no_crash",
+    "hostedFirefoxDesktop": "intake_contrast_assertion_failed",
+    "readinessFixLocalWorkflows": 6,
+    "readinessFixLocalScans": 18,
+    "readinessFixLocalViolations": 0,
+    "readinessFixLocalIncompleteChecks": 0
+  },
+  "releaseReady": false
+}

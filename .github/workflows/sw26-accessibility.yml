@@ -18,9 +18,9 @@ jobs:
             os: ubuntu-latest
           - project: firefox
             browser: firefox
-            # The patched engine crashes during axe evaluation on Windows/Linux.
-            # macOS runs the complete keyboard flow and the same unfiltered rules.
-            os: macos-latest
+            # Match the locally verified Windows/default-aggregation combination.
+            # Retain full scans; failed legacy/macOS attempts remain in the run history.
+            os: windows-latest
           - project: webkit-engine
             browser: webkit
             os: ubuntu-latest
@@ -34,7 +34,7 @@ jobs:
       - run: npx playwright install --with-deps ${{ matrix.browser }}
       - if: matrix.project != 'firefox'
         run: npx playwright test --project=${{ matrix.project }}
-      # Start a fresh Firefox process between widths: repeated axe injection can crash its page.
+      # Preserve independent widths and complete assertions; scanner failures fail the job.
       - if: matrix.project == 'firefox'
         run: npx playwright test --project=firefox --grep=375px
       - if: matrix.project == 'firefox'

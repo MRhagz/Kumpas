@@ -148,6 +148,13 @@ share the original 300-second deadline saved at input approval; a second request
 does not reset it. Supabase holds durable session state and private PDF objects;
 local files and process memory are never a recovery store.
 
+The parallel specialist stage has a 180-second ceiling inside that same clock.
+Specialist generation attempts have a 75-second limit and at most one transient
+retry. Remaining valid outputs may support a clearly marked partial comparison;
+missing dimensions stay unavailable. Insufficient evidence or the absolute
+deadline stops the run with recovery actions. These limits leave time for
+synthesis and PDF generation; they do not establish a performance acceptance pass.
+
 The upload flow sends file bytes directly to the private `kumpas-intake-temp`
 bucket. Vercel receives a small upload reference for validation and extraction.
 Upload reservations expire after ten minutes; processing receives a separate

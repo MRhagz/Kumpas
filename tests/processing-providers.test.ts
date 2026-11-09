@@ -61,7 +61,7 @@ describe("SW-15 production operation wiring", () => {
     await vi.advanceTimersByTimeAsync(4999); expect(target).toHaveBeenCalledTimes(1);
     await vi.advanceTimersByTimeAsync(1); await pending;
     expect(target).toHaveBeenCalledTimes(2);
-    for (const [options] of provider.constructors.mock.calls) expect(options.httpOptions.retryOptions.attempts).toBe(1);
+    for (const [options] of provider.constructors.mock.calls) expect(options.httpOptions.retryOptions).toBeUndefined();
     for (const [request] of target.mock.calls) expect(request.config.abortSignal).toBeInstanceOf(AbortSignal);
     if (stage === "specialist") { expect(provider.embed).toHaveBeenCalledTimes(1); expect(provider.query).toHaveBeenCalledTimes(1); }
   });
@@ -75,6 +75,24 @@ describe("SW-15 production operation wiring", () => {
     expect(outputs.every((output) => output.status === "FAILED")).toBe(true);
     expect(provider.embed).toHaveBeenCalledTimes(6); // 2 per independent specialist, no outer retry.
     expect(provider.generate).not.toHaveBeenCalled();
+  });
+  it("a hung specialist generation retries once after 75 seconds without repeating retrieval", async () => {
+    let aborted: AbortSignal | undefined;
+    provider.generate.mockImplementationOnce(({ config }) => {
+      aborted = config.abortSignal;
+      return new Promise(() => {});
+    }).mockResolvedValueOnce({ text: '{"summary":"synthetic"}' });
+    const budget = new ProcessingBudget();
+    const pending = academicAuditorAgent.analyze(profile, "test", budget);
+    await vi.advanceTimersByTimeAsync(75000);
+    expect(aborted?.aborted).toBe(true);
+    await vi.advanceTimersByTimeAsync(1999); expect(provider.generate).toHaveBeenCalledTimes(1);
+    await vi.advanceTimersByTimeAsync(1);
+    await expect(pending).resolves.toMatchObject({ status: "SUCCESS" });
+    expect(provider.generate).toHaveBeenCalledTimes(2);
+    expect(provider.embed).toHaveBeenCalledTimes(1);
+    expect(provider.query).toHaveBeenCalledTimes(1);
+    expect(budget.deadlineAt - Date.now()).toBe(223000);
   });
 });
 
