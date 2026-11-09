@@ -166,6 +166,7 @@ export default function InputContainer() {
   const notesRevision = useRef(0);
   const profileVersion = useRef(0);
   const editGeneration = useRef(0);
+  const academicDraftDirty = useRef(false);
   const [dirtyDraft, setDirtyDraft] = useState(false);
   const [savingDraft, setSavingDraft] = useState(false);
   const [draftError, setDraftError] = useState<string | null>(null);
@@ -335,6 +336,7 @@ export default function InputContainer() {
     setScanning(true);
     setScanError(null);
     setImageSectionsReady(false);
+    let extractionSaved = false;
     try {
       const revision = notesRevision.current;
       const uploadId = await uploadIntakeFile(sessionId, file, { docType: "notes", notesReviewed: true, revision });
@@ -345,24 +347,43 @@ export default function InputContainer() {
         throw new Error(e.error || "Failed to extract notes");
       }
       const data = await res.json();
-      setImageSectionHtml({
-        careerGoal: data.careerGoal || "<p></p>",
-        interests: data.interests || "<p></p>",
-        financial: data.financial || "<p></p>",
-        concerns: data.concerns || "<p></p>",
-        impression: data.impression || "<p></p>",
-      });
+      const extractedNotes: ExtractedNotes = {
+        careerGoal: data.careerGoal,
+        interests: data.interests,
+        financial: data.financial,
+        concerns: data.concerns,
+        impression: data.impression,
+      };
+      extractionSaved = true;
+      setNotesReviewed(false);
+      setImageSectionHtml(extractedNotes);
       notesRevision.current = data.revision;
       setNotesSource(data.source);
       setNotesFile(new File([], "Saved notes photograph"));
       setImageSectionsReady(true);
-      markDraftChanged();
-      toast.success("Notes extracted", {
-        description: "AI Vision extracted your counselor notes",
+      // Extraction already persisted these exact values. Refresh the version
+      // used for approval without saving again or clearing academic edits.
+      const generation = ++editGeneration.current;
+      setDirtyDraft(true);
+      const current = await fetch(`/api/sessions/${sessionId}/intake`, { cache: "no-store" });
+      if (!current.ok) throw new Error("Notes were extracted, but their saved draft could not be verified. Retry saving before approval.");
+      const draft = await current.json() as IntakeDraft;
+      if (draft.notes?.revision !== data.revision || Object.entries(extractedNotes).some(([key, value]) => draft.notes?.[key as keyof ExtractedNotes] !== value)) {
+        throw new Error("The saved notes changed. Reload and review before approval.");
+      }
+      profileVersion.current = draft.profileVersion;
+      if (!academicDraftDirty.current && editGeneration.current === generation) {
+        setDirtyDraft(false);
+        if (!pendingUpload) setDraftError(null);
+      }
+      toast.success("Notes extracted and saved", {
+        description: "Review the extracted notes, then approve your inputs",
         position: "top-center",
       });
     } catch (err) {
-      setScanError(err instanceof Error ? err.message : "Extraction failed");
+      const message = err instanceof Error ? err.message : "Extraction failed";
+      if (extractionSaved) setDraftError(message);
+      else setScanError(message);
     } finally {
       setNotesFile(new File([], "Notes photograph released"));
       setScanning(false);
@@ -410,6 +431,7 @@ export default function InputContainer() {
   }, []);
 
   const handleSlotFileRemove = useCallback((slot: SlotKey, fileIdx: number) => {
+    academicDraftDirty.current = true;
     editGeneration.current++;
     setDirtyDraft(true);
     setNotesReviewed(false);
@@ -450,6 +472,7 @@ export default function InputContainer() {
         };
       });
       setNotesReviewed(false);
+      academicDraftDirty.current = true;
       editGeneration.current++;
       setDirtyDraft(true);
       toast.success(`Document extracted`, {
@@ -471,6 +494,7 @@ export default function InputContainer() {
   }, []);
 
   const handleDataUpdate = useCallback((documentId: string, data: ExtractedAcademicData) => {
+    academicDraftDirty.current = true;
     editGeneration.current++;
     setDirtyDraft(true);
     setNotesReviewed(false);
@@ -514,7 +538,10 @@ export default function InputContainer() {
       const current = await fetch(`/api/sessions/${sessionId}/intake`, { cache: "no-store" });
       if (!current.ok) throw new Error("Could not verify the saved draft. Retry saving before approval.");
       profileVersion.current = ((await current.json()) as IntakeDraft).profileVersion;
-      if (editGeneration.current === generation) setDirtyDraft(false);
+      if (editGeneration.current === generation) {
+        academicDraftDirty.current = false;
+        setDirtyDraft(false);
+      }
     } catch (error) {
       setDraftError(error instanceof Error ? error.message : "Draft save failed. Retry saving.");
     } finally { setSavingDraft(false); }
@@ -751,7 +778,7 @@ export default function InputContainer() {
                           ? "Reading handwriting with AI Vision…"
                           : scanError
                             ? scanError
-                            : "Extracted & ready to edit · Photograph released"}
+                            : "Extraction saved as draft · Photograph released"}
                       </p>
                     </div>
                     <span

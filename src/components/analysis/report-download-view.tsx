@@ -257,6 +257,10 @@ function StudentSummaryView({ summary }: { summary: StudentReportSummary }) {
   return (
     <section aria-labelledby="student-summary-heading" className="mb-6 space-y-4 rounded-lg border border-black/10 bg-white p-5 shadow-card sm:p-6">
       <h2 id="student-summary-heading" className="text-2xl font-bold text-ink">Student summary</h2>
+      <div className="space-y-2 rounded-lg bg-forest/[0.06] p-4">
+        <h3 className="text-lg font-semibold text-forest">{summary.takeaway}</h3>
+        {summary.findings.map((finding) => <p key={finding} className="text-sm">{finding}</p>)}
+      </div>
       <p className="text-sm leading-relaxed">{summary.disclosure}</p>
       <p className="text-sm text-muted-text">{summary.scope}</p>
       <p className="text-sm leading-relaxed">{summary.scoreExplanation}</p>
