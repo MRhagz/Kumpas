@@ -3,6 +3,8 @@ import type { CandidateCareerPath, ComponentEvidence } from "@/lib/module3/types
 export type EvidenceDimension = "aptitude" | "demand" | "feasibility";
 export interface EvidenceClaim {
   dimension: EvidenceDimension;
+  /** Existing component points, exposed for visualization; older projections may omit them. */
+  score?: number;
   text: string;
   inputReferences: string[];
   sourceReferences: ComponentEvidence["sourceReferences"];
@@ -48,7 +50,7 @@ export function evidenceClaims(path: Pick<CandidateCareerPath, "componentEvidenc
     if (citations.some((index) => index === 0)) return [];
     const basis = [...inputs, ...(citations.length ? [`public evidence ${citations.map((index) => `[${index}]`).join(", ")}`] : [])];
     if (!basis.length) return [];
-    return [{ dimension, text: `${dimension[0].toUpperCase()}${dimension.slice(1)} comparison ${score}/100 uses ${basis.join(" and ")}.`,
+    return [{ dimension, score, text: `${dimension[0].toUpperCase()}${dimension.slice(1)} comparison ${score}/100 uses ${basis.join(" and ")}.`,
       inputReferences: [...evidence.inputReferences], sourceReferences: evidence.sourceReferences.map((ref) => ({ ...ref })) }];
   });
 }
