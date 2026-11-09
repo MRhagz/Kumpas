@@ -36,9 +36,13 @@ async function save() {
   const bytes = Buffer.from(JSON.stringify(result, null, 2));
   await output.write(bytes, 0, bytes.length, 0); await output.truncate(bytes.length); await output.sync();
 }
-const owner = await request.newContext({ storageState: stateFile("ownerState"), timeout: 310_000, maxRedirects: 0 });
-const other = await request.newContext({ storageState: stateFile("otherState"), timeout: 30_000, maxRedirects: 0 });
-const anonymous = await request.newContext({ timeout: 30_000, maxRedirects: 0 });
+// These contexts request only the manifest origin and never follow redirects.
+// Bypass hosting protection equally for all actors; application auth is still tested.
+const extraHTTPHeaders = process.env.VERCEL_AUTOMATION_BYPASS_SECRET
+  ? { "x-vercel-protection-bypass": process.env.VERCEL_AUTOMATION_BYPASS_SECRET } : {};
+const owner = await request.newContext({ storageState: stateFile("ownerState"), extraHTTPHeaders, timeout: 310_000, maxRedirects: 0 });
+const other = await request.newContext({ storageState: stateFile("otherState"), extraHTTPHeaders, timeout: 30_000, maxRedirects: 0 });
+const anonymous = await request.newContext({ extraHTTPHeaders, timeout: 30_000, maxRedirects: 0 });
 const url = path => new URL(path, origin).href;
 async function json(context, path, method = "GET", data) {
   const response = await context.fetch(url(path), { method, ...(data === undefined ? {} : { data }) });

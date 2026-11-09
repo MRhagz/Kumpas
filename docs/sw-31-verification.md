@@ -68,6 +68,62 @@ are recorded separately from lint errors. CI adds full lint, legacy regressions
 and Windows/Linux operator-ingestion coverage; existing application/database,
 OCR and browser jobs continue to verify the same head.
 
+## Completion follow-up — 9 November 2026
+
+The original local checkout remains untouched; this work uses a separate
+`sw-31-finish` worktree based on `17ca70b`.
+
+The Firefox failure was reproduced locally with Playwright 1.65.0/Firefox 159.
+The upstream [ARIA reflection regression #43967](https://github.com/microsoft/playwright/issues/43967)
+matches the native SIGSEGV. Its minimal two-world labelled-button reproduction
+crashes on 1.65.0 and passes on 1.64.1. Pin the test runner and axe's
+`playwright-core` peer to 1.64.1. Original role/name assertions, default axe
+aggregation and every WCAG rule remain enabled. JIT changes and CSS-only
+readiness selectors were diagnostic attempts and are not included.
+
+`npm run test:browser -- --project=firefox --grep 'keyboard workflow' --repeat-each=5`
+passes ten workflows on Firefox 157.0: thirty complete scans, zero violations,
+zero incomplete checks and no crash retries. Chrome 157 passes both workflows
+and six complete scans with zero violations/incomplete checks. Hosted CI on
+the follow-up commit remains a separate gate. Application verification passes
+784 access tests, 28 legacy tests, four metrics tests and full lint with zero
+errors / twelve existing warnings. Type checking also passes after aligning
+the Playwright peer. The production Webpack build and build-contract check pass.
+The documented inherited `--env-file` worker restriction was reproduced; the
+passing build loads the private env in its parent and launches Node without that flag.
+
+Existing authorized preview access and all five synthetic counselor accounts
+work. The seven unmocked live contracts pass on preview `17ca70b`, deployment
+`HYgQzDgeuXf7AuDDY3G6ieHYxDAw`, including actual 10,000,000-byte extraction,
+physical raw-object inventory, required/optional fields and owner/maintenance
+denials. The first run retained a failed anonymous assertion because it met
+Vercel's hosting login redirect. The runner now optionally accepts
+`VERCEL_AUTOMATION_BYPASS_SECRET` for all three actors, including anonymous;
+application authentication still denies the anonymous actor with 401. Redirects
+are disabled and these request contexts target only the manifest origin.
+
+A fresh notes-only browser diagnostic on that preview becomes draft-ready in
+139.777 seconds, with AcademicAuditor and IndustryAnalyst successful and
+FeasibilityStrategist failed. It is recorded as **partial**, not a P01/P02 pass.
+A separate instrumented real Feasibility call with the saved synthetic profile
+and the local credential passes; this does not establish the deployed key's
+identity or qualify the hosted provider. Restricted Vercel logs for the synthetic
+run show its first feasibility generation reaching the 75-second attempt limit,
+then a failed second attempt; total feasibility time is 79.538 seconds. Only
+safe stage/timing/code fields were read out. No provider response body was exposed,
+and the second failure's specific provider cause remains unknown. No new full
+performance campaign is claimed while that failure remains unresolved.
+
+The project's active publishable key was configured in GitHub's `ingestion`
+environment. The scoped worker JWT and maintenance database URL remain missing.
+The expired cached Vercel token initially returned HTTP 403; the official CLI
+successfully refreshed the existing login and inspected the scoped deployment.
+No replacement API token is required. The native Safari preview opens at
+Vercel's login page; its authorized walkthrough and human acceptance remain
+open. See the [credential locations and execution handoff](sw-31-operator-handoff.md)
+and [sanitized follow-up evidence](evidence/sw-31-completion-followup.json).
+The live observations above attest `17ca70b`; they do not attest a later deployment.
+
 ## Live runner
 
 `scripts/release/live-contracts.mjs` uses actual HTTP and Supabase Storage, with
