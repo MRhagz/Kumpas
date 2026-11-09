@@ -1,9 +1,10 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { createPortal } from "react-dom";
 import Image from "next/image";
 import { Dialog } from "radix-ui";
-import { ArrowLeft, ArrowRight, Check, X } from "lucide-react";
+import { ArrowLeft, ArrowRight, BookOpen, Check, X } from "lucide-react";
 import ProcessingNotice from "./processing-notice";
 
 const ORIENTATION_KEY = "kumpas:workflow-orientation:v1";
@@ -54,6 +55,7 @@ export default function WorkflowOrientation({ confirmed, onConfirm }: {
   confirmed: boolean;
   onConfirm: (confirmed: boolean) => void;
 }) {
+  const [navigationTarget, setNavigationTarget] = useState<HTMLElement | null>(null);
   const [open, setOpen] = useState(false);
   const [step, setStep] = useState(0);
   const [readyForNotice, setReadyForNotice] = useState(false);
@@ -64,6 +66,7 @@ export default function WorkflowOrientation({ confirmed, onConfirm }: {
     let remembered = false;
     try { remembered = localStorage.getItem(ORIENTATION_KEY) === "seen"; } catch { /* Browser storage may be disabled. */ }
     const timer = window.setTimeout(() => {
+      setNavigationTarget(document.getElementById("workflow-guidance"));
       if (remembered) setReadyForNotice(true);
       else setOpen(true);
     }, 0);
@@ -76,14 +79,14 @@ export default function WorkflowOrientation({ confirmed, onConfirm }: {
     setReadyForNotice(true);
   };
 
-  return (
+  const controls = (
     <>
       <Dialog.Root open={open} onOpenChange={(nextOpen) => {
         if (nextOpen) { setStep(0); setOpen(true); }
         else dismiss();
       }}>
-        <Dialog.Trigger className="inline-flex min-h-11 cursor-pointer items-center text-xs text-muted-text underline-offset-4 transition-colors hover:text-forest hover:underline">
-          How this works
+        <Dialog.Trigger className="inline-flex min-h-11 cursor-pointer items-center gap-2 rounded-xl border border-black/[0.08] bg-cream-light px-3 text-xs font-medium text-charcoal-2 transition-colors hover:border-forest/25 hover:bg-forest/5 hover:text-forest focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-forest">
+          <BookOpen size={15} aria-hidden="true" />How this works
         </Dialog.Trigger>
         <Dialog.Portal>
           <Dialog.Overlay className="fixed inset-0 z-50 bg-charcoal/40 backdrop-blur-[3px] data-[state=open]:animate-in data-[state=open]:fade-in-0 data-[state=closed]:animate-out data-[state=closed]:fade-out-0 duration-200" />
@@ -132,4 +135,6 @@ export default function WorkflowOrientation({ confirmed, onConfirm }: {
       <ProcessingNotice confirmed={confirmed} onConfirm={onConfirm} autoOpen={readyForNotice} />
     </>
   );
+
+  return navigationTarget ? createPortal(controls, navigationTarget) : controls;
 }
