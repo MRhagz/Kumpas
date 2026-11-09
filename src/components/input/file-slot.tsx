@@ -29,6 +29,7 @@ const STEP_LABELS: Record<string, string> = {
   pii_redacting: "Redacting personal info…",
   structuring: "Extracting data…",
   ai_structuring: "AI structuring…",
+  removing: "Removing document…",
   complete: "Extraction complete",
   error: "Extraction failed",
 };

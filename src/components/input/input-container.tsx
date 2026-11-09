@@ -120,6 +120,7 @@ interface SlotFileEntry {
 type SlotKey = 1 | 2 | 3;
 type SlotEntriesMap = Record<SlotKey, SlotFileEntry[]>;
 const SLOT_KEYS: SlotKey[] = [1, 2, 3];
+const DEFAULT_SLOT_TYPES: Record<SlotKey, string> = { 1: "ncae", 2: "nat", 3: "form_137" };
 const EMPTY_ENTRIES: SlotEntriesMap = { 1: [], 2: [], 3: [] };
 
 export default function InputContainer() {
@@ -135,17 +136,15 @@ export default function InputContainer() {
   const [terminating, setTerminating] = useState(false);
   const terminationStarted = useRef(false);
 
-  const [slotTypes, setSlotTypes] = useState<Record<SlotKey, string>>({
-    1: "",
-    2: "",
-    3: "",
-  });
+  const [slotTypes, setSlotTypes] = useState<Record<SlotKey, string>>(DEFAULT_SLOT_TYPES);
   const [slotEntries, setSlotEntries] = useState<SlotEntriesMap>(EMPTY_ENTRIES);
 
   // Derived: every successfully-uploaded document across all slots, in slot/file order.
   const uploadedDocs: UploadedDocument[] = SLOT_KEYS.flatMap((s) =>
     slotEntries[s].map((e) => e.uploaded).filter((u): u is UploadedDocument => u !== null),
   );
+  const documentsProcessing = SLOT_KEYS.some((slot) => slotEntries[slot].some((entry) =>
+    !["idle", "complete", "error"].includes(entry.processingState.step)));
 
   const [activeTab, setActiveTab] = useState<InputMode>("image");
   const switchOrigin = useRef<HTMLElement | null>(null);
@@ -226,18 +225,16 @@ export default function InputContainer() {
             setSessionId(sessionState.sessionId);
             profileVersion.current = draft.profileVersion;
             const next: SlotEntriesMap = { 1: [], 2: [], 3: [] };
-            const types: Record<SlotKey, string> = { 1: "", 2: "", 3: "" };
-            draft.documents.forEach((doc, index) => {
-              const slot = SLOT_KEYS[index];
+            draft.documents.forEach((doc) => {
+              const slot = SLOT_KEYS.find((key) => DEFAULT_SLOT_TYPES[key] === doc.document_type);
               if (!slot) return;
-              types[slot] = doc.document_type;
               next[slot] = [{ file: new File([], "Saved academic record"), processingState: { step: "complete", progress: 100 },
                 uploaded: { documentId: doc.id, slotIndex: slot, docType: doc.document_type,
                   extractedData: doc.structured_data, originalExtractedData: doc.original_data ?? doc.structured_data,
                   redactedImageUrl: null, revision: doc.draft_revision, evidenceState: doc.evidence_state, provenance: doc.provenance } }];
             });
             setSlotEntries(next);
-            setSlotTypes(types);
+            setSlotTypes(DEFAULT_SLOT_TYPES);
             if (draft.notes) {
               const { careerGoal, interests, financial, concerns, impression, revision, source } = draft.notes;
               notesRevision.current = revision;
@@ -319,6 +316,7 @@ export default function InputContainer() {
     setScanError(null);
     setImageSectionsReady(false);
     setImageSectionHtml(EMPTY_NOTES);
+    setNotesSource(null);
   };
 
   const confirmTabSwitch = () => {
@@ -332,7 +330,7 @@ export default function InputContainer() {
   };
 
   const extractSections = async (file: File) => {
-    if (!processingConfirmed || !sessionId || dirtyDraft || savingDraft) return;
+    if (!processingConfirmed || !sessionId || savingDraft) return;
     setNotesReviewed(false);
     setScanning(true);
     setScanError(null);
@@ -378,7 +376,7 @@ export default function InputContainer() {
       resetImageState();
       return;
     }
-    if (!processingConfirmed || dirtyDraft || savingDraft || scanning) return;
+    if (!processingConfirmed) return;
     if (!f.type.startsWith("image/")) {
       toast.error("Invalid file type", { position: "top-center" });
       return;
@@ -401,6 +399,15 @@ export default function InputContainer() {
     },
     [],
   );
+
+  const handleSlotFileRemoving = useCallback((slot: SlotKey, fileIdx: number) => {
+    setSlotEntries((prev) => ({
+      ...prev,
+      [slot]: prev[slot].map((entry, index) => index === fileIdx
+        ? { ...entry, processingState: { step: "removing", progress: 0 } }
+        : entry),
+    }));
+  }, []);
 
   const handleSlotFileRemove = useCallback((slot: SlotKey, fileIdx: number) => {
     editGeneration.current++;
@@ -481,7 +488,7 @@ export default function InputContainer() {
   }, []);
 
   const saveDraft = async () => {
-    if (!sessionId || savingDraft || scanning) return;
+    if (!sessionId || savingDraft || scanning || documentsProcessing) return;
     const generation = editGeneration.current;
     setSavingDraft(true);
     if (!pendingUpload) setDraftError(null);
@@ -514,7 +521,7 @@ export default function InputContainer() {
   };
 
   const handleApprove = async () => {
-    if (!sessionId || !processingConfirmed || !notesReviewed || !requiredNotesFilled(sectionHtml) || dirtyDraft || savingDraft || scanning || draftError || pendingUpload) return;
+    if (!sessionId || !processingConfirmed || !notesReviewed || !requiredNotesFilled(sectionHtml) || dirtyDraft || savingDraft || scanning || documentsProcessing || draftError || pendingUpload) return;
     setIsSubmitting(true);
     try {
       const res = await fetch(`/api/sessions/${sessionId}/approve`, {
@@ -861,8 +868,8 @@ export default function InputContainer() {
                 uploaded: slotEntries[3][0]?.uploaded ?? null,
               },
             }}
-            disabled={dirtyDraft || scanning}
             onSlotFilesAdd={handleSlotFilesAdd}
+            onSlotFileRemoving={handleSlotFileRemoving}
             onSlotFileRemove={handleSlotFileRemove}
             onSlotTypeChange={handleSlotTypeChange}
             onDocumentUploaded={handleDocumentUploaded}
@@ -914,11 +921,11 @@ export default function InputContainer() {
                 {savingDraft ? <Loader2 size={17} className="mt-0.5 shrink-0 animate-spin text-sage" /> : draftError ? <AlertTriangle size={17} className="mt-0.5 shrink-0 text-red-soft" /> : <Save size={17} className="mt-0.5 shrink-0 text-sage" />}
                 <div>
                   <p className="font-medium text-ink">{savingDraft ? "Saving draft…" : draftError ? "Draft needs attention" : dirtyDraft ? "Unsaved changes" : "Draft saved"}</p>
-                  <p className="mt-1 text-xs leading-relaxed text-muted-text">{dirtyDraft ? "Save before approval or another upload." : "Review the values above before approval."}</p>
+                  <p className="mt-1 text-xs leading-relaxed text-muted-text">{dirtyDraft ? "Save before approval." : "Review the values above before approval."}</p>
                 </div>
               </div>
           <button type="button" className="inline-flex min-h-11 shrink-0 items-center justify-center gap-2 rounded-lg border border-sage/25 bg-cream-light px-4 py-2 text-xs font-semibold text-forest transition-colors hover:bg-sage/5 disabled:cursor-not-allowed disabled:opacity-50"
-            disabled={!sessionId || savingDraft || scanning || (!dirtyDraft && !draftError)} onClick={saveDraft}>
+            disabled={!sessionId || savingDraft || scanning || documentsProcessing || (!dirtyDraft && !draftError)} onClick={saveDraft}>
             {draftError ? "Retry saving draft" : "Save draft"}
           </button>
             </div>
