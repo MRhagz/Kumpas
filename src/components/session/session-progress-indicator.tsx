@@ -1,9 +1,10 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { Check } from "lucide-react";
 import { cn } from "@/lib/utils";
 
-const stages = ["Intake", "Confirm Information", "Analysis", "Review Report", "Download"];
+const stages = ["Intake", "Confirm Info", "Analysis", "Review Report", "Download"];
 interface ProgressState {
   expiresAt: string;
   nextStep: string;
@@ -57,16 +58,29 @@ export default function SessionProgressIndicator({ sessionId, fallbackStep, conf
   const active = !state || expired ? -1 : !state.hasApprovedProfile ? (confirming ? 1 : 0)
     : !state.hasReport ? 2 : state.reportReviewStatus === "approved" ? 4 : 3;
   return <nav aria-label="Counselor workflow" className={cn("mx-auto w-full max-w-4xl px-4 sm:px-6", className)}>
-    <ol className="flex flex-wrap gap-x-4 gap-y-2 py-2 text-xs">
+    <ol className="flex items-start py-4 sm:py-5">
       {stages.map((stage, index) => <li key={stage} aria-current={active === index ? "step" : undefined}
-        className={active === index ? "font-bold text-forest" : "text-muted-text"}>
-        {index + 1}. {stage} <span className="block text-[10px]">{active === index ? "Current stage" : active > index ? "Complete" : "Pending"}</span>
+        className={cn("relative flex min-w-0 flex-1 flex-col items-center text-center last:flex-none last:w-1/5 md:flex-auto md:flex-row md:items-start md:text-left md:last:w-auto",
+          active === index ? "font-semibold text-forest" : "text-muted-text")}>
+        <div className="relative z-10 flex min-w-0 flex-col items-center gap-2 md:shrink-0 md:flex-row md:items-start">
+        <span aria-hidden="true" className={cn("flex size-8 shrink-0 items-center justify-center rounded-full text-sm font-semibold ring-4 ring-cream md:size-9",
+          active >= index ? "bg-forest text-white" : "bg-cream-dark text-muted-text")}>
+          {active > index ? <Check size={16} /> : index + 1}
+        </span>
+        <span className="min-w-0 px-1 text-[11px] leading-snug md:max-w-28 md:px-0 md:text-sm md:whitespace-nowrap">
+          <span className="sr-only">{index + 1}. </span>{stage}
+          <span className="mt-1 hidden text-xs font-normal md:block">{active === index ? "Current stage" : active > index ? "Complete" : "Pending"}</span>
+        </span>
+        </div>
+        {index < stages.length - 1 && <span aria-hidden="true" className="absolute top-4 left-1/2 h-px w-full md:static md:mx-2 md:mt-[18px] md:w-auto md:min-w-2 md:flex-1">
+          <span className={cn("block h-px w-full md:mx-auto md:w-12 md:max-w-full", active > index ? "bg-forest" : "bg-black/15")} />
+        </span>}
       </li>)}
     </ol>
     {!state ? <p role="status" className="text-xs">{unavailable ? "Progress could not be confirmed. Reconnect or sign in again to resume saved work." : "Checking saved progress…"}</p>
       : expired ? <p role="status">This draft has expired. Start a new session; expired work cannot resume.</p>
-      : <p className="text-xs text-muted-text">Draft expires <time dateTime={state.expiresAt}>{new Date(state.expiresAt).toLocaleString()}</time>. Activity does not extend this deadline.
-        {state.analysisRetryRequired && " Analysis needs a retry. Your approved inputs are saved."}
+      : (state.analysisRetryRequired || state.reportReviewStatus === "rejected") && <p role="status" className="text-xs text-muted-text">
+        {state.analysisRetryRequired && "Analysis needs a retry. Your approved inputs are saved."}
         {state.reportReviewStatus === "rejected" && " Report rejected. Correct inputs or regenerate before approval."}
       </p>}
   </nav>;

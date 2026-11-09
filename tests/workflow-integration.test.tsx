@@ -8,7 +8,7 @@ const m = vi.hoisted(() => ({ router: { push: vi.fn(), replace: vi.fn() } }));
 vi.mock("next/navigation", () => ({ useRouter: () => m.router, useSearchParams: () => new URLSearchParams("session=workflow") }));
 vi.mock("@/components/auth/protected-header", () => ({ default: () => null }));
 vi.mock("@/components/input/ingestion-freshness-panel", () => ({ default: () => null }));
-afterEach(() => { cleanup(); vi.restoreAllMocks(); vi.unstubAllGlobals(); });
+afterEach(() => { cleanup(); localStorage.clear(); vi.restoreAllMocks(); vi.unstubAllGlobals(); });
 
 // Whole counselor UI with a deterministic HTTP boundary; no real provider, auth or production data.
 it.each(["Grade 10", "SHS"].flatMap(grade => Array.from({ length: 8 }, (_, mask) => ({ grade, mask }))))(
@@ -53,8 +53,10 @@ it.each(["Grade 10", "SHS"].flatMap(grade => Array.from({ length: 8 }, (_, mask)
     const downloads: string[] = [];
     vi.spyOn(HTMLAnchorElement.prototype, "click").mockImplementation(function(this: HTMLAnchorElement) { downloads.push(this.getAttribute("href")!); });
     let view = render(<InputContainer />);
+    fireEvent.click(await screen.findByRole("button", { name: "Skip orientation" }));
+    fireEvent.click(await screen.findByRole("checkbox", { name: /I have read this notice/ }));
+    fireEvent.click(screen.getByRole("button", { name: "Continue to intake" }));
     await screen.findByRole("textbox", { name: "Career Goal (required)" });
-    fireEvent.click(screen.getByRole("checkbox", { name: /I have read this notice/ }));
     fireEvent.click(screen.getByRole("checkbox", { name: /I have reviewed these notes/ }));
     fireEvent.click(screen.getByRole("button", { name: /Approve Inputs and Begin Analysis/ }));
     await waitFor(() => expect(m.router.push).toHaveBeenCalledWith("/analysis?session=workflow"));

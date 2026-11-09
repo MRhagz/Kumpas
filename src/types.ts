@@ -68,6 +68,7 @@ export type DocumentProcessingStep =
   | "pii_redacting"
   | "structuring"
   | "ai_structuring"
+  | "removing"
   | "complete"
   | "error";
 

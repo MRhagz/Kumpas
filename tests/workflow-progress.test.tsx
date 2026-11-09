@@ -22,7 +22,7 @@ it("five stages follow server approval and review, never the route fallback; foc
 it("saved intake may enter confirmation without marking approval complete", async () => {
   vi.stubGlobal("fetch", vi.fn(async () => Response.json({ ...state, hasApprovedProfile: false })));
   render(<Progress sessionId="s" fallbackStep="upload" confirming />);
-  await waitFor(() => expect(current()).toContain("Confirm Information"));
+  await waitFor(() => expect(current()).toContain("Confirm Info"));
   expect(screen.getAllByText("Pending")).toHaveLength(3);
 });
 it.each([401, 404, 500])("interruption/status %i clears completed stages rather than trusting cached report state", async status => {

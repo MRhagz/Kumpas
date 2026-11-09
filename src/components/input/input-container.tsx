@@ -20,9 +20,11 @@ import {
   Check,
   Info,
   PenLine,
+  ClipboardCheck,
+  Save,
 } from "lucide-react";
 import SessionNotesForm from "./session-notes-form";
-import ProcessingNotice from "./processing-notice";
+import WorkflowOrientation from "./workflow-orientation";
 import { requiredNotesFilled } from "@/lib/notes-validation";
 import DocumentUploadPanel from "./document-upload-panel";
 import ExtractionResultsPanel from "./extraction-results-panel";
@@ -118,6 +120,7 @@ interface SlotFileEntry {
 type SlotKey = 1 | 2 | 3;
 type SlotEntriesMap = Record<SlotKey, SlotFileEntry[]>;
 const SLOT_KEYS: SlotKey[] = [1, 2, 3];
+const DEFAULT_SLOT_TYPES: Record<SlotKey, string> = { 1: "ncae", 2: "nat", 3: "form_137" };
 const EMPTY_ENTRIES: SlotEntriesMap = { 1: [], 2: [], 3: [] };
 
 export default function InputContainer() {
@@ -133,17 +136,15 @@ export default function InputContainer() {
   const [terminating, setTerminating] = useState(false);
   const terminationStarted = useRef(false);
 
-  const [slotTypes, setSlotTypes] = useState<Record<SlotKey, string>>({
-    1: "",
-    2: "",
-    3: "",
-  });
+  const [slotTypes, setSlotTypes] = useState<Record<SlotKey, string>>(DEFAULT_SLOT_TYPES);
   const [slotEntries, setSlotEntries] = useState<SlotEntriesMap>(EMPTY_ENTRIES);
 
   // Derived: every successfully-uploaded document across all slots, in slot/file order.
   const uploadedDocs: UploadedDocument[] = SLOT_KEYS.flatMap((s) =>
     slotEntries[s].map((e) => e.uploaded).filter((u): u is UploadedDocument => u !== null),
   );
+  const documentsProcessing = SLOT_KEYS.some((slot) => slotEntries[slot].some((entry) =>
+    !["idle", "complete", "error"].includes(entry.processingState.step)));
 
   const [activeTab, setActiveTab] = useState<InputMode>("image");
   const switchOrigin = useRef<HTMLElement | null>(null);
@@ -224,18 +225,16 @@ export default function InputContainer() {
             setSessionId(sessionState.sessionId);
             profileVersion.current = draft.profileVersion;
             const next: SlotEntriesMap = { 1: [], 2: [], 3: [] };
-            const types: Record<SlotKey, string> = { 1: "", 2: "", 3: "" };
-            draft.documents.forEach((doc, index) => {
-              const slot = SLOT_KEYS[index];
+            draft.documents.forEach((doc) => {
+              const slot = SLOT_KEYS.find((key) => DEFAULT_SLOT_TYPES[key] === doc.document_type);
               if (!slot) return;
-              types[slot] = doc.document_type;
               next[slot] = [{ file: new File([], "Saved academic record"), processingState: { step: "complete", progress: 100 },
                 uploaded: { documentId: doc.id, slotIndex: slot, docType: doc.document_type,
                   extractedData: doc.structured_data, originalExtractedData: doc.original_data ?? doc.structured_data,
                   redactedImageUrl: null, revision: doc.draft_revision, evidenceState: doc.evidence_state, provenance: doc.provenance } }];
             });
             setSlotEntries(next);
-            setSlotTypes(types);
+            setSlotTypes(DEFAULT_SLOT_TYPES);
             if (draft.notes) {
               const { careerGoal, interests, financial, concerns, impression, revision, source } = draft.notes;
               notesRevision.current = revision;
@@ -317,6 +316,7 @@ export default function InputContainer() {
     setScanError(null);
     setImageSectionsReady(false);
     setImageSectionHtml(EMPTY_NOTES);
+    setNotesSource(null);
   };
 
   const confirmTabSwitch = () => {
@@ -330,7 +330,7 @@ export default function InputContainer() {
   };
 
   const extractSections = async (file: File) => {
-    if (!processingConfirmed || !sessionId || dirtyDraft || savingDraft) return;
+    if (!processingConfirmed || !sessionId || savingDraft) return;
     setNotesReviewed(false);
     setScanning(true);
     setScanError(null);
@@ -376,7 +376,7 @@ export default function InputContainer() {
       resetImageState();
       return;
     }
-    if (!processingConfirmed || dirtyDraft || savingDraft || scanning) return;
+    if (!processingConfirmed) return;
     if (!f.type.startsWith("image/")) {
       toast.error("Invalid file type", { position: "top-center" });
       return;
@@ -399,6 +399,15 @@ export default function InputContainer() {
     },
     [],
   );
+
+  const handleSlotFileRemoving = useCallback((slot: SlotKey, fileIdx: number) => {
+    setSlotEntries((prev) => ({
+      ...prev,
+      [slot]: prev[slot].map((entry, index) => index === fileIdx
+        ? { ...entry, processingState: { step: "removing", progress: 0 } }
+        : entry),
+    }));
+  }, []);
 
   const handleSlotFileRemove = useCallback((slot: SlotKey, fileIdx: number) => {
     editGeneration.current++;
@@ -479,7 +488,7 @@ export default function InputContainer() {
   }, []);
 
   const saveDraft = async () => {
-    if (!sessionId || savingDraft || scanning) return;
+    if (!sessionId || savingDraft || scanning || documentsProcessing) return;
     const generation = editGeneration.current;
     setSavingDraft(true);
     if (!pendingUpload) setDraftError(null);
@@ -512,7 +521,7 @@ export default function InputContainer() {
   };
 
   const handleApprove = async () => {
-    if (!sessionId || !processingConfirmed || !notesReviewed || !requiredNotesFilled(sectionHtml) || dirtyDraft || savingDraft || scanning || draftError || pendingUpload) return;
+    if (!sessionId || !processingConfirmed || !notesReviewed || !requiredNotesFilled(sectionHtml) || dirtyDraft || savingDraft || scanning || documentsProcessing || draftError || pendingUpload) return;
     setIsSubmitting(true);
     try {
       const res = await fetch(`/api/sessions/${sessionId}/approve`, {
@@ -563,40 +572,34 @@ export default function InputContainer() {
 
   return (
     <section className="mx-auto w-full max-w-4xl px-4 sm:px-6 relative animate-fade-in">
-      {sessionId && <SessionTerminationControl sessionId={sessionId} open={terminationOpen} onOpenChange={setTerminationOpen}
-        label="Cancel session" onTerminating={() => { terminationStarted.current = true; setTerminating(true); }} />}
+      <div className="mb-4 flex flex-wrap items-center justify-between gap-x-6 gap-y-1">
+        {sessionId && <SessionTerminationControl sessionId={sessionId} open={terminationOpen} onOpenChange={setTerminationOpen}
+          label="Cancel session" onTerminating={() => { terminationStarted.current = true; setTerminating(true); }} />}
+        <div hidden={terminating} className="ml-auto flex flex-wrap items-center gap-x-5">
+          <WorkflowOrientation confirmed={processingConfirmed} onConfirm={setProcessingConfirmed} />
+        </div>
+      </div>
       <div hidden={terminating}>
-      <div className="mb-6 -mx-4 sm:-mx-6">
-        <SessionProgressIndicator sessionId={sessionId} fallbackStep="upload" confirming={requiredNotesFilled(sectionHtml) && !dirtyDraft && !savingDraft && !scanning} />
+      <div className="relative left-1/2 mb-6 w-[calc(100vw-2rem)] max-w-6xl -translate-x-1/2">
+        <SessionProgressIndicator className="max-w-none px-0 sm:px-6" sessionId={sessionId} fallbackStep="upload" confirming={requiredNotesFilled(sectionHtml) && !dirtyDraft && !savingDraft && !scanning} />
       </div>
 
-      <details className="mx-auto mb-4 max-w-4xl rounded-lg border p-4">
-        <summary className="cursor-pointer font-semibold">How this counselor workflow works</summary>
-        <p>1. Intake: type the two required note fields or extract a photograph. Academic documents and the other three note fields are optional. Undecided is a valid career goal.</p>
-        <p>2. Confirm Information: review and save notes, academic values and missing evidence, then approve the exact inputs.</p>
-        <p>3. Analysis: AI assists with advisory suggestions; unavailable evidence and partial failures remain visible.</p>
-        <p>4. Review Report: check the summary, limitations and sources. Approve the exact report version before 5. Download.</p>
-        <p>Drafts expire 24 hours after creation; PDFs have their own fixed deadline. Sign in as the same counselor to resume eligible work. End Session revokes access and shows cleanup status. Downloaded copies follow school policy.</p>
-      </details>
-      <ProcessingNotice confirmed={processingConfirmed} onConfirm={setProcessingConfirmed} />
-      <fieldset disabled={savingDraft || isSubmitting} className="min-w-0">
-      <div className="overflow-hidden rounded-2xl border border-black/[0.06] bg-cream-light shadow-card">
+      <fieldset disabled={savingDraft || isSubmitting} className="min-w-0 space-y-6">
         {/* Part 1: Counselor Notes */}
-        <div className="p-6 sm:p-8">
+        <section aria-labelledby="counselor-notes-heading" className="rounded-2xl border border-black/[0.08] bg-cream-light p-5 shadow-card sm:p-8">
           <div className="flex items-start gap-3 mb-6">
             <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-sage/10 text-sage">
               <FileText size={20} />
             </div>
             <div>
-              <h2 className="text-base font-semibold text-ink leading-snug">
+              <h2 id="counselor-notes-heading" className="flex flex-wrap items-center gap-2 text-base font-semibold text-ink leading-snug">
                 Counselor Notes
-                <span className="ml-2 inline-block align-middle rounded-full bg-sage px-2 py-0.5 text-[10px] font-bold uppercase text-white">
+                <span className="inline-block align-middle rounded-full bg-sage px-2 py-0.5 text-[10px] font-bold uppercase text-white">
                   Required
                 </span>
               </h2>
               <p className="mt-1 text-xs leading-relaxed text-muted-text">
-                Write your interview notes, take a clear photo, and upload it — or type them
-                directly.
+                Type your interview summary or upload a clear photograph of your prepared notes.
               </p>
             </div>
           </div>
@@ -662,13 +665,13 @@ export default function InputContainer() {
             <TabsList tabIndex={-1} className="w-full h-auto p-1 rounded-xl bg-cream-dark/80 border border-black/[0.06] mb-4">
               <TabsTrigger
                 value="image"
-                className="flex-1 gap-2 rounded-lg px-4 py-2.5 text-[13px] font-semibold transition-all data-[state=active]:bg-white data-[state=active]:text-sage data-[state=active]:shadow-sm data-[state=inactive]:text-muted-text"
+                className="flex-1 cursor-pointer gap-2 rounded-lg px-4 py-2.5 text-[13px] font-semibold transition-all data-[state=active]:bg-white data-[state=active]:text-sage data-[state=active]:shadow-sm data-[state=inactive]:text-muted-text"
               >
                 <ImageIcon size={15} /> Image Analysis
               </TabsTrigger>
               <TabsTrigger
                 value="manual"
-                className="flex-1 gap-2 rounded-lg px-4 py-2.5 text-[13px] font-semibold transition-all data-[state=active]:bg-white data-[state=active]:text-sage data-[state=active]:shadow-sm data-[state=inactive]:text-muted-text"
+                className="flex-1 cursor-pointer gap-2 rounded-lg px-4 py-2.5 text-[13px] font-semibold transition-all data-[state=active]:bg-white data-[state=active]:text-sage data-[state=active]:shadow-sm data-[state=inactive]:text-muted-text"
               >
                 <PenLine size={15} /> Manual Input
               </TabsTrigger>
@@ -838,11 +841,10 @@ export default function InputContainer() {
               <EditableFieldForm value={manualSectionHtml} onChange={updateManualNotes} />
             </TabsContent>
           </Tabs>
-        </div>
-
-        <hr className="border-t border-black/[0.06]" />
+        </section>
 
         {/* Part 2: DocumentUploadPanel */}
+        <section aria-label="Supporting documents" className="rounded-2xl border border-black/[0.08] bg-cream-light shadow-card">
         {sessionId && processingConfirmed ? (
           <DocumentUploadPanel
             sessionId={sessionId}
@@ -866,8 +868,8 @@ export default function InputContainer() {
                 uploaded: slotEntries[3][0]?.uploaded ?? null,
               },
             }}
-            disabled={dirtyDraft || scanning}
             onSlotFilesAdd={handleSlotFilesAdd}
+            onSlotFileRemoving={handleSlotFileRemoving}
             onSlotFileRemove={handleSlotFileRemove}
             onSlotTypeChange={handleSlotTypeChange}
             onDocumentUploaded={handleDocumentUploaded}
@@ -881,27 +883,60 @@ export default function InputContainer() {
 
         {/* Part 2.5: ExtractionResultsPanel */}
         {uploadedDocs.length > 0 && (
-          <div className="px-6 sm:px-8 pb-4">
+          <div className="px-5 pb-5 sm:px-8 sm:pb-8">
             <ExtractionResultsPanel documents={uploadedDocs} onDataUpdate={handleDataUpdate} />
           </div>
         )}
+        </section>
 
-        <div className="px-6 pb-4 sm:px-8 space-y-2">
-          <p className="text-sm">{["ncae", "form_137", "nat"].filter((type) => !uploadedDocs.some((doc) => doc.docType === type)).map((type) => `${type === "form_137" ? "Form 137" : type.toUpperCase()}: not provided`).join(" · ")}</p>
-          {notesSource && <p className="text-xs text-muted-text break-all">Notes source: {String(notesSource.documentId ?? "unavailable")} · Page {String(notesSource.page ?? "unavailable")} · Review needed</p>}
-          <p role="status" className="text-sm">{savingDraft ? "Saving draft…" : dirtyDraft ? "Unsaved changes — save before approval or another upload." : "Draft saved. Review the values before approval."}</p>
-          {draftError && <p role="alert" className="text-sm text-red-soft">{draftError}</p>}
-          <button type="button" className="rounded border border-black/20 px-3 py-2 text-sm disabled:opacity-50"
-            disabled={!sessionId || savingDraft || scanning || (!dirtyDraft && !draftError)} onClick={saveDraft}>
+        <section aria-labelledby="confirm-information-heading" className="overflow-hidden rounded-2xl border border-sage/20 bg-cream-light shadow-card">
+          <div className="p-5 sm:p-8">
+            <div className="mb-6 flex items-start gap-3">
+              <span className="flex size-10 shrink-0 items-center justify-center rounded-lg bg-sage/10 text-sage"><ClipboardCheck size={20} aria-hidden="true" /></span>
+              <div>
+                <h2 id="confirm-information-heading" className="text-base font-semibold text-ink">Confirm Information</h2>
+                <p className="mt-1 text-xs leading-relaxed text-muted-text">Check your notes and academic evidence before starting analysis.</p>
+              </div>
+            </div>
+            <h3 className="mb-3 text-xs font-medium text-muted-text">Academic evidence</h3>
+            <dl className="grid grid-cols-3 gap-2 sm:gap-3">
+              {["ncae", "form_137", "nat"].map((type) => {
+                const doc = uploadedDocs.find((document) => document.docType === type);
+                const usable = doc && (!doc.evidenceState || doc.evidenceState === "provided");
+                return <div key={type} className="rounded-xl border border-black/[0.08] bg-cream/40 p-3 sm:p-4">
+                  <dt className="text-xs font-semibold text-ink sm:text-sm">{type === "form_137" ? "Form 137" : type.toUpperCase()}</dt>
+                  <dd className={`mt-2 flex items-center gap-1.5 text-xs ${usable ? "text-forest" : "text-muted-text"}`}>
+                    {usable && <Check size={13} className="shrink-0" aria-hidden="true" />}
+                    {doc ? usable ? "Provided" : "No usable scores" : "Not provided"}
+                  </dd>
+                </div>;
+              })}
+            </dl>
+            <p className="mt-3 text-xs leading-relaxed text-muted-text">Missing academic evidence is allowed. Recommendations will reflect these gaps.</p>
+            {notesSource && <details className="mt-4 text-xs text-muted-text"><summary className="cursor-pointer font-medium">Notes extraction source</summary><p className="mt-2 break-all">Notes source: {String(notesSource.documentId ?? "unavailable")} · Page {String(notesSource.page ?? "unavailable")} · Review needed</p></details>}
+          </div>
+          <div className="mx-5 mb-5 rounded-xl border border-black/[0.08] bg-cream/50 p-4 sm:mx-8 sm:mb-6">
+            <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+              <div role="status" className="flex items-start gap-2.5 text-sm">
+                {savingDraft ? <Loader2 size={17} className="mt-0.5 shrink-0 animate-spin text-sage" /> : draftError ? <AlertTriangle size={17} className="mt-0.5 shrink-0 text-red-soft" /> : <Save size={17} className="mt-0.5 shrink-0 text-sage" />}
+                <div>
+                  <p className="font-medium text-ink">{savingDraft ? "Saving draft…" : draftError ? "Draft needs attention" : dirtyDraft ? "Unsaved changes" : "Draft saved"}</p>
+                  <p className="mt-1 text-xs leading-relaxed text-muted-text">{dirtyDraft ? "Save before approval." : "Review the values above before approval."}</p>
+                </div>
+              </div>
+          <button type="button" className="inline-flex min-h-11 cursor-pointer shrink-0 items-center justify-center gap-2 rounded-lg border border-sage/25 bg-cream-light px-4 py-2 text-xs font-semibold text-forest transition-colors hover:bg-sage/5 disabled:cursor-not-allowed disabled:opacity-50"
+            disabled={!sessionId || savingDraft || scanning || documentsProcessing || (!dirtyDraft && !draftError)} onClick={saveDraft}>
             {draftError ? "Retry saving draft" : "Save draft"}
           </button>
-        </div>
+            </div>
+            {draftError && <p role="alert" className="mt-3 border-t border-red-soft/15 pt-3 text-xs leading-relaxed text-red-soft">{draftError}</p>}
+          </div>
 
-        <h2 className="px-6 text-lg font-semibold">Confirm Information</h2>
         {/* Part 3: ConfirmationApprovalBar */}
         {sessionId && processingConfirmed && (
           <ConfirmationApprovalBar
             documentsReady={!dirtyDraft && !savingDraft && !scanning && !draftError && !pendingUpload && SLOT_KEYS.every((slot) => slotEntries[slot].every((entry) => entry.processingState.step === "complete"))}
+            readinessMessage={dirtyDraft ? "Save your changes before approving inputs." : savingDraft ? "Wait for your draft to finish saving." : draftError ? "Resolve the draft issue above before approval." : undefined}
             notes={sectionHtml}
             notesReviewed={notesReviewed}
             onNotesReviewedChange={setNotesReviewed}
@@ -909,7 +944,7 @@ export default function InputContainer() {
             onApprove={handleApprove}
           />
         )}
-      </div>
+        </section>
 
       </fieldset>
       <AlertDialog open={showSwitchDialog} onOpenChange={setShowSwitchDialog}>
@@ -924,6 +959,7 @@ export default function InputContainer() {
           </AlertDialogHeader>
           <AlertDialogFooter>
             <AlertDialogCancel
+              className="cursor-pointer"
               onClick={() => {
                 setPendingTab(null);
                 setShowSwitchDialog(false);
@@ -933,7 +969,7 @@ export default function InputContainer() {
             </AlertDialogCancel>
             <AlertDialogAction
               onClick={confirmTabSwitch}
-              className="bg-red-600 text-white hover:bg-red-700"
+              className="cursor-pointer bg-red-600 text-white hover:bg-red-700"
             >
               Discard &amp; switch
             </AlertDialogAction>
