@@ -82,7 +82,7 @@ export default function WorkflowOrientation({ confirmed, onConfirm }: {
         if (nextOpen) { setStep(0); setOpen(true); }
         else dismiss();
       }}>
-        <Dialog.Trigger className="inline-flex min-h-11 items-center text-xs text-muted-text underline-offset-4 transition-colors hover:text-forest hover:underline">
+        <Dialog.Trigger className="inline-flex min-h-11 cursor-pointer items-center text-xs text-muted-text underline-offset-4 transition-colors hover:text-forest hover:underline">
           How this works
         </Dialog.Trigger>
         <Dialog.Portal>
@@ -92,7 +92,7 @@ export default function WorkflowOrientation({ confirmed, onConfirm }: {
               <p className="mb-2 text-xs font-medium text-forest">Orientation</p>
               <Dialog.Title className="pr-10 font-heading text-2xl font-semibold leading-tight text-ink sm:text-3xl">Your counseling workflow</Dialog.Title>
               <Dialog.Description className="mt-2 pr-8 text-sm text-muted-text">Five stages, from your interview notes to an approved report.</Dialog.Description>
-              <Dialog.Close aria-label="Skip orientation" className="absolute top-4 right-4 flex size-10 items-center justify-center rounded-lg text-muted-text transition-colors hover:bg-sage/10 hover:text-ink"><X size={19} aria-hidden="true" /></Dialog.Close>
+              <Dialog.Close aria-label="Skip orientation" className="absolute top-4 right-4 cursor-pointer flex size-10 items-center justify-center rounded-lg text-muted-text transition-colors hover:bg-sage/10 hover:text-ink"><X size={19} aria-hidden="true" /></Dialog.Close>
               <ol aria-label="Orientation stages" className="mt-5 flex gap-2">
                 {stages.map((item, index) => (
                   <li key={item.title} aria-current={index === step ? "step" : undefined} className="min-w-0 flex-1">
@@ -121,10 +121,10 @@ export default function WorkflowOrientation({ confirmed, onConfirm }: {
             </div>
             <footer className="flex shrink-0 items-center justify-between gap-3 border-t border-sage/15 bg-cream/40 px-5 py-4 sm:px-8 sm:py-5">
               <div className="flex items-center gap-1 sm:gap-3">
-                <button type="button" disabled={step === 0} onClick={() => setStep(step - 1)} className="inline-flex min-h-11 items-center gap-1.5 rounded-lg px-2 text-sm text-muted-text transition-colors hover:bg-sage/5 hover:text-forest disabled:pointer-events-none disabled:opacity-35 sm:px-3"><ArrowLeft size={16} aria-hidden="true" />Back</button>
-                <button type="button" disabled={lastStage} onClick={() => setStep(step + 1)} className="inline-flex min-h-11 items-center gap-1.5 rounded-lg px-2 text-sm font-medium text-forest transition-colors hover:bg-sage/5 disabled:pointer-events-none disabled:opacity-35 sm:px-3">Next<ArrowRight size={16} aria-hidden="true" /></button>
+                <button type="button" disabled={step === 0} onClick={() => setStep(step - 1)} className="inline-flex min-h-11 cursor-pointer items-center gap-1.5 rounded-lg px-2 text-sm text-muted-text transition-colors hover:bg-sage/5 hover:text-forest disabled:pointer-events-none disabled:opacity-35 sm:px-3"><ArrowLeft size={16} aria-hidden="true" />Back</button>
+                <button type="button" disabled={lastStage} onClick={() => setStep(step + 1)} className="inline-flex min-h-11 cursor-pointer items-center gap-1.5 rounded-lg px-2 text-sm font-medium text-forest transition-colors hover:bg-sage/5 disabled:pointer-events-none disabled:opacity-35 sm:px-3">Next<ArrowRight size={16} aria-hidden="true" /></button>
               </div>
-              <button type="button" disabled={!lastStage} onClick={() => { if (lastStage) dismiss(); }} className="inline-flex min-h-11 items-center justify-center gap-2 rounded-xl bg-forest px-4 py-2.5 text-sm font-semibold text-white transition-colors hover:bg-sage disabled:cursor-not-allowed disabled:opacity-35 sm:px-5">{lastStage && <Check size={16} aria-hidden="true" />}Got it</button>
+              <button type="button" disabled={!lastStage} onClick={() => { if (lastStage) dismiss(); }} className="inline-flex min-h-11 cursor-pointer items-center justify-center gap-2 rounded-xl bg-forest px-4 py-2.5 text-sm font-semibold text-white transition-colors hover:bg-sage disabled:cursor-not-allowed disabled:opacity-35 sm:px-5">{lastStage && <Check size={16} aria-hidden="true" />}Got it</button>
             </footer>
           </Dialog.Content>
         </Dialog.Portal>

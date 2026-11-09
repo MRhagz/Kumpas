@@ -34,7 +34,7 @@ export default function ProcessingNotice({ confirmed, onConfirm, autoOpen = true
 
   return (
     <Dialog.Root open={open} onOpenChange={setOpen}>
-        <Dialog.Trigger className="inline-flex min-h-11 items-center text-xs text-muted-text underline-offset-4 transition-colors hover:text-forest hover:underline">
+        <Dialog.Trigger className="inline-flex min-h-11 cursor-pointer items-center text-xs text-muted-text underline-offset-4 transition-colors hover:text-forest hover:underline">
           Processing &amp; privacy notice
         </Dialog.Trigger>
       <Dialog.Portal>
@@ -47,7 +47,7 @@ export default function ProcessingNotice({ confirmed, onConfirm, autoOpen = true
             </div>
             <Dialog.Title className="text-xl font-semibold leading-snug text-ink">Before processing student information</Dialog.Title>
             <Dialog.Description className="mt-2 text-sm leading-relaxed text-muted-text">Prepare only what you need for career guidance.</Dialog.Description>
-            <Dialog.Close aria-label="Close processing notice" className="absolute top-4 right-4 flex size-10 items-center justify-center rounded-lg text-muted-text transition-colors hover:bg-sage/10"><X size={18} /></Dialog.Close>
+            <Dialog.Close aria-label="Close processing notice" className="absolute top-4 right-4 cursor-pointer flex size-10 items-center justify-center rounded-lg text-muted-text transition-colors hover:bg-sage/10"><X size={18} /></Dialog.Close>
           </div>
           <div className="min-h-0 overflow-y-auto p-5 text-sm leading-relaxed text-charcoal-2 sm:p-6">
             <div className="space-y-5">
@@ -74,11 +74,11 @@ export default function ProcessingNotice({ confirmed, onConfirm, autoOpen = true
             </div>
           </div>
           <div className="shrink-0 space-y-4 border-t border-sage/15 bg-cream/60 p-5 sm:px-6">
-            <label className="flex cursor-pointer items-start gap-3 text-xs leading-relaxed text-charcoal-2">
-              <input type="checkbox" className="mt-0.5 size-4 shrink-0 accent-forest" checked={acknowledged || confirmed} onChange={(event) => setAcknowledged(event.target.checked)} disabled={confirmed} />
+            <label className="flex cursor-default has-[:disabled]:cursor-not-allowed items-start gap-3 text-xs leading-relaxed text-charcoal-2">
+              <input type="checkbox" className="mt-0.5 size-4 shrink-0 cursor-default accent-forest disabled:cursor-not-allowed" checked={acknowledged || confirmed} onChange={(event) => setAcknowledged(event.target.checked)} disabled={confirmed} />
               <span>I have read this notice and confirm that any prepared note photograph I submit excludes personal identifiers and confidential details.</span>
             </label>
-            <button type="button" disabled={!acknowledged && !confirmed} onClick={acceptNotice} className="flex min-h-11 w-full items-center justify-center rounded-xl bg-forest px-4 py-3 text-sm font-semibold text-white transition-colors hover:bg-sage disabled:cursor-not-allowed disabled:opacity-40">Continue to intake</button>
+            <button type="button" disabled={!acknowledged && !confirmed} onClick={acceptNotice} className="flex min-h-11 cursor-pointer w-full items-center justify-center rounded-xl bg-forest px-4 py-3 text-sm font-semibold text-white transition-colors hover:bg-sage disabled:cursor-not-allowed disabled:opacity-40">Continue to intake</button>
           </div>
         </Dialog.Content>
       </Dialog.Portal>

@@ -27,8 +27,8 @@ export default function ConfirmationApprovalBar({
   const canApprove = filled && notesReviewed && documentsReady && !isSubmitting;
   return (
     <div className="border-t border-sage/15 bg-sage/[0.03] p-5 sm:px-8 sm:py-6">
-      <label className="mb-5 flex cursor-pointer items-start gap-3 text-sm leading-relaxed text-charcoal-2">
-        <input type="checkbox" className="mt-1 size-4 shrink-0 accent-forest" checked={notesReviewed} disabled={isSubmitting}
+      <label className="mb-5 flex cursor-default has-[:disabled]:cursor-not-allowed items-start gap-3 text-sm leading-relaxed text-charcoal-2">
+        <input type="checkbox" className="mt-1 size-4 shrink-0 cursor-default accent-forest disabled:cursor-not-allowed" checked={notesReviewed} disabled={isSubmitting}
           onChange={(event) => onNotesReviewedChange(event.target.checked)} />
         <span><span className="block font-medium text-ink">I have reviewed these notes and the academic values, including missing evidence.</span>
         <span className="mt-1 block text-xs text-muted-text">My notes exclude personal identifiers and confidential details. I am submitting only a prepared career-guidance summary.</span></span>

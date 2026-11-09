@@ -23,7 +23,7 @@ export default function ExtractionResultsPanel({ documents, onDataUpdate }: Prop
     <Tabs value={activeDocumentId} onValueChange={setSelectedDocumentId} className="gap-3">
       <TabsList aria-label="Extracted documents" className="w-full rounded-xl border border-black/[0.08] bg-cream-dark/60 p-1 group-data-[orientation=horizontal]/tabs:h-auto">
         {documents.map((doc) => <TabsTrigger key={doc.documentId} value={doc.documentId}
-          className="min-h-10 px-3 text-xs data-[state=active]:bg-white data-[state=active]:text-forest sm:text-sm">
+          className="min-h-10 cursor-pointer px-3 text-xs data-[state=active]:bg-white data-[state=active]:text-forest sm:text-sm">
           {LABELS[doc.docType]}
         </TabsTrigger>)}
       </TabsList>
