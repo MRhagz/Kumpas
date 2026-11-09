@@ -29,6 +29,7 @@ const STEP_LABELS: Record<string, string> = {
   pii_redacting: "Redacting personal info…",
   structuring: "Extracting data…",
   ai_structuring: "AI structuring…",
+  removing: "Removing document…",
   complete: "Extraction complete",
   error: "Extraction failed",
 };
@@ -116,7 +117,7 @@ export default function FileSlot({
         <div className="flex w-full sm:flex-1 items-center gap-2">
           <select
             aria-label={`Document ${index} type`}
-            className="flex-1 w-0 min-w-0 rounded-md border border-black/[0.1] bg-white px-2.5 py-1.5 text-[13px] text-charcoal-2 outline-none focus:border-sage"
+            className="flex-1 cursor-pointer disabled:cursor-not-allowed w-0 min-w-0 rounded-md border border-black/[0.1] bg-white px-2.5 py-1.5 text-[13px] text-charcoal-2 outline-none focus:border-sage"
             value={docType}
             disabled={hasFiles || anyProcessing}
             onChange={(e) => onTypeChange(e.target.value)}
@@ -131,7 +132,7 @@ export default function FileSlot({
 
           <button
               type="button"
-              className="shrink-0 inline-flex items-center gap-1.5 rounded-md border border-black/[0.1] bg-white px-3 py-1.5 text-xs font-medium text-charcoal-2 transition-colors hover:bg-black/[0.02] cursor-pointer"
+              className="shrink-0 inline-flex items-center gap-1.5 rounded-md border border-black/[0.1] bg-white px-3 py-1.5 text-xs font-medium text-charcoal-2 transition-colors hover:bg-black/[0.02] cursor-pointer disabled:cursor-not-allowed"
               onClick={() => inputRef.current?.click()}
               disabled={!docType || anyProcessing}
               aria-label={`${hasFiles ? "Replace" : "Upload"} document ${index}`}
@@ -180,7 +181,7 @@ export default function FileSlot({
               )}
               <button
                 type="button"
-                className="flex h-6 w-6 items-center justify-center rounded-full text-black/30 hover:bg-black/5 hover:text-charcoal-2 cursor-pointer"
+                className="flex h-6 w-6 items-center justify-center rounded-full text-black/30 hover:bg-black/5 hover:text-charcoal-2 cursor-pointer disabled:cursor-not-allowed"
                 onClick={() => onFileRemove(fileIdx)}
                 disabled={anyProcessing}
                 aria-label={`Remove document ${index}`}

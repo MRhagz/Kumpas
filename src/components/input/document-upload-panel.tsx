@@ -19,6 +19,7 @@ interface DocumentUploadPanelProps {
   disabled?: boolean;
   slots: { 1: SlotState; 2: SlotState; 3: SlotState };
   onSlotFilesAdd: (index: 1 | 2 | 3, files: File[]) => void;
+  onSlotFileRemoving: (index: 1 | 2 | 3, fileIndex: number) => void;
   onSlotFileRemove: (index: 1 | 2 | 3, fileIndex: number) => void;
   onSlotTypeChange: (index: 1 | 2 | 3, type: string) => void;
   onDocumentUploaded: (index: 1 | 2 | 3, file: File, result: UploadedDocument) => void;
@@ -30,6 +31,7 @@ export default function DocumentUploadPanel({
   disabled = false,
   slots,
   onSlotFilesAdd,
+  onSlotFileRemoving,
   onSlotFileRemove,
   onSlotTypeChange,
   onDocumentUploaded,
@@ -83,7 +85,7 @@ export default function DocumentUploadPanel({
     const previous = slots[index].uploaded;
     if (!previous) { onSlotFileRemove(index, fileIndex); return; }
     pending.current.add(index);
-    onSlotFilesAdd(index, [slots[index].files[fileIndex]]);
+    onSlotFileRemoving(index, fileIndex);
     try {
       const query = new URLSearchParams({ docType: previous.docType, documentId: previous.documentId });
       const response = await fetch(`/api/sessions/${sessionId}/upload?${query}`, { method: "DELETE" });
@@ -107,7 +109,7 @@ export default function DocumentUploadPanel({
       .filter(Boolean);
 
   return (
-    <fieldset disabled={disabled} className="min-w-0 p-6 sm:p-8">
+    <fieldset disabled={disabled} className="min-w-0 p-5 sm:p-8">
       <div className="flex items-start gap-3 mb-4">
         <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-ochre-pale text-ochre">
           <FolderOpen size={20} />
