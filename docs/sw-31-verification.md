@@ -51,6 +51,12 @@ RPO/RTO pass is inferred. Human/stakeholder validation remains after the midterm
   unsupported-citation rejection remain unchanged. This mismatch can make valid
   explanations unavailable; the observed live case's precise provider response
   was not logged, so no raw-response cause is asserted.
+- Refreshing during live SHS analysis exposed a publication race. The browser
+  received a stale-publication error while the same run had a saved draft.
+  The session read can precede publication while the run read sees the newly
+  ready version. Recovery now rechecks the same unexpired owner, profile, run
+  and report version in that case. The reproducing fixture fails before the fix.
+  Superseded versions still fail, and legacy ready runs keep their stored pointer.
 
 No production fault endpoint, deferred feature, schema migration, provider/model
 change, credential fallback or data migration is introduced. Existing warnings
@@ -169,6 +175,14 @@ passes 80. The measurement contract suite now passes four tests, including a
 partial draft counting as nonqualifying rather than full healthy-provider
 success. Type checking and scoped ESLint pass again.
 
+After the publication recovery fix, `npm run test:access -- --maxWorkers=2`
+passes **784 tests in 54 files**. The focused command
+`npx vitest run tests/processing-run-load.test.ts tests/processing-report.test.ts tests/draft-recovery.test.ts --maxWorkers=2`
+passes 32 tests. The pre-fix loader run reports two failures and one pass.
+`npm test` passes 28 tests, `node --test scripts/release/metrics.test.mjs` passes
+four, and `npx tsc --noEmit` passes. `npm run lint` reports zero errors and 12
+existing warnings.
+
 The production build passed with the existing private environment loaded into
 the parent process, followed by `node node_modules/next/dist/bin/next build --webpack`.
 The earlier `node --env-file=... ... next build --webpack` attempt failed because
@@ -223,6 +237,10 @@ V1 did not capture specialist status. Its immutable result SHA-256 is
 `941cbd65f1ca8fcddcc015331b67ef25fc1b141023ddf965d3758d823e40ca00`.
 Local fixture checks and non-provider preview smoke overlapped parts of the
 baseline, with no extra live provider campaign or ingestion launched here.
+The public source projection still matches all 2,177 chunks and its pre-run
+SHA-256. Seven timeouts stopped in feasibility generation, one in synthesis,
+and one produced a PDF at 298.284 seconds server elapsed but missed the client
+deadline. All nine remain in the recorded failure count.
 
 PR preview access became available on 8 November. The Vercel status for
 `af48364acc807ee49ff5418bef7ead64e33e63e3` identifies deployment
@@ -260,7 +278,7 @@ This successful Firefox run does not explain or erase the previous native
 scanner crashes. They remain an intermittent test reliability concern. These
 are component workflows with isolated API responses, not live-provider or
 actual-Safari acceptance evidence. The candidate's successful Vercel deployment
-is `G7pqCm2nqt8RV9p81a9Fv2fK4wFw`; its timeout policy still requires live retest.
+is `G7pqCm2nqt8RV9p81a9Fv2fK4wFw`. Full candidate qualification remains pending.
 An actual typed-only Grade 10 preview run on that deployment reached a draft
 with AcademicAuditor/IndustryAnalyst complete and FeasibilityStrategist failed.
 The UI/PDF mark it partial, withhold totals/ranks for missing feasibility and
@@ -271,6 +289,20 @@ character bounds remain within all four A4 pages; Draft origin, AI disclosure,
 missing evidence, unknown publication date and source provenance are visible.
 The original draft expiry stays 9 November 20:37 Singapore; PDF expiry is
 10 November 00:21, demonstrating the independent generation-based clock.
+Server metadata measures 221.308 seconds from approval to publication and
+24 hours for each independent expiry clock. The actual approved download is
+byte-identical to the reviewed 16,141-byte draft.
+
+On preview `0f20df79fd15fee17cc81443a042933d0fbe90aa`, deployment
+`A1HR1vnVGn4jMvjzYuE33Upunamo`, a live SHS Form 137 upload matches all four
+fixture values. Scoped storage inventory finds zero raw objects and zero
+pending uploads after extraction. NCAE and NAT remain absent. Refreshing mid-run
+produces the stale-publication error above. Retry recovers the same stored draft
+with evidence-linked aptitude and demand explanations. Feasibility remains
+unavailable and partial comparisons have no total or rank. The counselor
+approves version 1 and downloads the five-page PDF. Its actual bytes contain
+the evidence explanations, Draft footer on every page, AI disclosure and
+missing-evidence notices. This single interrupted workflow is a smoke check.
 
 On 9 November Singapore time, the user approved existing automation access.
 The unlinked CLI could not resolve the deployment's project, used no bypass
@@ -349,7 +381,7 @@ Later human validation does not become an invented automated result.
 | KMP-NFR-004 | F05, I10, I11, S04, S05, S06, S07, S10, S11, A01 | All separate clocks/retry/replay fixtures and real SQL pass; hosted raw deletion passes. Hosted elapsed-time/failure isolation remains partial. |
 | KMP-NFR-005 | I07, P01, P02 | Completed baseline: sequential 21/30 draft-ready with 9 timeouts; concurrent 25/25 and stress 10/10 within 300 s. No full P01/P02 pass or cold-server claim; candidate qualification pending. |
 | KMP-NFR-006 | S09, R03 | 30 hosted extractions matched 120/120 frozen observations. Independent human corpus verification remains pending. |
-| KMP-NFR-007 | F07, F08, F12, I04, S03, R01 | 781 application and 28 legacy regressions pass; remaining live/independent gates prevent broad release acceptance. |
+| KMP-NFR-007 | F07, F08, F12, I04, S03, R01 | 784 application and 28 legacy regressions pass. Live qualification and independent review remain open. |
 | KMP-NFR-008 | F09, I06 | Malformed/partial/missing-evidence and specialist-failure fixtures pass. Controlled hosted provider fault injection is not claimed. |
 | KMP-NFR-009 | I06, I07, P02 | Retry/deadline/quota/stale-write fixtures pass. Live diagnostic passes; concurrent workload and fault qualification remain separate. |
 | KMP-NFR-010 | I09, S07 | Seeded safe-log and fixed-retention fixtures pass. Actual operational-log pruning fails on missing maintenance DSN; notification receipt unverified. |

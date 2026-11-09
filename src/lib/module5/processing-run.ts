@@ -19,16 +19,29 @@ export interface ProcessingRun {
 }
 
 export async function loadProcessingRun(sessionId: string, counselorId: string) {
-  const { data: session, error } = await supabaseAdmin.from("sessions")
+  const readSession = () => supabaseAdmin.from("sessions")
     .select("current_run_id, current_profile_version, current_report_version, expires_at, status")
-    .eq("id", sessionId).eq("counselor_id", counselorId).single();
+    .eq("id", sessionId).eq("counselor_id", counselorId);
+  const { data: session, error } = await readSession().single();
   if (error || !session || !session.current_run_id || !["active", "completed"].includes(session.status) || Date.parse(session.expires_at) <= Date.now()) {
     throw new ProcessingError("approved analysis", "stale");
   }
   const { data, error: runError } = await supabaseAdmin.from("analysis_runs").select("*")
     .eq("run_id", session.current_run_id).eq("session_id", sessionId).eq("counselor_id", counselorId).single();
   if (runError || !data || data.approved_profile_version !== session.current_profile_version) throw new ProcessingError("analysis run", "stale");
-  return { run: data as ProcessingRun, reportVersion: session.current_report_version as number };
+  const run = data as ProcessingRun;
+  // Publication can commit between the session and run reads. Recheck only
+  // the same owner, profile, run and published version before resuming it.
+  if (run.phase === "ready" && run.candidate_report_version !== null &&
+      run.candidate_report_version !== session.current_report_version) {
+    const { data: published, error: publicationError } = await readSession()
+      .eq("current_run_id", run.run_id).eq("current_profile_version", run.approved_profile_version)
+      .eq("current_report_version", run.candidate_report_version)
+      .in("status", ["active", "completed"]).gt("expires_at", new Date().toISOString()).single();
+    if (publicationError || !published) throw new ProcessingError("draft publication", "stale");
+    return { run, reportVersion: published.current_report_version as number };
+  }
+  return { run, reportVersion: session.current_report_version as number };
 }
 
 export async function transitionRun(run: ProcessingRun, action: string, result?: RankedRecommendationList, stage?: string): Promise<ProcessingRun> {

@@ -1,5 +1,5 @@
 {
-  "recordedAt": "2026-11-09T02:29:36.320Z",
+  "recordedAt": "2026-11-09T02:59:26.673Z",
   "hostedCommit": "bc336abb1422832141ab089557d14ad842fb38c9",
   "deploymentId": "DzRMcmxe3srR7ihoPoPZzznkY1zN",
   "execution": "unmocked_hosted_http",
@@ -521,7 +521,14 @@
       "Schema v1 did not capture specialist statuses; draft-ready success cannot attest full analysis.",
       "Separate controlled live retry/fault injection and semantic isolation review remain unexecuted.",
       "Client-side fixture checks and non-provider preview smoke overlapped parts of this baseline campaign; no ingestion or extra live provider workload was launched."
-    ]
+    ],
+    "publicSourceSnapshotVerifiedUnchanged": true,
+    "timeoutDiagnosis": {
+      "feasibilityGeneration": 7,
+      "synthesis": 1,
+      "serverReadyClientTimeout": 1,
+      "serverReadyElapsedMs": 298284
+    }
   },
   "grade10Preview": {
     "commit": "1c6e38822118c185f27ef600a8fa00fcf267fcf9",
@@ -548,6 +555,36 @@
     },
     "draftExpirySingapore": "2026-11-09 20:37",
     "pdfExpirySingapore": "2026-11-10 00:21",
+    "qualifiesP01": false,
+    "serverDraftMs": 221308,
+    "sharedBudgetMs": 300000,
+    "sessionClockMs": 86400000,
+    "pdfClockMs": 86400000,
+    "approvedDownloadMatchesDraft": true
+  },
+  "shsPreview": {
+    "commit": "0f20df79fd15fee17cc81443a042933d0fbe90aa",
+    "deploymentId": "A1HR1vnVGn4jMvjzYuE33Upunamo",
+    "execution": "actual_browser",
+    "workload": "synthetic Grade 11 Form 137 with NCAE and NAT absent",
+    "extractionMatchedFields": 4,
+    "extractionTotalFields": 4,
+    "rawObjectsRemaining": 0,
+    "pendingUploads": 0,
+    "serverDraftMs": 66273,
+    "firstRefreshOutcome": "stale_publication_error",
+    "manualRetry": "same_stored_draft_recovered",
+    "evidenceExplanationsPresent": true,
+    "reportVersion": 1,
+    "profileVersion": 1,
+    "approvedDownload": {
+      "bytes": 19971,
+      "sha256": "05af1482ffcf1131dd6929f0c1315128245920a6d8c77f595e5d2e9e899f60e1",
+      "pages": 5,
+      "draftFooterOnEveryPage": true,
+      "aiDisclosure": true,
+      "missingEvidence": true
+    },
     "qualifiesP01": false
   }
 }
