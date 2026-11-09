@@ -2,7 +2,7 @@
 
 Audience: counselors reviewing AI-assisted career comparisons with students.
 
-## Issues identified before implementation
+## Issues identified
 
 1. Review actions and procedural prose precede the results and dominate the page.
 2. Student options, explanations, caveats and next steps form a wall of text; comparisons require scrolling and recall.
@@ -11,63 +11,47 @@ Audience: counselors reviewing AI-assisted career comparisons with students.
 5. Unreadable and unsupported uploads are visually conflated with absent records.
 6. Interpretation repeats the same evidence in reasoning, key signals and claim references; justified text impedes scanning.
 7. Citation URLs, chunk identifiers, ingestion timestamps and acquisition enum values clutter the reading surface.
-8. Strengths, concerns and neutral signals lack clear grouping; current generated key signals duplicate evidence claims.
+8. Strengths, concerns and neutral signals lack clear grouping; generated key signals duplicate evidence claims.
 9. Approval, rejection, input correction and regeneration lack an action hierarchy or review sequence.
 10. Version, approval, PDF origin and expiry are scattered; expiry is explained too far down the page.
 11. There are no section shortcuts and recommendation buttons do not expose selection programmatically.
 12. Long titles, references and narrow viewports need explicit layout checks.
 13. Partial-analysis messages use internal specialist names and repeat missing-evidence warnings.
 14. Fallback subtitles can imply supporting data that is unavailable.
+15. Source-currency terminology needs translation into plain language.
+16. The download button blends into its dark card, and a temporarily disabled download incorrectly uses the expired-link label.
+17. Rejected reports still display draft/download-approval instructions in the download card.
+18. Mobile selection needs a way to jump to updated evidence; fragment targets and the academic sidebar need clearance from the sticky header, and disclosures need larger touch targets.
 
-## Changes
+## Resulting interface
 
-- Results first, section shortcuts and a compact version/status header; review and release follow the evidence.
-- Student-safe option cards with aligned score bars, expandable evidence, visible trade-offs and numbered next steps.
-- Counselor option selection stays separate from the student-safe projection and exposes its selected state.
-- One row per academic document, with provided, not provided, unreadable and unsupported statuses. An expandable coverage note retains the original context.
-- Three evidence dimension cards with component score bars replace duplicated reasoning and key-signal text. Unique signals are grouped by meaning.
-- Numbered source title links replace URL walls; publication date remains visible, provenance expands on demand.
-- Explicit unscored states, safe source-link handling, source-currency caveat, expired-state notice and existing review/download locks retained.
+- Results appear first, followed by counselor evidence and review/release controls, with section shortcuts between them.
+- Student-safe option cards have aligned score bars, expandable evidence, visible lowest-component considerations and numbered next steps. Redundant “Discuss this trade-off” text is removed.
+- Ranked-path scores remain prominent. Component scores are separate from their explanations, using smaller green text and thinner green bars.
+- Each academic document has one status row: provided, not provided, unreadable or unsupported. Additional coverage context remains expandable.
+- Three dimension cards replace duplicated reasoning/key-signal prose. Unique observations are grouped as supporting factors, concerns or other observations.
+- Numbered source-title links connect findings to references. Publication dates remain visible; provenance expands on demand. Source warnings use plain language.
+- Approval is the primary green action, preview is secondary, revision actions share their own group, and rejection has a separate red action row.
+- Draft, approved, rejected, expired and temporarily disabled states have accurate guidance. The approved download button has a full-width, high-contrast treatment.
+- Live selection announcements, explicit detail/comparison/review links, keyboard-focusable targets, header clearance and larger disclosures improve navigation.
 
-## Scope and validation
+## Scope and compatibility
 
-Presentation changes retain report generation, student-safe wording, scoring, approval/version identity and PDF bytes. Evidence claims additionally expose their existing component points as an optional numeric field, allowing score bars without parsing narrative text. Older projections without this field still show their evidence text. The browser report is reorganized; the existing PDF remains the exact document the counselor previews and approves. PDF visual redesign is a separate follow-up because it changes a stored, versioned artifact.
+Scoring, generation, approval/version identity and PDF content are retained. Evidence claims additionally expose existing component points as an optional numeric field for visualization. Older projections without numeric metadata retain an evidence-text fallback. Stored student summaries keep their existing sentence-based contract; the two known score-statement formats are split for browser presentation, and other wording is retained.
 
-Validate recommendation selection, missing scores, legacy report fallback, academic status precedence, source navigation, provenance disclosure, review transitions, responsive layout, keyboard access and WCAG 2.1 AA scans using synthetic fixtures.
+The browser report is reorganized; the stored PDF remains the exact document the counselor previews and approves. No schema migrations or deployment changes are required.
 
-## Verification results
+## PR validation
 
-- Initial validation: 105 focused tests passed across report presentation, review transitions, student-safe/PDF content, evidence summaries, score consistency, processing and delivery.
-- After transferring the branch and rebasing onto the latest main, 112 tests across nine suites passed, including analysis versioning and workflow navigation; TypeScript and whitespace checks passed again.
-- Eight Chrome browser checks passed: 375/768/1280 px report interactions, partial/long/expired mobile reports and the existing 375/1280 px keyboard workflow through approval, download and session termination.
-- Report accessibility scans found zero WCAG 2.1 AA violations in the tested states.
-- TypeScript, targeted ESLint, whitespace checks and the Next.js production build passed.
-- Screenshots were inspected for desktop/mobile spacing and score alignment. Browser artifacts are in the ignored `test-results/` directory.
+- Full access/contract suite: 811 tests passed across 60 files.
+- Application suite: 28 tests passed across two files.
+- Release metrics: four tests passed; the live-contract script passed its syntax check.
+- Chrome: all ten browser scenarios passed, covering 375/768/1280 px report interactions, partial/long/expired mobile reports, rejected-state recovery and intake-to-download keyboard workflows.
+- Draft, approved-download and rejected-state accessibility scans found zero WCAG AA violations.
+- TypeScript, production build and whitespace checks passed. Repository-wide lint passed with 12 pre-existing unused-variable warnings outside this branch's changes.
+- Partial-specialist assertions check counselor-facing labels and the visible missing-record checklist.
+- Desktop/mobile screenshots were inspected using synthetic reports. Browser artifacts remain in the ignored `test-results/` directory; CI also runs Edge, Firefox and WebKit checks.
 
-## Git workspace
+## Assessment
 
-The original checkout initially protected `.git` as read-only, so the first commit was prepared in `/tmp/kumpas-report-review`. After the session permissions were updated, the branch was transferred into the original repository. Local `main` was fast-forwarded to `origin/main` at `f5f37a7`, and `feat/counselor-report-presentation` was rebased onto it without conflicts. All 14 transferred files were verified against the prepared commit before removing the temporary transfer stash. No remote changes were pushed.
-
-## Follow-up: score clarity and review action hierarchy
-
-- Component scores now use a standalone numeric display and meter, with score-free evidence explanations underneath.
-- Student reasons and lowest-component considerations separate the numeric values from explanatory prose. The two known stored-summary sentence formats are split for browser presentation; other wording is retained verbatim. Stored report content and PDF generation are unchanged.
-- Approval is the primary filled green action; preview uses a secondary outlined treatment. Input correction and regeneration share a separate revision group, and rejection has its own red action row. Icons, descriptive groups and disabled states retain existing review behavior.
-- Follow-up validation: 79 focused tests passed. All eight Chrome scenarios passed across the initial successful cases and the three report comparison reruns after correcting a test selector for the separate score denominator. Responsive screenshots were inspected; report WCAG AA scans found zero violations. TypeScript, targeted lint and whitespace checks passed.
-
-## Final counselor UX pass
-
-Remaining issues identified before this pass:
-
-1. Source-currency jargon remained in the supporting sources and student limitations.
-2. The approved download button blended into its dark card.
-3. A temporarily disabled download incorrectly used the expired-link label.
-4. A rejected version still displayed draft/download-approval instructions in its download card.
-5. Mobile path selection lacked a nearby way to jump to the updated evidence, and long reports required scrolling back to the comparison or review controls.
-6. Fragment targets and the sticky academic panel could overlap the application's sticky header; expandable details had small phone touch targets.
-
-Changes: plain-language source warnings and an “Information to check” disclosure; a full-width, high-contrast download button; separate disabled and expired states; accurate draft/approved/rejected guidance; live selection announcements with explicit detail/comparison/review links; keyboard-focusable fragment targets with header clearance; larger disclosure targets and accessible new-tab descriptions for source links. The agreed green component scores and visual size hierarchy are retained. Generation, scoring, report approval rules and PDF content are unchanged.
-
-Validation: reproduced the rejected-state and disabled-download label defects with regression tests before fixing them. All 117 focused tests across ten suites passed. All ten Chrome browser scenarios passed, covering responsive report comparison, partial/long/expired mobile reports, rejected-state recovery at mobile/desktop widths and the existing intake-to-download keyboard workflows. Draft, approved-download and rejected-state WCAG AA scans found zero violations. TypeScript, targeted lint, whitespace checks and the production build passed. Desktop/mobile screenshots were inspected using synthetic reports; no live student records were required.
-
-Assessment: no further major layout change is indicated by this pass. The remaining validation opportunity is observing counselors use representative reports in actual counseling sessions, especially comparing several paths and locating missing evidence.
+No further major layout change is indicated by this review. Observing counselors use representative reports in actual sessions remains the most useful next validation, especially comparing paths and locating missing evidence.

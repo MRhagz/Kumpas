@@ -34,10 +34,12 @@ it("keeps partial suggestions, failed specialists and missing academic evidence 
   render(<ReportDownloadView report={report} onNewSession={() => {}} />);
   const warning = screen.getByRole("status");
   expect(within(warning).getByRole("heading", { name: "Partial specialist analysis" })).toBeTruthy();
-  expect(within(warning).getByText("IndustryAnalyst: Failed")).toBeTruthy();
-  expect(within(warning).getByText("FeasibilityStrategist: Unavailable")).toBeTruthy();
+  expect(within(warning).getByText("Work opportunities: Failed")).toBeTruthy();
+  expect(within(warning).getByText("Practical requirements: Unavailable")).toBeTruthy();
   expect(screen.getByRole("heading", { name: "Unscored partial comparisons" })).toBeTruthy();
-  expect(screen.getByText("No academic documents were provided.")).toBeTruthy();
+  const academic = screen.getByRole("region", { name: "Academic evidence" });
+  expect(within(academic).getAllByText("Not provided")).toHaveLength(3);
+  expect(within(academic).getByText("No academic documents were provided.")).toBeTruthy();
   expect(screen.queryByText("Rank 1")).toBeNull();
 });
 
