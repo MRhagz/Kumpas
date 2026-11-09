@@ -3,6 +3,33 @@
 Checked 9 November 2026. Never paste credentials into issues, PRs or chat. Use the
 named GitHub environment secrets, Vercel settings or an ignored private env file.
 
+Current user scope: hosted verification and human review are explicitly skipped
+for this local closeout. Do not request Vercel access or independent reviewer
+approval to finish its automated local checks. Earlier access and acceptance
+requirements below describe the original full qualification, which is not
+claimed by this reduced scope. The [current verification record](sw-31-verification.md#current-user-scope--9-november-2026)
+tracks the decision; skipped checks do not become passing evidence.
+
+Local closeout is complete: 791 application tests, 28 notes tests, four metric
+tests, two Chrome fixture workflows and six complete axe scans pass. Build,
+TypeScript and runtime checks pass; lint has zero errors and twelve existing
+warnings. The user stopped the extended live-provider checks and requested that
+their failures be preserved. No additional provider run or human approval is
+needed to finish this reduced scope. See [the final evidence](evidence/sw-31-local-closeout.json)
+for the incomplete live corpus and Supabase MCP's zero-artifact cleanup readback.
+No commit, push, merge or tracker Done transition was performed.
+
+Earlier current-environment checkpoint: the supplied existing counselor account
+authenticates successfully. All three specialists and a complete synthetic
+browser/PDF workflow pass against the local production build using live services
+([results](evidence/sw-31-current-specialists.json)). The current-head hosted
+preview still returns HTTP 302 to Vercel SSO, and the inspected CLI auth files
+have no active token in this environment. Full hosted diagnosis would require
+the existing authorized Vercel login or automation bypass through an ignored
+private env file; it is outside the current closeout. The earlier successful CLI refresh
+below is historical; it does not establish current access. Do not rotate keys
+or change protection settings to work around this checkpoint.
+
 ## Credentials and access
 
 | Setting | Location | Observed status / required action |
@@ -43,7 +70,7 @@ before credential validity can be established. A direct libpq check with dummy
 credentials reproduces the URI/default-socket problem and verifies the explicit
 dbname fix. No logs met the 90-day deletion cutoff at the preflight check.
 
-## Execution order
+## Original full-qualification execution order
 
 1. Get complete browser CI on the final commit, then record its exact Vercel
    deployment identity. Keep any failed diagnostic attempts in the evidence.

@@ -1,0 +1,145 @@
+{
+  "recordedOn": "2026-11-09",
+  "commit": "55b0bd1aea987f46a9802bfd5d5df06e07aadb27",
+  "localCloseoutComplete": true,
+  "runtimeCodeChanged": false,
+  "scope": {
+    "hostedVerification": "skipped_by_user",
+    "humanReview": "skipped_by_user",
+    "extendedLiveProviderChecks": "stopped_by_user_preserve_failures"
+  },
+  "automated": {
+    "application": {
+      "files": 55,
+      "passed": 791,
+      "failed": 0
+    },
+    "notes": {
+      "files": 2,
+      "passed": 28,
+      "failed": 0
+    },
+    "releaseMetrics": {
+      "passed": 4,
+      "failed": 0
+    },
+    "gradeLevelWorkflowMatrix": {
+      "gradeGroups": [
+        "Grade 10",
+        "SHS"
+      ],
+      "optionalEvidenceCombinationsPerGrade": 8,
+      "execution": "component_integration_with_isolated_http",
+      "status": "pass"
+    },
+    "historicalDefects": {
+      "ids": [
+        "DEF-001",
+        "DEF-002",
+        "DEF-003",
+        "DEF-004",
+        "DEF-005",
+        "DEF-006",
+        "DEF-007"
+      ],
+      "execution": "automated_regressions",
+      "status": "pass",
+      "independentRetest": "skipped_by_user"
+    },
+    "frozenCorpusIntegrity": {
+      "documents": 30,
+      "strata": 15,
+      "formats": 4,
+      "status": "pass",
+      "manifestSha256": "785623f2fe5244131a2d43184a1e98001ed73cd39b548c02bf390c20f9f3e9bc"
+    },
+    "browser": {
+      "browser": "Chrome for Testing",
+      "version": "151.0.7922.34",
+      "execution": "actual_browser_with_isolated_api_responses",
+      "widths": [
+        375,
+        1280
+      ],
+      "passed": 2,
+      "failed": 0,
+      "axeScans": 6,
+      "violations": 0,
+      "incompleteChecks": 0
+    },
+    "typecheck": "pass",
+    "productionWebpackBuild": "pass",
+    "runtimeAndNativeDependencyVerification": "pass",
+    "lint": {
+      "errors": 0,
+      "warnings": 12
+    }
+  },
+  "liveCorpus": {
+    "execution": "local_production_build_live_services",
+    "completed": false,
+    "requestedDocuments": 30,
+    "matchedDocuments": 11,
+    "matchedObservations": 44,
+    "batchedFailures": [
+      {
+        "id": "form_137-low-quality-2",
+        "durationMs": 307219,
+        "error": "extraction_or_lifecycle_failed"
+      },
+      {
+        "id": "form_137-missing-field-2",
+        "durationMs": 307617,
+        "error": "extraction_or_lifecycle_failed"
+      },
+      {
+        "id": "form_137-non-standard-2",
+        "durationMs": 77338,
+        "error": "extraction_or_lifecycle_failed"
+      }
+    ],
+    "stoppedInFlight": [
+      "ncae-mixed-quality-2",
+      "ncae-non-standard-2",
+      "ncae-missing-field-2",
+      "ncae-low-quality-2",
+      "nat-clean-2"
+    ],
+    "originalDeferredCase": "form_137-clean-2: failed or interrupted; original provider operation failed near 300 seconds",
+    "unattemptedDocuments": 10,
+    "originalSequentialHarness": "interrupted while switching runners; closed-context failures preserved separately",
+    "resultSha256": "9a39048d08b91a048081a49adba8a2b20e3ee449184993d61e00d1bf862e381d",
+    "originalResultSha256": "858da3f413c218c56078bc774b8d0d81c9eaeda772efee8a4bebb3f982464eec",
+    "fullCorpusAcceptance": "not_established",
+    "newUnmockedGradeLevelWalkthroughs": "not_completed; stopped with extended live-provider checks"
+  },
+  "providerDiagnostics": {
+    "modelLookupHttpStatus": 200,
+    "modelLookupDurationMs": 728,
+    "heldOutLowThinkingProbe": {
+      "durationMs": 59999,
+      "outcome": "timed_out",
+      "runtimeSettingChanged": false
+    }
+  },
+  "cleanup": {
+    "execution": "application_session_termination_then_supabase_mcp_readback",
+    "syntheticSessionsRevoked": 8,
+    "sessionsRemaining": 0,
+    "extractionsRemaining": 0,
+    "temporaryUploadsRemaining": 0,
+    "rawCleanupRowsRemaining": 0,
+    "rawObjectsRemaining": 0
+  },
+  "privateEvidenceSha256": {
+    "browser": "3f72783294972eb11361fa337e53996f2038b040bf35fbd6dd283463bd50e383",
+    "cleanup": "a6f887d0390d43da331a0295d01de41f670c0194ab5df37925d9ee6960cbdb46",
+    "applicationTests": "472995c38d5c99ff14cb322270188e8945a10eb7484ec561c28f39a27cbaea74",
+    "notesTests": "1d523e824c79d6f64330126c373087fe0a0d35c272bc643ba0cd4372bb2467ae",
+    "metricsTests": "34e9287b4583e6fd1af23f190159dbeef875d7e932334f8f985dc9efbccbfb61"
+  },
+  "formalA01Acceptance": "not_claimed",
+  "releaseReady": false,
+  "changesCommitted": false,
+  "remotePrOrTrackerUpdated": false
+}
