@@ -69,6 +69,7 @@ export default function ReportEvidenceDetail({
                       <ReportScore
                         score={claim.score}
                         label={`${dimensionLabels[dimension]} component`}
+                        subtle
                       />
                     </div>
                   )}

@@ -1,9 +1,11 @@
 export default function ReportScore({
   score,
   label,
+  subtle = false,
 }: {
   score: number | null;
   label: string;
+  subtle?: boolean;
 }) {
   if (score === null) {
     return (
@@ -14,9 +16,15 @@ export default function ReportScore({
   }
   return (
     <div>
-      <p className="text-2xl font-bold tabular-nums text-forest">
+      <p
+        className={`tabular-nums ${subtle ? "text-sm font-medium text-muted-text" : "text-2xl font-bold text-forest"}`}
+      >
         {score.toFixed(2)}
-        <span className="ml-1 text-sm font-normal text-muted-text">/ 100</span>
+        <span
+          className={`ml-1 font-normal text-muted-text ${subtle ? "text-xs" : "text-sm"}`}
+        >
+          / 100
+        </span>
       </p>
       <div
         role="meter"
@@ -25,10 +33,10 @@ export default function ReportScore({
         aria-valuemax={100}
         aria-valuenow={score}
         aria-valuetext={`${score.toFixed(2)} points out of 100`}
-        className="mt-2 h-2 overflow-hidden rounded-full bg-forest/10"
+        className={`overflow-hidden rounded-full bg-forest/10 ${subtle ? "mt-1.5 h-1" : "mt-2 h-2"}`}
       >
         <div
-          className="h-full rounded-full bg-forest"
+          className={`h-full rounded-full ${subtle ? "bg-muted-text" : "bg-forest"}`}
           style={{ width: `${score}%` }}
         />
       </div>
