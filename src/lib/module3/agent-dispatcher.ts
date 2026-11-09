@@ -5,6 +5,7 @@ import { industryAnalystAgent } from "./industry-analyst-agent";
 import { feasibilityStrategistAgent } from "./feasibility-strategist-agent";
 import {
   getPublicErrorMessage,
+  AgentOperationError,
 } from "./agent-errors";
 import type { AgentOutput, AnalysisInput } from "./types";
 
@@ -50,7 +51,8 @@ export class AgentDispatcher {
           { id: budget.runId, ...(result.status === "FAILED" ? { code: "operation_failed" as const } : {}) });
         return result;
       } catch (error) {
-        operationalEvent(stage, "failure", startedAt, { id: budget.runId, code: error instanceof ProcessingError ? error.code : "operation_failed" });
+        operationalEvent(stage, "failure", startedAt, { id: budget.runId, code: error instanceof ProcessingError ? error.code : "operation_failed",
+          ...(error instanceof AgentOperationError ? { providerStatus: error.status, agentStage: error.stage, providerFailure: error.category } : {}) });
         if (error instanceof ProcessingError) {
           if (error.code === "stale") throw error;
           budget.assert(error.stage); // The absolute run deadline still stops everything.
