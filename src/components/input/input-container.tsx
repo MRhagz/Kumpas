@@ -24,7 +24,7 @@ import {
   Save,
 } from "lucide-react";
 import SessionNotesForm from "./session-notes-form";
-import ProcessingNotice from "./processing-notice";
+import WorkflowOrientation from "./workflow-orientation";
 import { requiredNotesFilled } from "@/lib/notes-validation";
 import DocumentUploadPanel from "./document-upload-panel";
 import ExtractionResultsPanel from "./extraction-results-panel";
@@ -565,24 +565,18 @@ export default function InputContainer() {
 
   return (
     <section className="mx-auto w-full max-w-4xl px-4 sm:px-6 relative animate-fade-in">
-      {sessionId && <SessionTerminationControl sessionId={sessionId} open={terminationOpen} onOpenChange={setTerminationOpen}
-        label="Cancel session" onTerminating={() => { terminationStarted.current = true; setTerminating(true); }} />}
+      <div className="mb-4 flex flex-wrap items-center justify-between gap-x-6 gap-y-1">
+        {sessionId && <SessionTerminationControl sessionId={sessionId} open={terminationOpen} onOpenChange={setTerminationOpen}
+          label="Cancel session" onTerminating={() => { terminationStarted.current = true; setTerminating(true); }} />}
+        <div hidden={terminating} className="ml-auto flex flex-wrap items-center gap-x-5">
+          <WorkflowOrientation confirmed={processingConfirmed} onConfirm={setProcessingConfirmed} />
+        </div>
+      </div>
       <div hidden={terminating}>
       <div className="relative left-1/2 mb-6 w-[calc(100vw-2rem)] max-w-6xl -translate-x-1/2">
         <SessionProgressIndicator className="max-w-none px-0 sm:px-6" sessionId={sessionId} fallbackStep="upload" confirming={requiredNotesFilled(sectionHtml) && !dirtyDraft && !savingDraft && !scanning} />
       </div>
 
-      <div className="mb-6 flex items-start gap-3">
-      <details className="min-w-0 flex-1 rounded-xl border border-black/[0.08] bg-cream-light/50 p-4 text-sm leading-relaxed text-muted-text [&_p]:mt-3">
-        <summary className="cursor-pointer font-semibold">How this counselor workflow works</summary>
-        <p>1. Intake: type the two required note fields or extract a photograph. Academic documents and the other three note fields are optional. Undecided is a valid career goal.</p>
-        <p>2. Confirm Information: review and save notes, academic values and missing evidence, then approve the exact inputs.</p>
-        <p>3. Analysis: AI assists with advisory suggestions; unavailable evidence and partial failures remain visible.</p>
-        <p>4. Review Report: check the summary, limitations and sources. Approve the exact report version before 5. Download.</p>
-        <p>Drafts expire 24 hours after creation; PDFs have their own fixed deadline. Sign in as the same counselor to resume eligible work. End Session revokes access and shows cleanup status. Downloaded copies follow school policy.</p>
-      </details>
-      <ProcessingNotice confirmed={processingConfirmed} onConfirm={setProcessingConfirmed} />
-      </div>
       <fieldset disabled={savingDraft || isSubmitting} className="min-w-0 space-y-6">
         {/* Part 1: Counselor Notes */}
         <section aria-labelledby="counselor-notes-heading" className="rounded-2xl border border-black/[0.08] bg-cream-light p-5 shadow-card sm:p-8">

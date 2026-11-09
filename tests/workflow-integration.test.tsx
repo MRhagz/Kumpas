@@ -53,6 +53,7 @@ it.each(["Grade 10", "SHS"].flatMap(grade => Array.from({ length: 8 }, (_, mask)
     const downloads: string[] = [];
     vi.spyOn(HTMLAnchorElement.prototype, "click").mockImplementation(function(this: HTMLAnchorElement) { downloads.push(this.getAttribute("href")!); });
     let view = render(<InputContainer />);
+    fireEvent.click(await screen.findByRole("button", { name: "Skip orientation" }));
     fireEvent.click(await screen.findByRole("checkbox", { name: /I have read this notice/ }));
     fireEvent.click(screen.getByRole("button", { name: "Continue to intake" }));
     await screen.findByRole("textbox", { name: "Career Goal (required)" });

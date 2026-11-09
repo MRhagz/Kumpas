@@ -9,9 +9,10 @@ const NOTICE_KEY = "kumpas:processing-notice:v1";
 interface ProcessingNoticeProps {
   confirmed: boolean;
   onConfirm: (confirmed: boolean) => void;
+  autoOpen?: boolean;
 }
 
-export default function ProcessingNotice({ confirmed, onConfirm }: ProcessingNoticeProps) {
+export default function ProcessingNotice({ confirmed, onConfirm, autoOpen = true }: ProcessingNoticeProps) {
   const [open, setOpen] = useState(false);
   const [acknowledged, setAcknowledged] = useState(false);
   const contact = process.env.NEXT_PUBLIC_SCHOOL_PRIVACY_CONTACT;
@@ -22,8 +23,8 @@ export default function ProcessingNotice({ confirmed, onConfirm }: ProcessingNot
     try { remembered = localStorage.getItem(NOTICE_KEY) === "acknowledged"; } catch { /* Browser storage may be disabled. */ }
     if (remembered) onConfirm(true);
     // Defer opening until hydration so the portal is created in the browser.
-    else { const timer = window.setTimeout(() => setOpen(true), 0); return () => window.clearTimeout(timer); }
-  }, [onConfirm]);
+    else if (autoOpen) { const timer = window.setTimeout(() => setOpen(true), 0); return () => window.clearTimeout(timer); }
+  }, [onConfirm, autoOpen]);
 
   const acceptNotice = () => {
     try { localStorage.setItem(NOTICE_KEY, "acknowledged"); } catch { /* The acknowledgment still applies to this visit. */ }
@@ -33,12 +34,12 @@ export default function ProcessingNotice({ confirmed, onConfirm }: ProcessingNot
 
   return (
     <Dialog.Root open={open} onOpenChange={setOpen}>
-        <Dialog.Trigger aria-label="Processing & privacy notice" className="inline-flex min-h-14 shrink-0 items-center justify-center gap-2 rounded-xl border border-black/[0.08] bg-cream-light/50 px-3 text-xs text-muted-text transition-colors hover:bg-sage/5 hover:text-forest md:px-4">
-          <ShieldCheck size={16} aria-hidden="true" /><span className="hidden md:inline">Processing &amp; privacy notice</span>
+        <Dialog.Trigger className="inline-flex min-h-11 items-center text-xs text-muted-text underline-offset-4 transition-colors hover:text-forest hover:underline">
+          Processing &amp; privacy notice
         </Dialog.Trigger>
       <Dialog.Portal>
-        <Dialog.Overlay className="fixed inset-0 z-50 bg-charcoal/40 backdrop-blur-[3px]" />
-        <Dialog.Content className="fixed top-1/2 left-1/2 z-50 flex max-h-[calc(100dvh-2rem)] w-[calc(100%-2rem)] max-w-xl -translate-x-1/2 -translate-y-1/2 flex-col overflow-hidden rounded-2xl border border-sage/15 bg-cream-light shadow-card">
+        <Dialog.Overlay className="fixed inset-0 z-50 bg-charcoal/40 backdrop-blur-[3px] duration-200 data-[state=open]:animate-in data-[state=open]:fade-in-0 data-[state=closed]:animate-out data-[state=closed]:fade-out-0" />
+        <Dialog.Content className="fixed top-1/2 left-1/2 z-50 flex max-h-[calc(100dvh-2rem)] w-[calc(100%-2rem)] max-w-xl -translate-x-1/2 -translate-y-1/2 flex-col overflow-hidden rounded-2xl border border-sage/15 bg-cream-light shadow-card duration-200 data-[state=open]:animate-in data-[state=open]:fade-in-0 data-[state=open]:zoom-in-95 data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=closed]:zoom-out-95">
           <div className="relative shrink-0 border-b border-sage/15 bg-sage/[0.05] p-5 pr-14 sm:p-6 sm:pr-14">
             <div className="mb-4 flex items-center gap-3">
               <span className="flex size-10 items-center justify-center rounded-xl border border-sage/15 bg-cream-light text-forest"><ShieldCheck size={21} aria-hidden="true" /></span>
