@@ -43,7 +43,7 @@ it("sends explicit replacement and removal IDs, preserving local selection until
   const remove = vi.fn(), uploaded = vi.fn(), failed = vi.fn();
   const fetchMock = vi.fn().mockResolvedValue({ ok: true, json: async () => ({ documentId: "new-id", structuredData: { type: "nat", data: {} }, redactedImageUrl: null }) });
   vi.stubGlobal("fetch", fetchMock);
-  const { container } = render(<DocumentUploadPanel sessionId="session" slots={{ 1: { docType: "nat", files: [file], perFileProcessing: [{ step: "complete", progress: 100 }], uploaded: previous }, 2: empty, 3: empty }} onSlotFilesAdd={vi.fn()} onSlotFileRemove={remove} onSlotTypeChange={vi.fn()} onDocumentUploaded={uploaded} onUploadError={failed} />);
+  const { container } = render(<DocumentUploadPanel sessionId="session" slots={{ 1: { docType: "nat", files: [file], perFileProcessing: [{ step: "complete", progress: 100 }], uploaded: previous }, 2: empty, 3: empty }} onSlotFilesAdd={vi.fn()} onSlotFileRemoving={vi.fn()} onSlotFileRemove={remove} onSlotTypeChange={vi.fn()} onDocumentUploaded={uploaded} onUploadError={failed} />);
   fireEvent.change(container.querySelector("input")!, { target: { files: [file] } });
   await waitFor(() => expect(uploaded).toHaveBeenCalledOnce());
   expect(uploadIntakeFile).toHaveBeenCalledWith("session", file, { docType: "nat", replaceDocumentId: "old-id" });
