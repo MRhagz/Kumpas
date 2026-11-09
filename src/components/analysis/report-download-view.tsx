@@ -367,14 +367,14 @@ function RecommendationCard({
       onClick={onSelect}
       aria-pressed={isSelected}
       aria-controls="selected-recommendation"
-      className={`min-w-0 rounded-lg border p-4 text-left transition-colors ${isSelected ? "border-forest bg-forest/5 ring-1 ring-forest" : "border-black/10 bg-white hover:border-forest/40"}`}
+      className={`min-w-0 rounded-lg border p-4 text-left transition-colors ${isSelected ? "border-forest/60 bg-ink ring-1 ring-forest/40" : "border-black/10 bg-white hover:border-forest/40"}`}
     >
-      <div className="flex items-center justify-between gap-2 text-xs font-semibold text-muted-text">
+      <div className={`flex items-center justify-between gap-2 text-xs font-semibold ${isSelected ? "text-white/70" : "text-muted-text"}`}>
         <span>{recommendation.rank === null ? "Partial comparison" : `Rank ${recommendation.rank}`}</span>
-        <span className="text-forest">{isSelected ? "Selected" : "View evidence"}</span>
+        <span className={isSelected ? "text-forest-light" : "text-forest"}>{isSelected ? "Selected" : "View evidence"}</span>
       </div>
-      <h3 className="mt-2 mb-3 sm:min-h-12 text-base font-bold text-ink [overflow-wrap:anywhere]">{recommendation.careerPath}</h3>
-      <ReportScore score={recommendation.alignmentScore} label={`${recommendation.careerPath} counselor alignment`} />
+      <h3 className={`mt-2 mb-3 sm:min-h-12 text-base font-bold [overflow-wrap:anywhere] ${isSelected ? "text-forest-light" : "text-ink"}`}>{recommendation.careerPath}</h3>
+      <ReportScore score={recommendation.alignmentScore} label={`${recommendation.careerPath} counselor alignment`} inverted={isSelected} />
     </button>
   );
 }
