@@ -13,6 +13,7 @@ import { evidenceClaims, summaryText } from "@/lib/report/evidence-summary";
 import { buildReportPdf } from "@/lib/report/pdf-renderer";
 import { reportContentMarker } from "@/lib/report/types";
 import ReportDownloadView from "@/components/analysis/report-download-view";
+import StudentSummaryView from "@/components/analysis/report-student-summary";
 
 const PRIVATE = "PRIVATE-NOTE-ALPHA";
 const RAW = "RAW-REASONING-ALPHA";
@@ -96,7 +97,8 @@ async function renderFixture(input: ReturnType<typeof fixture>) {
   const counselorPage = pages.findIndex((page) => page.includes("Counselor detail / Audit appendix"));
   expect(counselorPage).toBeGreaterThan(0);
   const studentText = pages.join(" ").split("Counselor detail / Audit appendix")[0];
-  const studentHtml = html.slice(html.indexOf('<section aria-labelledby="student-summary-heading"'), html.indexOf("<details"));
+  const studentHtml = renderToStaticMarkup(createElement(StudentSummaryView, { summary: payload.studentSummary! }));
+  expect(html).toContain(studentHtml);
   for (const output of [JSON.stringify(payload.studentSummary), studentText, studentHtml]) {
     expect(output).not.toContain(PRIVATE);
     expect(output).not.toContain(RAW);
@@ -249,8 +251,9 @@ it("F11 distinguishes unreadable and unsupported records from absent records in 
   expect(result.payload.academicEvidence.documentStatuses).toEqual({ form137: "absent", ncae: "unreadable", nat: "unsupported" });
   expect(result.studentText).toMatch(/National Career Assessment Examination \(NCAE\)\s+Unreadable/);
   expect(result.studentText).toMatch(/National Achievement Test \(NAT\)\s+Unsupported/);
-  expect(result.html).toContain("NCAE: unreadable");
-  expect(result.html).toContain("NAT: unsupported");
+  const academicHtml = result.html.slice(result.html.indexOf('aria-labelledby="academic-evidence-heading"'));
+  expect(academicHtml).toMatch(/NCAE<\/span>[\s\S]*?Unreadable/);
+  expect(academicHtml).toMatch(/NAT<\/span>[\s\S]*?Unsupported/);
 });
 
 it("refuses an insufficient-evidence report before rendering", async () => {

@@ -599,13 +599,11 @@ export default function InputContainer() {
 
   return (
     <section className="mx-auto w-full max-w-4xl px-4 sm:px-6 relative animate-fade-in">
-      <div className="mb-4 flex flex-wrap items-center justify-between gap-x-6 gap-y-1">
-        {sessionId && <SessionTerminationControl sessionId={sessionId} open={terminationOpen} onOpenChange={setTerminationOpen}
-          label="Cancel session" onTerminating={() => { terminationStarted.current = true; setTerminating(true); }} />}
-        <div hidden={terminating} className="ml-auto flex flex-wrap items-center gap-x-5">
-          <WorkflowOrientation confirmed={processingConfirmed} onConfirm={setProcessingConfirmed} />
-        </div>
-      </div>
+      {!terminating && <WorkflowOrientation confirmed={processingConfirmed} onConfirm={setProcessingConfirmed} />}
+      {sessionId && <div className={terminating ? "w-full" : "mb-1 flex justify-end"}>
+        <SessionTerminationControl sessionId={sessionId} open={terminationOpen} onOpenChange={setTerminationOpen}
+          compact label="Cancel session" onTerminating={() => { terminationStarted.current = true; setTerminating(true); }} />
+      </div>}
       <div hidden={terminating}>
       <div className="relative left-1/2 mb-6 w-[calc(100vw-2rem)] max-w-6xl -translate-x-1/2">
         <SessionProgressIndicator className="max-w-none px-0 sm:px-6" sessionId={sessionId} fallbackStep="upload" confirming={requiredNotesFilled(sectionHtml) && !dirtyDraft && !savingDraft && !scanning} />

@@ -86,6 +86,7 @@ it.each(cases)("F10 / R03 frozen explanation profile: %s", async (name, a, d, f,
   const formatted = formatReasoningSummary(payload.rankedRecommendations.recommendations[0]);
   expect(formatted.isPlaceholder).toBe(false); expect(formatted.claims).toHaveLength(claims.length);
   for (const claim of formatted.claims) {
+    expect(claim.score).toBe({ aptitude: a, demand: d, feasibility: f }[claim.dimension]);
     expect(claim.inputReferences.length + claim.sourceReferences.length).toBeGreaterThan(0);
     for (const citation of claim.sourceReferences) expect(evidence.flatMap((o) => o.retrievedChunks).some((chunk) => chunk.source_url === citation.reference && chunk.chunk_index === citation.chunkIndex)).toBe(true);
   }

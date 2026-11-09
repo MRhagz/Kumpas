@@ -38,7 +38,7 @@ it("DEF-005/007 preserves the three historical totals through calculation, UI an
   const pdf = await reportPdfText(buildReportPdf(historical));
   const html = renderToStaticMarkup(createElement(ReportDownloadView, { report: { ...historical, reportVersion: 1,
     downloadUrl: null, expiresAt: "2099-01-01T00:00:00Z", byteLength: 1, recommendationCount: paths.length, recommendations: paths }, onNewSession: () => {} }));
-  for (const score of ["84.50", "79.45", "71.55"]) { expect(pdf).toContain(score); expect(html).toContain(`${score}/100`); }
+  for (const score of ["84.50", "79.45", "71.55"]) { expect(pdf).toContain(score); expect(html).toContain(`aria-valuetext="${score} points out of 100"`); }
   expect(pdf).toContain("overall scores are 5.05 points apart");
   expect(pdf).toContain("AI"); expect(html).toContain("AI");
   expect(pdf).toContain("not probabilities"); expect(html).toContain("not probabilities");
@@ -59,7 +59,7 @@ it("renders exact scores and clearly unscored partial comparisons in the report 
     report: { ...payload, reportVersion: 1, downloadUrl: "/synthetic.pdf", expiresAt: "2099-01-01T00:00:00Z", byteLength: 1,
       recommendationCount: recommendations.length, recommendations }, onNewSession: () => {},
   }));
-  expect(html).toContain("74.50/100"); expect(html).not.toContain("7450");
+  expect(html).toContain('aria-valuetext="74.50 points out of 100"'); expect(html).not.toContain("7450");
   expect(html).toContain("Unscored partial comparisons"); expect(html).toContain("Unscored");
   expect(html).toContain("Fewer than three scored paths");
 });
