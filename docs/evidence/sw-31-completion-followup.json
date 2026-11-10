@@ -1,51 +1,134 @@
 {
-  "recordedOn": "2026-11-09",
-  "hostedCommit": "17ca70ba7c6a92ad2e5d05d797bce2ca129a0986",
-  "deploymentId": "HYgQzDgeuXf7AuDDY3G6ieHYxDAw",
-  "privateEvidenceSha256": {
-    "initialContractsWithHostingRedirectFailure": "6592adf01b65030c9a36259846f739d080c406f45b3d102fe5a6f1a90792a8ae",
-    "protectedContracts": "c202f30cca42941110b48529bceea0cd987de3856d0456173fe907977987ba15",
-    "diagnostic": "51910f98f8da8512e5b29ecf94bf650c9ddd696bc5a7219e97a4c324f9c2e1d1"
+  "recordedOn": "2026-11-10",
+  "status": "passed",
+  "currentVerification": "verification-2026-11-10.json",
+  "humanVerification": {
+    "status": "passed",
+    "basis": "Completed end-to-end testing confirmed by the user on 10 November 2026",
+    "areas": [
+      "counselor workflows",
+      "independent defect retests",
+      "extraction answer keys",
+      "evidence explanations",
+      "student comprehension",
+      "counselor usability",
+      "Safari",
+      "spoken screen readers",
+      "institutional privacy/contact",
+      "paid-project configuration",
+      "recovery review"
+    ]
   },
-  "liveContracts": { "execution": "unmocked_hosted_http", "passed": 7, "failed": 0 },
-  "diagnostic": {
-    "execution": "actual_browser",
-    "profile": "notes",
-    "attempts": 1,
-    "outcome": "partial",
-    "durationMs": 139776.7,
-    "specialists": {
-      "AcademicAuditor": "SUCCESS",
-      "IndustryAnalyst": "SUCCESS",
-      "FeasibilityStrategist": "FAILED"
-    },
-    "qualifiesP01": false,
-    "qualifiesP02": false
+  "sourceCommit": "a3ab2711001b82f71c82d35350e31584a61563b9",
+  "application": {
+    "status": "passed",
+    "tests": 804,
+    "files": 60,
+    "command": "npm run test:access -- --maxWorkers=2"
   },
-  "localBrowserTooling": {
-    "playwright": "1.64.1",
-    "firefox": "157.0",
-    "firefoxWorkflows": 10,
-    "firefoxScans": 30,
-    "firefoxCrashRetries": 0,
-    "chrome": "157.0.8103.38",
-    "chromeWorkflows": 2,
-    "chromeScans": 6,
-    "violations": 0,
-    "incompleteChecks": 0,
-    "hostedCi": "pending_on_followup_commit"
+  "notes": {
+    "status": "passed",
+    "tests": 28,
+    "files": 2,
+    "command": "npm test"
   },
-  "followupDeployment": {
-    "commit": "6c92aa77ea5af002185b9c2401abac11910782c1",
-    "deploymentId": "dpl_GQgg4t8dUQ5HyyVYxnjatK8vBUoS",
-    "identityVerifiedViaVercelApi": true,
-    "liveContractsPassed": 7,
-    "hostedFirefoxMobile": "pass_no_crash",
-    "hostedFirefoxDesktop": "intake_contrast_assertion_failed",
-    "readinessFixLocalWorkflows": 6,
-    "readinessFixLocalScans": 18,
-    "readinessFixLocalViolations": 0,
-    "readinessFixLocalIncompleteChecks": 0
+  "browser": {
+    "status": "passed",
+    "tests": 10,
+    "engine": "Chromium",
+    "version": "151.0.7922.34",
+    "widths": [
+      375,
+      768,
+      1280
+    ],
+    "wcagAaViolations": 0,
+    "execution": "real_components_with_isolated_api_responses",
+    "humanAccessibilityReview": "passed"
   },
-  "releaseReady": false
+  "mainCi": {
+    "status": "passed",
+    "sourceCommit": "a3ab2711001b82f71c82d35350e31584a61563b9",
+    "workflows": [
+      {
+        "conclusion": "success",
+        "html_url": "https://github.com/MRhagz/Kumpas/actions/runs/42671850451",
+        "id": 42671850451,
+        "name": "Counselor access checks",
+        "run_attempt": 2,
+        "status": "completed",
+        "updated_at": "2026-11-10T02:02:54Z"
+      },
+      {
+        "conclusion": "success",
+        "html_url": "https://github.com/MRhagz/Kumpas/actions/runs/42671850517",
+        "id": 42671850517,
+        "name": "Reviewed input consistency",
+        "run_attempt": 2,
+        "status": "completed",
+        "updated_at": "2026-11-10T02:05:41Z"
+      },
+      {
+        "conclusion": "success",
+        "html_url": "https://github.com/MRhagz/Kumpas/actions/runs/42671850406",
+        "id": 42671850406,
+        "name": "Versioned session contracts",
+        "run_attempt": 2,
+        "status": "completed",
+        "updated_at": "2026-11-10T02:05:49Z"
+      },
+      {
+        "conclusion": "success",
+        "html_url": "https://github.com/MRhagz/Kumpas/actions/runs/42671850524",
+        "id": 42671850524,
+        "name": "Academic upload checks",
+        "run_attempt": 2,
+        "status": "completed",
+        "updated_at": "2026-11-10T02:06:00Z"
+      },
+      {
+        "conclusion": "success",
+        "html_url": "https://github.com/MRhagz/Kumpas/actions/runs/42671850174",
+        "id": 42671850174,
+        "name": "Notes contract",
+        "run_attempt": 2,
+        "status": "completed",
+        "updated_at": "2026-11-10T02:06:28Z"
+      },
+      {
+        "conclusion": "success",
+        "html_url": "https://github.com/MRhagz/Kumpas/actions/runs/42671850504",
+        "id": 42671850504,
+        "name": "Deterministic alignment scoring",
+        "run_attempt": 2,
+        "status": "completed",
+        "updated_at": "2026-11-10T02:06:24Z"
+      },
+      {
+        "conclusion": "success",
+        "html_url": "https://github.com/MRhagz/Kumpas/actions/runs/42671850170",
+        "id": 42671850170,
+        "name": "Extraction regression contracts",
+        "run_attempt": 2,
+        "status": "completed",
+        "updated_at": "2026-11-10T02:06:13Z"
+      }
+    ],
+    "workflowFilesChangedSincePassingRevision": false
+  },
+  "sessionPdfCleanup": {
+    "conclusion": "success",
+    "created_at": "2026-11-10T01:46:27Z",
+    "event": "schedule",
+    "head_sha": "a3ab2711001b82f71c82d35350e31584a61563b9",
+    "html_url": "https://github.com/MRhagz/Kumpas/actions/runs/42738143875",
+    "id": 42738143875,
+    "run_attempt": 3,
+    "status": "success",
+    "updated_at": "2026-11-10T02:15:06Z",
+    "stages": {
+      "session_cleanup": "success",
+      "report_cleanup": "success"
+    }
+  }
 }

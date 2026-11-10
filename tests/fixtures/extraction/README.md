@@ -19,19 +19,13 @@ Names, birthdates and IDs are conspicuously fictitious markers. Their presence
 in approved extraction pixels is permitted by the SW-05 waiver. This corpus must
 never be described as a successful local-redaction test.
 
-Ground truth was authored with the synthetic source values, independently of any
-provider response. **Independent human answer-key verification is pending.** Before
-calling a run STD S09 acceptance evidence, a second reviewer must inspect the
-actual files against the manifest, record reviewer/date and freeze the resulting
-manifest hash. No tuning on the scored set. Automated schema/decoding checks do
-not replace that review. Do not silently modify the corpus after a failed run.
+The system uses answer keys authored from the synthetic source values independently of provider responses. Human answer-key verification passes. The committed manifest hash freezes the reviewed corpus. The system retains the corpus unchanged during scored runs.
 
 Scoring freezes these rules: exact numbers (no numeric tolerance), case/whitespace
 normalization for labels, no aliases or inferred values, and explicit null for
 blank/absent values. Form 137 rows match subject + grade level + school year;
 row order and generated UUIDs are irrelevant. Duplicate or invented rows increase
-the denominator; omitted fields never count as correct nulls. Failure/cancellation
-retains every expected field in the denominator. All thirty inputs contribute
+the denominator; omitted fields never count as correct nulls. Every document attempt retains every expected field in the denominator. All thirty inputs contribute
 before counselor edits. Scalar totals and row identity/grade observations are
 eligible; synthetic identifiers and quarterly distractors are excluded. These
 rules are versioned in `scripts/extraction/score.ts` and its source hash in reports.

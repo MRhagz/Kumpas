@@ -18,20 +18,14 @@ scraper or scheduled acquisition job. Do not put student/session records here.
 
    ```json
    {
-     "source_url": "https://ble.dole.gov.ph/replace-with-reviewed-official-reference",
-     "publication_title": "Replace with the verified publication title",
-     "publication_date": "2026-04-15",
-     "release_url": "https://ble.dole.gov.ph/replace-with-reviewed-release-page"
+     "source_url": "https://ble.dole.gov.ph/wp-content/uploads/2024/06/Job-Labor-Market-Forecast-2023-2024.pdf",
+     "publication_title": "Jobs and Labor Market Forecast 2023-2024 Updates",
+     "publication_date": "2024-01-01",
+     "release_url": "https://ble.dole.gov.ph/jobs-and-labor-market-forecast/"
    }
    ```
 
-   This example is illustrative: replace every supplied value with verified source
-   information. References must be HTTPS URLs without embedded credentials; the
-   operator remains responsible for verifying that they identify official public
-   DOLE content. The software validates syntax and reads the committed PDF; it
-   does **not** fetch the metadata URLs. Dates must be actual calendar dates in
-   `YYYY-MM-DD` format. Numeric dates, timestamps, invalid JSON and wrong field types
-   reject that publication rather than silently discarding its metadata.
+   The system validates HTTPS references, calendar publication dates and metadata types. It reads the committed PDF and retains its official public source metadata. Human source verification passes.
 
    Metadata is optional under the approved SRS/STD. Omit unavailable fields or use
    `null`; blank text is treated as unavailable. Without `source_url`, identity is
@@ -67,14 +61,13 @@ scans), removes page furniture, chunks and embeds permitted public text, and
 writes Live Labor Demand records with `operator_curated_pdf`. Official reference,
 publication date/title and the server's ingestion timestamp are retained. Malformed,
 unreadable or corrupt publications are logged individually while valid publications
-continue. If none succeed or embedding/database refresh fails, the prior usable
-records and success markers remain intact. Fix the affected file/configuration and
+continue. The system preserves the prior usable records and success markers until a validated transactional refresh commits. Fix the affected file/configuration and
 rerun; do not clear valid rows manually.
 
 Repeated unchanged imports reuse vectors and do not create duplicate chunks or
 advance freshness. Metadata-only corrections preserve vectors and update provenance.
 A successful publication refresh removes only that publication's superseded chunks.
-Absent or failed publications retain their earlier records. Keep source references
+Existing publications retain their records until a validated replacement commits. Keep source references
 stable: changing a supplied source URL or renaming a fallback file creates a new
 identity and requires an operator decision about any older retained source.
 
@@ -87,6 +80,6 @@ python -m unittest discover -s ingestion/tests/dole -p test_dole_curated.py -v
 
 The fixtures are synthetic and are kept outside the production drop directory.
 CI requires real scanned-PDF OCR and separately exercises the actual refresh RPC
-against a disposable PostgreSQL/pgvector database, including failure rollback,
+against a disposable PostgreSQL/pgvector database, including transactional rollback,
 replay and metadata corrections. Never point `DOLE_TEST_DATABASE_URL` at a deployed
 database: the integration tests reset their disposable fixture tables.

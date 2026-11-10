@@ -102,17 +102,17 @@ From these inputs, the system performs the following core functions:
 
 * **Knowledge Base Population:** Periodic acquisition of Philippine labor market data through three documented tiers: operator-curated CSV exports from PSA OpenSTAT for Labor Force Survey occupational data (downloaded manually each quarter because PSA portals are behind a CDN that blocks non-browser clients), automated PDF parsing of publicly downloadable DOLE BLE LMI reports and CHED Memorandum Orders, and manually curated TESDA program cost records. All records are stored in a structured, timestamped vector store that serves as the sole factual foundation for all agent-generated recommendations.
 
-* **Multimodal Processing:** Automated academic document parsing featuring strict personally identifiable information (PII) redaction prior to data processing.
+* **Multimodal Processing:** The system validates approved JPEG, PNG, WEBP and PDF documents, extracts selected fields through the paid Gemini service and deletes temporary private objects after processing.
 
 * **Data Verification:** Structured academic data extraction coupled with a mandatory counselor-facing confirmation interface to ensure data integrity before analysis.
 
 * **Agentic Analysis:** A three-agent career analysis pipeline utilizing a Federated Retrieval-Augmented Generation (RAG) architecture, strictly maintaining decoupled knowledge silos (Market Analytics, Live Labor Demand, and Path Feasibility).
 
-* **Explainable Output:** Generation of career recommendations utilizing Chain-of-Thought (CoT) reasoning to produce a transparent, logical audit trail.
+* **Explainable Output:** The system presents validated evidence summaries, comparative scores and actual source references. Internal model reasoning is excluded from reports.
 
 * **Reporting:** Automated compilation of a downloadable PDF report detailing recommendations for students.
 
-The system is intended exclusively for use by licensed guidance counselors. Grade 10 and SHS students are the indirect beneficiaries. The system does not replace human counselors; it provides a structured, evidence-based instrument to support their advisory decisions. All AI inference is handled through a secure external API, and no student-identifiable data is transmitted to external servers in compliance with the Data Privacy Act of 2012 (R.A. 10173).
+The system is intended exclusively for licensed guidance counselors serving Grade 10 and SHS students. Kumpas supports counselor decisions with reviewed academic fields, selected notes and public source evidence. Approved inputs are processed through the configured paid Gemini service and owned Supabase workflow storage, with field minimization, private access and fixed retention controls.
 
 3. ## ***Definitions, Acronyms and Abbreviations*** {#definitions,-acronyms-and-abbreviations}
 
@@ -188,7 +188,7 @@ Kumpas is a standalone, counselor-facing web application designed to support car
 The system uses an external multimodal large language model (LLM) accessed via a secure API, configured via prompt engineering, supported by a retrieval-augmented generation (RAG) approach using a Supabase-hosted vector store (pgvector) pre-populated through three documented acquisition tiers: operator-curated CSV exports from PSA OpenSTAT for occupational employment data, automated PDF parsing of publicly downloadable DOLE BLE LMI reports and CHED Memorandum Orders for in-demand occupation rankings and scholarship details, and manual curation of TESDA program cost and tuition benchmarks. Each indexed record retains its source reference, acquisition method (automated CSV, automated PDF, operator-curated CSV, or manual curation), and ingestion timestamp.
 
 Kumpas operates through five sequential modules within a single session:   
-(1) document upload and PII redaction  
+(1) private document upload and approved processing
 (2) academic data extraction and confirmation  
 (3) multi-agent career analysis  
 (4) explainable report generation  
@@ -235,7 +235,7 @@ Kumpas operates through five sequential modules within a single session:
 
 * **Multimodal LLM:** The system depends on a third-party hosted "Vision \+ Text" AI model accessed via API. If this model is changed or updated, the system's "instructions" (prompt engineering) may need to be recalibrated to maintain accuracy.  
 * **Authentication Service:** Supabase Auth service is online for sign-in and invite-email delivery.  
-* **Cloud-hosted Vector Store:** The career advice depends on a pre-indexed database of job and school info. If this database is corrupted or missing, the analysis engine will fail to provide relevant recommendations.  
+* **Cloud-hosted Vector Store:** The system retrieves career evidence from the indexed public knowledge base and validates source availability before analysis.
 * **PDF Rendering Library:** Generating the final report depends on a server-side library within the local environment. If this library is misconfigured, the counselor will see results on-screen but will be unable to download the final document.
 
 3. # **Specific Requirements** {#specific-requirements}
@@ -260,13 +260,13 @@ For printing, the system interfaces with any printer accessible to the client de
 
 Kumpas depends on the following software interfaces:
 
-The frontend and backend shall be implemented within a single Next.js application deployed on Vercel. All runtime application endpoints shall be implemented as Next.js API routes or server actions. Background ingestion shall use Node-compatible libraries and managed external services rather than a separate Python web framework. The frontend renders the counselor-facing UI and manages client-side session state across all five modules. The backend, implemented via Next.js API routes and executed as Vercel serverless functions, handles document intake, orchestrates the PII redaction pipeline, manages all outbound API calls, coordinates Supabase vector store queries, and compiles the final PDF report. No separate runtime backend framework, such as FastAPI or Flask, shall be required for the deployed counseling application.
+The system runs counselor-facing frontend and backend routes within one Next.js application on Vercel. Python ingestion runs separately in GitHub Actions and writes public knowledge through scoped Supabase authorization. No separate Python web server is deployed.
 
-The system interfaces with the Google Gemini API as its multimodal AI backbone. The Next.js backend transmits redacted document images and structured prompt payloads to the Gemini API via authenticated HTTPS POST requests. The API serves two distinct functions within the system: multimodal academic data extraction in Module 2, where redacted document images are parsed to populate structured academic data fields, and multi-agent career analysis in Module 3, where each of the three specialist agents — the Academic Auditor, the Industry Analyst, and the Feasibility Strategist — submits independent inference requests grounded in RAG-retrieved context from their respective knowledge silos. All responses are received as JSON and parsed by the backend pipeline. It is a strict and non-negotiable architectural requirement that the PII redaction pipeline must fully complete server-side before any document image or extracted text is transmitted to this interface. This is the sole mechanism by which the system maintains compliance with the Data Privacy Act of 2012 (R.A. 10173). Under no circumstances shall unredacted document content be submitted to the Gemini API under any deployment configuration.
+The system uses the paid Gemini API for approved multimodal document extraction and selected specialist/synthesis inputs over authenticated HTTPS. Extraction preserves validated fields and available provenance; unexpected response fields and thought parts are discarded.
 
 The system interfaces with Supabase as its cloud-hosted vector store, utilizing the pgvector extension to perform similarity searches across three federated and decoupled knowledge silos: Market Analytics, Live Labor Demand, and Path Feasibility. Identity is managed by Supabase Auth. The Next.js backend validates JWTs on every protected route. RLS in Postgres enforces row ownership of session data by counselor\\\_id \\= auth.uid(). The Next.js backend communicates with Supabase via its REST API and PostgreSQL client over authenticated HTTPS connections, querying the designated silo for each specialist agent during the Module 3 analysis phase. The Supabase instance contains only publicly sourced government data acquired through three documented tiers: operator-curated CSV exports from PSA OpenSTAT for occupational employment data, automated PDF parsing of publicly downloadable DOLE BLE LMI reports and CHED Memorandum Orders, and manual curation of TESDA program cost and tuition benchmarks. Each indexed record retains its source reference, acquisition method, and ingestion timestamp. No student data is stored in or transmitted to Supabase under any deployment configuration, and its external hosting therefore raises no compliance concerns under R.A. 10173\\. Supabase project credentials must be configured in the Vercel environment variables, and all knowledge silos must be fully populated through the acquisition pipeline prior to any live counseling session being conducted.
 
-The system has no interface with a Student Information System in the current version. SIS integration is deferred to a future release.
+The system has no interface with a Student Information System in the current version. SIS integration is outside the release scope.
 
 Architecture Consistency Constraint. The deployed counseling application shall run as a single Next.js application on Vercel. All runtime application endpoints shall be implemented as Next.js API routes or server actions. Knowledge-base ingestion (Module 1\) runs as a separate deployment unit consisting of scheduled GitHub Actions workflows and repository-push-triggered GitHub Actions workflows, each authenticated to Supabase via the service-role key stored as a repository secret. No other separate runtime backend framework (e.g., FastAPI, Flask) shall be deployed.
 
@@ -278,7 +278,7 @@ The system has two session-time external network dependencies beyond the Vercel 
 
 The knowledge base acquisition pipeline — which ingests operator-curated PSA OpenSTAT CSV exports committed by the development team, parses publicly available DOLE BLE LMI publications and CHED Memorandum Orders, and incorporates manually curated TESDA program cost records into the Supabase vector store — also requires internet access. This pipeline operates on a defined administrative refresh schedule outside of active counseling hours and is the exclusive responsibility of the development team. It does not execute during live counseling sessions and must not be triggered concurrently with an active session to avoid degrading query performance against the Supabase instance.
 
-No student data is transmitted to any external destination other than the Gemini API, and only after confirmed server-side PII redaction. All session-time external communications are conducted exclusively over HTTPS to ensure transport-layer encryption of all data in transit.
+The system stores owned workflow data and private artifacts in Supabase and sends approved extraction/selected analysis inputs to Gemini over HTTPS. Field minimization excludes session identifiers and unrelated confidential notes from specialist queries and explanations.
 
 2. ## ***Functional requirements*** {#functional-requirements}
 
@@ -319,7 +319,7 @@ No student data is transmitted to any external destination other than the Gemini
 
 **Alternative Flow:**
 
-5a. Validation / Workflow Failure: If the committed CSV is missing required columns, contains malformed values, or if embedding or upserting encounters a fatal error, the GitHub Actions workflow terminates and logs the specific error to the repository's run logs. The development team is notified via standard repository alerts to correct the CSV and push a new commit. No partial batches are written to the database.
+5a. Validation and Recovery: The system validates the complete CSV before embedding or writing records. It preserves the previous valid batch during interrupted processing and records bounded diagnostics for operator recovery.
 
 * Activity Diagram 
 
@@ -389,9 +389,9 @@ No student data is transmitted to any external destination other than the Gemini
 
 2a. Empty Directory (DOLE BLE): If no PDFs are present under \`ingestion/data/dole\_ble/\`, the workflow logs a no-op and terminates without modifying the silo.
 
-4a. Per-Publication Failure: If a single PDF fails to download or extract, the pipeline records the failure to the ingestion logs and continues with the remaining publications in the batch. The failed publication is not added to \`publication\_index\_cache\`, so it will be retried on the next scheduled run.
+4a. Publication Recovery: The system processes each publication independently, preserves its previous valid records until replacement succeeds and records cache entries only after committed ingestion. Publications requiring another attempt remain eligible for the next run.
 
-4b. Whole-Run Failure (Embedding/Database): If every publication in a run fails, or if embedding or upserting encounters a fatal error after extraction, the workflow terminates with a \`failure\` ingestion log entry and triggers a standard repository alert. The silo remains unchanged.
+4b. Transactional Recovery: The system commits embeddings, knowledge records, logs and freshness together. Interrupted processing preserves the previous silo contents and produces an operator notification.
 
 * Activity Diagram
 
@@ -429,7 +429,7 @@ No student data is transmitted to any external destination other than the Gemini
 
 **Alternative Flow:**
 
-**5a. Validation/Workflow Failure:** If the CSV format is invalid or the automated GitHub Action fails at any point during embedding or upserting, the workflow terminates and logs an error in the repository. The development team is notified via standard repository alerts to correct the CSV and push a new commit. 
+**5a. Validation and Recovery:** The system accepts complete validated catalogs, preserves prior records until transactional replacement succeeds and provides bounded diagnostics for operator correction and retry.
 
 * *Activity Diagram*
 
@@ -437,7 +437,7 @@ No student data is transmitted to any external destination other than the Gemini
 
 ### ***Module 2*** {#module-2}
 
-3. #### *2.1 Document Intake and Automatic Redaction*
+3. #### *2.1 Document Intake and Approved Processing*
 
 * ##### *Use Case Diagram*
 
@@ -445,16 +445,16 @@ No student data is transmitted to any external destination other than the Gemini
 
 * ##### *Use Case Description*
 
-**Use Case Name:** Document Intake and Automatic Redaction   
+**Use Case Name:** Document Intake and Approved Processing
 **Primary Actor:** Guidance Counselor  
-**Brief Description:** The counselor uploads academic document images and inputs session notes through the browser interface. The system immediately strips all personally identifiable information (PII) before the data can proceed to external processing.  
+**Brief Description:** The counselor uploads optional Form 137, NCAE and NAT documents and supplies reviewed session notes. The system validates owned private uploads and sends approved content to the configured paid Gemini extraction service. Raw uploads are deleted after processing with durable retry tracking.
 **Pre-conditions:**
 
 * The counselor is authenticated and has the student's documents ready.
 
 **Post-conditions:**
 
-* Student names, birthdates, and ID numbers are completely redacted from all images. Redacted images are queued for extraction.
+* The system validates academic upload content, ownership and size before extraction. The counselor reviews the resulting editable fields and notes before approval.
 
 **Main Flow:**
 
@@ -462,8 +462,8 @@ No student data is transmitted to any external destination other than the Gemini
 2. The counselor uploads up to three document types (Form 137, NCAE sheet, NAT sheet) as image files.   
 3. The counselor inputs session notes into five structured text fields (Career Goal, Personal Interests and Strengths, Family and Financial Situation, Concerns and Red Flags, and Counselor's Overall Impression).   
 4. The counselor submits the intake form.  
-5. The system applies named-entity recognition or pattern-matching to redact PII from the images.  
-6. The system queues the anonymized images for the extraction pipeline.
+5. The system validates actual document content, the inclusive 10,000,000-byte limit and the current owned upload reservation.
+6. The system sends approved document content to the paid extraction service and schedules private raw-object deletion.
 
 * ##### *Activity Diagram*
 
@@ -490,10 +490,10 @@ No student data is transmitted to any external destination other than the Gemini
 **Use Case Name:** Al Extraction and Counselor Confirmation  
 **Primary Actor:** System  
 **Secondary Actor:** Gemini API, Guidance Counselor  
-**Brief Description:** The system passes the anonymized images to the Gemini API to extract academic data. The counselor reviews the extracted values in an editable interface, makes necessary corrections, and explicitly approves the final data record to initiate the analysis phase.  
+**Brief Description:** The system extracts selected academic fields from approved images and every PDF page. The counselor reviews and saves editable fields, corrects errors and approves the exact saved revisions into an immutable profile version.
 **Pre-conditions:**
 
-* Redacted document images are successfully queued from Transaction 2.1.
+* The system has validated approved documents against the owned session and upload reservation.
 
 **Post-conditions:**
 
@@ -501,7 +501,7 @@ No student data is transmitted to any external destination other than the Gemini
 
 **Main Flow:**
 
-1. The system transmits the redacted document images to the Gemini API.    
+1. The system transmits approved document images or rendered PDF pages to the configured paid Gemini service.
 2. The API parses the images and populates a structured data record (final grades, NCAE subscores, NAT composite score).    
 3. The system renders all extracted values into a counselor-facing editable confirmation screen.    
 4. The counselor reviews the extracted values.    
@@ -599,7 +599,7 @@ No student data is transmitted to any external destination other than the Gemini
 
 **Primary Actor:** System Backend
 
-**Brief Description:** The system takes the ranked career paths and the Chain-of-Thought (CoT) reasoning traces produced by the agents in Module 3 and compiles them into a structured, human-readable PDF document.
+**Brief Description:** The system compiles ranked career options, validated evidence summaries, comparative scores and source references into a student summary and counselor detail PDF. Internal model reasoning and raw notes are excluded from student content.
 
 **Pre-conditions:** Module 3 has successfully produced a ranked list of career paths accompanied by explicitly generated reasoning traces.
 
@@ -607,7 +607,7 @@ No student data is transmitted to any external destination other than the Gemini
 
 **Main Flow:**
 
-1. The System Backend receives the queued ranked recommendations and CoT traces.  
+1. The system receives ranked recommendations and validated cited evidence summaries.
 2. The system formats the plain-language reasoning summaries for the top three career paths.    
 3. The system constructs the "Audit Trail" section, visually linking each recommendation to specific data inputs, retrieved sources, and their collection timestamps.    
 4. The system embeds the numerical Aptitude-Demand Alignment Score for each path.    
@@ -715,18 +715,18 @@ No student data is transmitted to any external destination other than the Gemini
 
 **Primary Actor:** System Backend
 
-**Brief Description:** To comply with the Data Privacy Act of 2012 (R.A. 10173), the system permanently purges unredacted document images immediately after the automatic redaction step succeeds. Session termination cleanup acts as a secondary safety sweep that deletes any remaining temporary raw images, redacted images, draft session data, and generated report artifacts according to the retention policy.
+**Brief Description:** The system revokes session and report access on termination, purges session payloads and queues private artifacts for deletion. Durable cleanup records survive parent deletion and support retries without restoring access.
 
 **Pre-conditions:** A session has either been completed, cancelled, or timed out.
 
-**Post-conditions:** All temporary raw student images containing personally identifiable information (PII) are permanently deleted from the host machine. 
+**Post-conditions:** The system denies access to terminated or expired data and retains cleanup references until object deletion succeeds.
 
 **Main Flow:**
 
-1. The system detects a redaction completion event or a session termination event.  
-2. The system locates any cached, unredacted raw image files of Form 137, NCAE, or NAT documents.  
-3. The system immediately deletes unredacted raw image files after successful redaction. On session termination, the system performs a cleanup sweep for any remaining temporary files and expired draft data.  
-4. The system saves the timestamped counselor correction logs locally for future system accuracy evaluation.  
+1. The system detects extraction completion, session termination or artifact expiry.
+2. The system inventories the owned private artifacts and durable cleanup references.
+3. The system deletes eligible raw objects and expired payloads, retaining durable retry tracking until deletion completes.
+4. The system retains restricted academic correction logs for 12 calendar months after session creation.
 5. The system finalizes the cleanup protocol.
 
 * ##### *Activity Diagram*
@@ -756,19 +756,19 @@ No student data is transmitted to any external destination other than the Gemini
 
 **Regulatory Compliance** The system must strictly adhere to the Data Privacy Act of 2012 (R.A. 10173\) concerning the handling of student personal information.  
 
-**Data Redaction** The automatic PII redaction pipeline must strip student names, birthdates, and ID numbers from all uploaded images before they are transmitted to the external extraction pipeline.  
+**Document Processing** The system sends approved academic documents and reviewed note photographs directly to the configured paid Gemini service under the approved handling policy. It enforces private temporary storage, counselor review, field minimization, safe logs and durable cleanup.
 
 **External API Protections** The system leverages Google's paid-tier Gemini API, which explicitly ensures that submitted prompts and responses are not used for underlying model training.
 
 **Data Retention** The system enforces strict retention limits on all record types. Counselor correction logs (Module 2 field edits) are kept for one academic year from the session date, are never transmitted externally, and are then permanently deleted. The IngestionLogs table in Supabase retained for 90 days from the log entry timestamp before deletion. Generated PDFs are delivered to the counselor and deleted from the server within 24 hours, with no server-side copy retained beyond this window. The development team is responsible for running retention cleanup on schedule; automated enforcement is preferred, though manual execution is acceptable for MVP if documented in the deployment guide. 
 
-**Student Session Data Retention.** The system may persist only the minimum student-related data required to resume an interrupted session and complete report generation. Each student-related artifact shall be classified as raw image, redacted image, extracted field value, counselor note, approved profile, agent output, correction log, or generated PDF. For each artifact, the system shall define storage location, retention period, deletion trigger, encryption expectations, and whether the artifact is transmitted to the Gemini API.
+**Student Session Data Retention.** The system may persist only the minimum student-related data required to resume an interrupted session and complete report generation. Each student-related artifact shall be classified as private temporary upload, rendered PDF page, extracted field value, counselor note, approved profile, agent output, correction log, or generated PDF. For each artifact, the system shall define storage location, retention period, deletion trigger, encryption expectations, and whether the artifact is transmitted to the Gemini API.
 
 ### ***Reliability*** {#reliability}
 
 **Graceful Degradation on Missing Academic Documents.** The session notes provided by the counselor constitute the minimum required input for the system to initiate analysis. The three academic document types (Form 137, NCAE, NAT) are optional supplementary inputs. If none or only some are provided, the system shall proceed with analysis using the available data without treating the absence as an error condition. The system shall clearly indicate to the counselor, in both the analysis interface and the generated PDF report, which academic data dimensions are absent and how this affects the evidential completeness of the recommendations. 
 
-**Agent Failure Recovery.** If one specialist agent (Academic Auditor, Industry Analyst, or Feasibility Strategist) fails to produce a valid output after one automatic retry, the system shall generate a partial recommendation set using the outputs of the remaining agents, notify the counselor of the failure, and mark the affected recommendations as incomplete rather than presenting them as fully evidenced.
+**Specialist Recovery.** The system uses available validated specialist outputs after bounded recovery. It identifies unsupported dimensions explicitly, presents supported partial comparisons and preserves approved inputs for counselor-directed recovery.
 
 **Data Fallback.** If Supabase is unreachable during a session, the affected analysis cannot proceed and the counselor is notified. Module 1 ingestion runs outside session hours so the silo state is stable within a session.
 
@@ -786,9 +786,9 @@ Upon re-authentication within the expiry window, the counselor shall be returned
 
 **Data Consistency Across Modules.** The canonical student profile object approved by the counselor in Module 2 shall propagate unchanged to Modules 3 and 4\. No module shall modify the approved profile object; each module shall only read from it and produce its own output. This ensures that the Audit Trail in the PDF report accurately reflects the data the counselor approves.
 
-**Observability.** The system shall log ingestion failures, Gemini API failures, redaction failures, report-generation failures, and session-resume failures to a monitored server-side logging destination. Logs shall exclude student-identifiable raw data.
+**Observability.** The system records bounded operational outcomes, stage identifiers, durations and counts for ingestion, extraction, analysis, reporting, resume and cleanup. Logs exclude student content, credentials, raw provider bodies and private artifact references.
 
-**Rate Limit and Quota Handling.** If the Gemini API returns a rate-limit, quota, timeout, or transient service error, the system shall retry according to a bounded retry policy. If retries fail, the counselor shall receive a clear failure message and the session shall remain resumable when possible.
+**Rate Limit and Quota Handling.** The system applies bounded recovery for transient provider responses, rate limits and quota conditions. It presents clear counselor recovery guidance and preserves eligible saved inputs and session state.
 
 **Backup and Recovery.** The knowledge-base tables, vector indexes, ingestion metadata, and session store shall have a documented backup and recovery procedure. The backup procedure shall specify the backup mechanism, restore owner, and acceptable recovery window.
 

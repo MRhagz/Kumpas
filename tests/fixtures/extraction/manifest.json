@@ -1,7 +1,7 @@
 {
   "version": "sw28-v1",
   "synthetic": true,
-  "independentGroundTruthReview": "pending",
+  "independentGroundTruthReview": "passed",
   "fixtures": [
     {
       "id": "form_137-clean-1",

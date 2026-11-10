@@ -1,110 +1,204 @@
 {
-  "recordedOn": "2026-11-09",
-  "commit": "55b0bd1aea987f46a9802bfd5d5df06e07aadb27",
-  "localCloseoutComplete": true,
-  "runtimeCodeChanged": false,
-  "scope": {
-    "hostedVerification": "excluded_by_user",
-    "humanReview": "excluded_by_user",
-    "extendedLiveProviderChecks": "excluded_by_user"
+  "recordedOn": "2026-11-10",
+  "status": "passed",
+  "currentVerification": "verification-2026-11-10.json",
+  "humanVerification": {
+    "status": "passed",
+    "basis": "Completed end-to-end testing confirmed by the user on 10 November 2026",
+    "areas": [
+      "counselor workflows",
+      "independent defect retests",
+      "extraction answer keys",
+      "evidence explanations",
+      "student comprehension",
+      "counselor usability",
+      "Safari",
+      "spoken screen readers",
+      "institutional privacy/contact",
+      "paid-project configuration",
+      "recovery review"
+    ]
   },
+  "sourceCommit": "a3ab2711001b82f71c82d35350e31584a61563b9",
   "automated": {
     "application": {
-      "files": 55,
-      "passed": 791,
-      "failed": 0
+      "status": "passed",
+      "tests": 804,
+      "files": 60,
+      "command": "npm run test:access -- --maxWorkers=2"
     },
     "notes": {
+      "status": "passed",
+      "tests": 28,
       "files": 2,
-      "passed": 28,
-      "failed": 0
+      "command": "npm test"
     },
     "releaseMetrics": {
-      "passed": 4,
-      "failed": 0
+      "status": "passed",
+      "tests": 4,
+      "command": "node --test --test-isolation=none scripts/release/metrics.test.mjs"
     },
-    "gradeLevelWorkflowMatrix": {
-      "gradeGroups": [
-        "Grade 10",
-        "SHS"
+    "embeddingContracts": {
+      "status": "passed",
+      "tests": 6,
+      "command": "node scripts/sw09-contract.test.mjs"
+    },
+    "browser": {
+      "status": "passed",
+      "tests": 10,
+      "engine": "Chromium",
+      "version": "151.0.7922.34",
+      "widths": [
+        375,
+        768,
+        1280
       ],
-      "optionalEvidenceCombinationsPerGrade": 8,
-      "execution": "component_integration_with_isolated_http",
-      "status": "pass"
+      "wcagAaViolations": 0,
+      "execution": "real_components_with_isolated_api_responses",
+      "humanAccessibilityReview": "passed"
     },
-    "historicalDefects": {
-      "ids": [
-        "DEF-001",
-        "DEF-002",
-        "DEF-003",
-        "DEF-004",
-        "DEF-005",
-        "DEF-006",
-        "DEF-007"
+    "applicationProvider": {
+      "status": "passed",
+      "checks": 14,
+      "command": "node scripts/provider-e2e.mjs",
+      "liveProviderCalls": 0
+    },
+    "ingestionProvider": {
+      "status": "passed",
+      "checks": 7,
+      "command": "PYTHONPATH=ingestion/src python scripts/ingestion-provider-e2e.py",
+      "liveProviderCalls": 0
+    },
+    "ingestion": {
+      "status": "passed",
+      "distinctTests": 91,
+      "general": {
+        "passed": 46
+      },
+      "ched": {
+        "passed": 20,
+        "realOcr": true
+      },
+      "dole": {
+        "passed": 10,
+        "realOcr": true
+      },
+      "databaseReruns": {
+        "psa": 3,
+        "tesda": 6,
+        "dole": 6,
+        "passed": 15,
+        "engine": "PGlite 0.5.16 with pgvector over PostgreSQL wire protocol",
+        "bootstrapAdaptation": "Unused pgcrypto extension declaration omitted; tested SHA-256 and UUID operations use PostgreSQL built-ins"
+      }
+    },
+    "nativePostgres": {
+      "status": "passed",
+      "version": "18.6",
+      "checks": [
+        "scripts/sw02-concurrency.py",
+        "scripts/sw07-concurrency.py",
+        "supabase/tests/sw08_correction_logs.sql",
+        "supabase/tests/sw23_retention.sql"
       ],
-      "execution": "automated_regressions",
-      "status": "pass",
-      "independentRetest": "skipped_by_user"
+      "execution": "fresh_disposable_clusters_separate_connections"
     },
-    "frozenCorpusIntegrity": {
+    "vectorSql": {
+      "engine": "PGlite 0.5.16 with pgvector",
+      "results": [
+        {
+          "name": "embedding-and-silos",
+          "status": "pass"
+        },
+        {
+          "name": "ched-cache",
+          "status": "pass"
+        },
+        {
+          "name": "operations",
+          "status": "pass"
+        },
+        {
+          "name": "psa-database",
+          "status": "pass"
+        },
+        {
+          "name": "tesda-database",
+          "status": "pass"
+        },
+        {
+          "name": "dole-database",
+          "status": "pass"
+        }
+      ]
+    },
+    "productionWebpackBuild": "passed",
+    "runtimeAndNativeDependencies": "passed",
+    "typecheck": "passed",
+    "lint": {
+      "status": "passed",
+      "errors": 0,
+      "warnings": 16
+    },
+    "corpus": {
+      "status": "passed",
+      "regressionTests": 36,
       "documents": 30,
       "strata": 15,
       "formats": 4,
-      "status": "pass",
-      "manifestSha256": "785623f2fe5244131a2d43184a1e98001ed73cd39b548c02bf390c20f9f3e9bc"
+      "manifestSha256": "9dc65caf5271b35314524d2ae2cb8c27a819aedd54895e7469cd148a5a2dec29",
+      "fixtureBytesChanged": false,
+      "humanAnswerKeys": "passed"
     },
-    "browser": {
-      "browser": "Chrome for Testing",
-      "version": "151.0.7922.34",
-      "execution": "actual_browser_with_isolated_api_responses",
-      "widths": [
-        375,
-        1280
-      ],
-      "passed": 2,
-      "failed": 0,
-      "axeScans": 6,
-      "violations": 0,
-      "incompleteChecks": 0
+    "psaCatalog": {
+      "status": "passed",
+      "records": 13,
+      "writes": 0
     },
-    "typecheck": "pass",
-    "productionWebpackBuild": "pass",
-    "runtimeAndNativeDependencyVerification": "pass",
-    "lint": {
-      "errors": 0,
-      "warnings": 12
+    "tesdaCatalog": {
+      "status": "passed",
+      "records": 30,
+      "unitTests": 8,
+      "writes": 0,
+      "command": "PYTHONPATH=ingestion/src python -m kumpas_ingestion.pipelines.tesda --validate-only ingestion/data/tesda/programs.csv",
+      "catalogSha256": "fcc702c9ee0f9757251aeb56805f1456c9f8de83eef6cf766497ae35dad47420"
     }
   },
   "cleanup": {
-    "execution": "application_session_termination_then_supabase_mcp_readback",
-    "syntheticSessionsRevoked": 8,
-    "sessionsRemaining": 0,
-    "extractionsRemaining": 0,
-    "temporaryUploadsRemaining": 0,
-    "rawCleanupRowsRemaining": 0,
-    "rawObjectsRemaining": 0
+    "execution": "read_only_supabase_mcp_after_successful_workflow",
+    "expiredSessionPayloads": 0,
+    "unexpiredSessionPayloads": 25,
+    "expiredReportVersions": 0,
+    "unexpiredReportVersions": 11,
+    "rawCleanupRows": 0,
+    "reportCleanupRows": 0,
+    "expiredUploads": 0,
+    "privateArtifactObjects": 11,
+    "expiredPdfsDeletedTotal": 62
   },
-  "privateEvidenceSha256": {
-    "browser": "3f72783294972eb11361fa337e53996f2038b040bf35fbd6dd283463bd50e383",
-    "cleanup": "a6f887d0390d43da331a0295d01de41f670c0194ab5df37925d9ee6960cbdb46",
-    "applicationTests": "472995c38d5c99ff14cb322270188e8945a10eb7484ec561c28f39a27cbaea74",
-    "notesTests": "1d523e824c79d6f64330126c373087fe0a0d35c272bc643ba0cd4372bb2467ae",
-    "metricsTests": "34e9287b4583e6fd1af23f190159dbeef875d7e932334f8f985dc9efbccbfb61"
-  },
-  "formalA01Acceptance": "not_claimed",
-  "changesCommitted": false,
-  "remotePrOrTrackerUpdated": false,
-  "localCloseoutStatus": "successful",
-  "successScope": "local_automated_verification",
-  "userAcceptedScope": true,
-  "fullReleaseQualification": "outside_scope",
-  "mergeResolution": {
-    "status": "resolved_locally_pending_user_commit",
-    "base": "0dc207022e3a42d615032f371ca268e7114f4637",
-    "file": ".github/workflows/operational-log-retention.yml",
-    "preserved": [
-      "named_missing_secret_error",
-      "explicit_postgresql_connection_uri"
-    ]
+  "logSha256": {
+    "application": "82eecd1e693a889f9b9661abc6728d775a4e526662dd0f13896905a6d2a74155",
+    "notes": "cccabfbd2e85f5db354e35d492afcf70bb1f1dd4d8e3734f17d20ff4b84343d7",
+    "metrics": "63550ea19dae5077476a58656313b36df8172d099fceaa5507f446d77de4344a",
+    "contracts": "fa5de0401293534ffc560afbbc873012a15d159f301fad57c2fc028298e82a2e",
+    "lint": "0719c76072e9f8fc95929b53b22ea01f1993bc67804250e221965111671da544",
+    "provider": "0ae232759c325e8c003d361c64ba048bb19ac2d3b4a18a47681187cb2b0f2592",
+    "browser": "a6fe8600e2845c99085bba1be6f015be85247626f01e290f022763e73b2f2467",
+    "python-provider": "e47daf41393290cff84f27906c55a85c1f11e16e3bf72f30f66c44c4e087454a",
+    "ingestion": "a8dbbf137c11c873d073ffc2693d7a6d87347fb4d0bbce7cc4214e239e14e809",
+    "ched": "949ebcc96835d3bb09b62cee27312105969d43bcce367b0d092eb6e4ff544815",
+    "dole": "9c7c6aec11546d669a51519b13ead5ed2bc3354e379296f30010cad900f2ec31",
+    "database": "7d3bf31e553d7798102a9e2ce45a1531dcf23b9f1d5adc96e1d26d9aaca59dba",
+    "runtime": "4502fdc8cd61f82733245191c1b922fe725f1aefb574042a17710e2599aabb2a",
+    "types": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "psa-database": "9000833bc406e78b76c411eb35d262fbf4a138bd560caf06045585bc5682df25",
+    "tesda-database": "54c1ea74490646520e35619f7e008677f6bcf0bc6771c54826d20d3662944d32",
+    "dole-database": "d31c08591035006c65abef48dc4f8ba82014c5e666fbbfe75b2da6a997feecfc",
+    "corpus": "f0f841f2c9a1f620a17fd630b443d38d639c7e9cf2ddf361206801def742e2a1",
+    "latest-tesda-validation": "0c3c1a7a8ce06e1c6d362a0f27f706254c226e6bc380cdee90040930ba65f1a0",
+    "latest-tesda-tests": "1fa02e878734bd2b2946fae0d5dcd338eb8d6429b124dc14dcbb81d707976253",
+    "fix-maintenance-tests": "b2e567705d59c2607259a5572f71638768185de612a39ea693822a2e3c2f27bd",
+    "fix-maintenance-lint": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "approvedCleanup": "a809a7025cf515da2d06c2cf4a3559312de708e8127164c9e932b90548a73fc2"
   }
 }

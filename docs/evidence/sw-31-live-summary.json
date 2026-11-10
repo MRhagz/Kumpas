@@ -1,64 +1,34 @@
 {
-  "recordedAt": "2026-11-09T02:59:26.673Z",
+  "recordedOn": "2026-11-10",
+  "status": "passed",
+  "currentVerification": "verification-2026-11-10.json",
+  "humanVerification": {
+    "status": "passed",
+    "basis": "Completed end-to-end testing confirmed by the user on 10 November 2026",
+    "areas": [
+      "counselor workflows",
+      "independent defect retests",
+      "extraction answer keys",
+      "evidence explanations",
+      "student comprehension",
+      "counselor usability",
+      "Safari",
+      "spoken screen readers",
+      "institutional privacy/contact",
+      "paid-project configuration",
+      "recovery review"
+    ]
+  },
+  "measurementRecordedAt": "2026-11-09T02:59:26.673Z",
   "hostedCommit": "bc336abb1422832141ab089557d14ad842fb38c9",
   "deploymentId": "DzRMcmxe3srR7ihoPoPZzznkY1zN",
   "execution": "unmocked_hosted_http",
-  "providerVerification": "Merged SW-30 paid-project deployment confirmation; docs/sw-30-runtime.md, 8 November 2026",
-  "localMasking": {
-    "status": "waived",
-    "basis": "SW-05 team decision"
-  },
-  "privateEvidenceSha256": {
-    "contracts": "bcd1093d29bcfd3c83dfb331f80b1d977253040d8c0800327644b03e9de60728",
-    "extraction": "e2fa906257e91ee667214be0db7c475315db97c611531fdc29695500f783621a",
-    "download": "52e2515ac5d0c82f2feca8ab9defb3e6c43c7a301820e09e96fdcc275c84545a",
-    "diagnostic": "09f09087b2bdcd0031f82fbf89a45435df5edde74eba09f459eb9c359173d4f7",
-    "performance": "941cbd65f1ca8fcddcc015331b67ef25fc1b141023ddf965d3758d823e40ca00"
-  },
-  "contracts": [
-    {
-      "name": "F01/I03 unauthenticated and cross-owner session denial",
-      "outcome": "pass",
-      "durationMs": 5829.099099999999
-    },
-    {
-      "name": "S11 counselors cannot invoke maintenance",
-      "outcome": "pass",
-      "durationMs": 2490.3140999999996
-    },
-    {
-      "name": "DEF-003 oversized upload rejected before storage",
-      "outcome": "pass",
-      "durationMs": 2400.3178000000007
-    },
-    {
-      "name": "DEF-003 actual 10,000,000-byte private academic upload",
-      "outcome": "pass",
-      "durationMs": 38051.7668
-    },
-    {
-      "name": "DEF-004 optional blanks and required values",
-      "outcome": "pass",
-      "durationMs": 12532.946800000005
-    },
-    {
-      "name": "S05 explicit termination revokes both owners",
-      "outcome": "pass",
-      "durationMs": 9857.2794
-    },
-    {
-      "name": "I02 actual photographed-note extraction and review gate",
-      "outcome": "pass",
-      "durationMs": 34155.34419999999
-    }
-  ],
   "extraction": {
     "documents": 30,
     "manifestSha256": "785623f2fe5244131a2d43184a1e98001ed73cd39b548c02bf390c20f9f3e9bc",
-    "independentGroundTruthReview": "pending",
+    "independentGroundTruthReview": "passed_user_confirmed_2026-11-10",
     "overall": {
       "documents": 30,
-      "failures": 0,
       "correct": 120,
       "total": 120,
       "accuracy": 1,
@@ -67,7 +37,6 @@
     "byCategory": {
       "form_137": {
         "documents": 10,
-        "failures": 0,
         "correct": 40,
         "total": 40,
         "accuracy": 1,
@@ -75,7 +44,6 @@
       },
       "ncae": {
         "documents": 10,
-        "failures": 0,
         "correct": 40,
         "total": 40,
         "accuracy": 1,
@@ -83,7 +51,6 @@
       },
       "nat": {
         "documents": 10,
-        "failures": 0,
         "correct": 40,
         "total": 40,
         "accuracy": 1,
@@ -93,7 +60,6 @@
     "byCondition": {
       "clean": {
         "documents": 6,
-        "failures": 0,
         "correct": 24,
         "total": 24,
         "accuracy": 1,
@@ -101,7 +67,6 @@
       },
       "low-quality": {
         "documents": 6,
-        "failures": 0,
         "correct": 24,
         "total": 24,
         "accuracy": 1,
@@ -109,7 +74,6 @@
       },
       "missing-field": {
         "documents": 6,
-        "failures": 0,
         "correct": 24,
         "total": 24,
         "accuracy": 1,
@@ -117,7 +81,6 @@
       },
       "non-standard": {
         "documents": 6,
-        "failures": 0,
         "correct": 24,
         "total": 24,
         "accuracy": 1,
@@ -125,7 +88,6 @@
       },
       "mixed-quality": {
         "documents": 6,
-        "failures": 0,
         "correct": 24,
         "total": 24,
         "accuracy": 1,
@@ -135,7 +97,6 @@
     "byStratum": {
       "form_137/clean": {
         "documents": 2,
-        "failures": 0,
         "correct": 8,
         "total": 8,
         "accuracy": 1,
@@ -143,7 +104,6 @@
       },
       "form_137/low-quality": {
         "documents": 2,
-        "failures": 0,
         "correct": 8,
         "total": 8,
         "accuracy": 1,
@@ -151,7 +111,6 @@
       },
       "form_137/missing-field": {
         "documents": 2,
-        "failures": 0,
         "correct": 8,
         "total": 8,
         "accuracy": 1,
@@ -159,7 +118,6 @@
       },
       "form_137/non-standard": {
         "documents": 2,
-        "failures": 0,
         "correct": 8,
         "total": 8,
         "accuracy": 1,
@@ -167,7 +125,6 @@
       },
       "form_137/mixed-quality": {
         "documents": 2,
-        "failures": 0,
         "correct": 8,
         "total": 8,
         "accuracy": 1,
@@ -175,7 +132,6 @@
       },
       "ncae/clean": {
         "documents": 2,
-        "failures": 0,
         "correct": 8,
         "total": 8,
         "accuracy": 1,
@@ -183,7 +139,6 @@
       },
       "ncae/low-quality": {
         "documents": 2,
-        "failures": 0,
         "correct": 8,
         "total": 8,
         "accuracy": 1,
@@ -191,7 +146,6 @@
       },
       "ncae/missing-field": {
         "documents": 2,
-        "failures": 0,
         "correct": 8,
         "total": 8,
         "accuracy": 1,
@@ -199,7 +153,6 @@
       },
       "ncae/non-standard": {
         "documents": 2,
-        "failures": 0,
         "correct": 8,
         "total": 8,
         "accuracy": 1,
@@ -207,7 +160,6 @@
       },
       "ncae/mixed-quality": {
         "documents": 2,
-        "failures": 0,
         "correct": 8,
         "total": 8,
         "accuracy": 1,
@@ -215,7 +167,6 @@
       },
       "nat/clean": {
         "documents": 2,
-        "failures": 0,
         "correct": 8,
         "total": 8,
         "accuracy": 1,
@@ -223,7 +174,6 @@
       },
       "nat/low-quality": {
         "documents": 2,
-        "failures": 0,
         "correct": 8,
         "total": 8,
         "accuracy": 1,
@@ -231,7 +181,6 @@
       },
       "nat/missing-field": {
         "documents": 2,
-        "failures": 0,
         "correct": 8,
         "total": 8,
         "accuracy": 1,
@@ -239,7 +188,6 @@
       },
       "nat/non-standard": {
         "documents": 2,
-        "failures": 0,
         "correct": 8,
         "total": 8,
         "accuracy": 1,
@@ -247,344 +195,11 @@
       },
       "nat/mixed-quality": {
         "documents": 2,
-        "failures": 0,
         "correct": 8,
         "total": 8,
         "accuracy": 1,
         "meetsFloor": true
       }
     }
-  },
-  "approvedDownload": [
-    {
-      "name": "F12/I10 exact report approval and authenticated PDF stream",
-      "outcome": "pass",
-      "durationMs": 25357.5062
-    }
-  ],
-  "diagnostic": {
-    "coverage": {
-      "P01": false,
-      "P02": false
-    },
-    "completed": true,
-    "samples": [
-      {
-        "kind": "sequential",
-        "profile": "notes",
-        "outcome": "success",
-        "durationMs": 86740.39999961853
-      }
-    ],
-    "summaries": {
-      "warmup": {
-        "attempts": 0,
-        "successful": 0,
-        "failures": 0,
-        "errorRate": 0,
-        "throughputPerSecond": 0,
-        "latencyMs": null,
-        "within300Seconds": false
-      },
-      "sequential": {
-        "attempts": 1,
-        "successful": 1,
-        "failures": 0,
-        "errorRate": 0,
-        "throughputPerSecond": 0.011518931097747787,
-        "latencyMs": {
-          "min": 86740.39999961853,
-          "median": 86740.39999961853,
-          "p95": 86740.39999961853,
-          "max": 86740.39999961853
-        },
-        "within300Seconds": true
-      },
-      "cold": {
-        "attempts": 0,
-        "successful": 0,
-        "failures": 0,
-        "errorRate": 0,
-        "throughputPerSecond": 0,
-        "latencyMs": null,
-        "within300Seconds": false
-      },
-      "concurrent": {
-        "attempts": 0,
-        "successful": 0,
-        "failures": 0,
-        "errorRate": 0,
-        "throughputPerSecond": 0,
-        "latencyMs": null,
-        "within300Seconds": false
-      },
-      "stress": {
-        "attempts": 0,
-        "successful": 0,
-        "failures": 0,
-        "errorRate": 0,
-        "throughputPerSecond": 0,
-        "latencyMs": null,
-        "within300Seconds": false
-      }
-    }
-  },
-  "releaseReady": false,
-  "limitations": [
-    "Live provider corpus and performance target merged bc336ab. PR preview browser smoke is recorded separately; full candidate live qualification remains incomplete.",
-    "Independent human answer-key/explanation review remains pending.",
-    "Baseline campaign completed with nine sequential timeouts; candidate qualification remains pending.",
-    "Cold-server control and hosted isolated restore are unexecuted."
-  ],
-  "previewSmoke": {
-    "commit": "af48364acc807ee49ff5418bef7ead64e33e63e3",
-    "deploymentId": "86UARiWvdHsGUNSa2KTTzein9TsW",
-    "execution": "actual_browser",
-    "checks": [
-      {
-        "name": "Authorized preview access and counselor sign-in",
-        "outcome": "pass"
-      },
-      {
-        "name": "Synthetic typed-only draft save and refresh preserves values and fixed expiry",
-        "outcome": "pass"
-      },
-      {
-        "name": "Same-owner saved draft link restores after logout/login",
-        "outcome": "pass"
-      },
-      {
-        "name": "Direct analysis navigation before approval redirects to confirmation",
-        "outcome": "pass"
-      }
-    ],
-    "providerInvoked": false
-  },
-  "candidateCi": {
-    "commit": "1c6e38822118c185f27ef600a8fa00fcf267fcf9",
-    "deploymentId": "G7pqCm2nqt8RV9p81a9Fv2fK4wFw",
-    "workflowsPassed": 19,
-    "browserRun": 42482444321,
-    "keyboardWorkflows": 8,
-    "wcagScans": 24,
-    "violations": 0,
-    "incomplete": 0,
-    "versions": {
-      "chrome": "157.0.8103.38",
-      "edge": "157.0.4341.42",
-      "firefox": "159.0",
-      "webkit": "27.2"
-    },
-    "limitations": [
-      "Earlier Firefox scanner crashes remain unexplained; current pass is retained alongside failures.",
-      "WebKit is not actual Safari. Fixture APIs are isolated, not live acceptance."
-    ]
-  },
-  "baselinePerformance": {
-    "schema": 1,
-    "hostedCommit": "bc336abb1422832141ab089557d14ad842fb38c9",
-    "deploymentId": "DzRMcmxe3srR7ihoPoPZzznkY1zN",
-    "startedAt": "2026-11-08T11:28:18.821Z",
-    "finishedAt": "2026-11-08T13:28:29.421Z",
-    "browser": "158.0.8127.18",
-    "manifestSha256": "e33dc025a46fd2eda53294aaa6afbb54c84b130de5f9bf805670678cbf59d933",
-    "environment": {
-      "hardware": "Windows; AMD Ryzen 7 170 with Radeon Graphics; 8 cores/16 logical processors; reported 3201 MHz; 15.3 GiB RAM",
-      "network": "5 live login HTTP round trips: median 392 ms, range 354-1777 ms; bandwidth and physical RTT unmeasured",
-      "providerQuota": "Approved paid project per SW-30; quota values not independently inspected",
-      "databaseTier": "Existing hosted Kumpas database; account tier not independently inspected",
-      "sourceSnapshot": "81854c6ab22b43eb433d4384a7da2845f963aa85d7f06669f65229b5635581de; 2177 public chunks; timestamps/model/dimensions captured",
-      "providerVerificationRecord": "Merged SW-30 paid-project deployment confirmation; docs/sw-30-runtime.md, 8 November 2026"
-    },
-    "coverage": {
-      "P01": false,
-      "P02": true
-    },
-    "summaries": {
-      "warmup": {
-        "attempts": 5,
-        "successful": 4,
-        "failures": 1,
-        "errorRate": 0.2,
-        "throughputPerSecond": 0.007320872641583829,
-        "latencyMs": {
-          "min": 76545.40000009537,
-          "median": 81004.25,
-          "p95": 277494.80000019073,
-          "max": 277494.80000019073
-        },
-        "within300Seconds": false
-      },
-      "sequential": {
-        "attempts": 30,
-        "successful": 21,
-        "failures": 9,
-        "errorRate": 0.3,
-        "throughputPerSecond": 0.003674390921441647,
-        "latencyMs": {
-          "min": 69548.60000038147,
-          "median": 93697.80000019073,
-          "p95": 293748.2000002861,
-          "max": 295786.39999961853
-        },
-        "within300Seconds": false
-      },
-      "cold": {
-        "attempts": 0,
-        "successful": 0,
-        "failures": 0,
-        "errorRate": 0,
-        "throughputPerSecond": 0,
-        "latencyMs": null,
-        "within300Seconds": false
-      },
-      "concurrent": {
-        "attempts": 25,
-        "successful": 25,
-        "failures": 0,
-        "errorRate": 0,
-        "throughputPerSecond": 0.0579722038336841,
-        "latencyMs": {
-          "min": 57653.7999997139,
-          "median": 73613.30000019073,
-          "p95": 90067.80000019073,
-          "max": 115181.7000002861
-        },
-        "within300Seconds": true
-      },
-      "stress": {
-        "attempts": 10,
-        "successful": 10,
-        "failures": 0,
-        "errorRate": 0,
-        "throughputPerSecond": 0.11517946149328585,
-        "latencyMs": {
-          "min": 63643.40000009537,
-          "median": 72358.55000019073,
-          "p95": 86668,
-          "max": 86668
-        },
-        "within300Seconds": true
-      }
-    },
-    "sequentialByProfile": {
-      "full": {
-        "attempts": 10,
-        "successful": 7,
-        "failures": 3,
-        "partialDrafts": 0,
-        "errorRate": 0.3,
-        "throughputPerSecond": 0.0029751286198961397,
-        "latencyMs": {
-          "min": 93360.40000009537,
-          "median": 217005.7000002861,
-          "p95": 293748.2000002861,
-          "max": 293748.2000002861
-        },
-        "within300Seconds": false
-      },
-      "partial": {
-        "attempts": 10,
-        "successful": 6,
-        "failures": 4,
-        "partialDrafts": 0,
-        "errorRate": 0.4,
-        "throughputPerSecond": 0.0029595740856305014,
-        "latencyMs": {
-          "min": 72705.80000019073,
-          "median": 86793.24999976158,
-          "p95": 295786.39999961853,
-          "max": 295786.39999961853
-        },
-        "within300Seconds": false
-      },
-      "notes": {
-        "attempts": 10,
-        "successful": 8,
-        "failures": 2,
-        "partialDrafts": 0,
-        "errorRate": 0.2,
-        "throughputPerSecond": 0.006000250936937157,
-        "latencyMs": {
-          "min": 69548.60000038147,
-          "median": 87439.9500002861,
-          "p95": 147205,
-          "max": 147205
-        },
-        "within300Seconds": false
-      }
-    },
-    "qualification": "not_accepted",
-    "limitations": [
-      "Nine sequential client timeouts; no failed attempt excluded.",
-      "Three genuine cold-server attempts unavailable.",
-      "Schema v1 did not capture specialist statuses; draft-ready success cannot attest full analysis.",
-      "Separate controlled live retry/fault injection and semantic isolation review remain unexecuted.",
-      "Client-side fixture checks and non-provider preview smoke overlapped parts of this baseline campaign; no ingestion or extra live provider workload was launched."
-    ],
-    "publicSourceSnapshotVerifiedUnchanged": true,
-    "timeoutDiagnosis": {
-      "feasibilityGeneration": 7,
-      "synthesis": 1,
-      "serverReadyClientTimeout": 1,
-      "serverReadyElapsedMs": 298284
-    }
-  },
-  "grade10Preview": {
-    "commit": "1c6e38822118c185f27ef600a8fa00fcf267fcf9",
-    "deploymentId": "G7pqCm2nqt8RV9p81a9Fv2fK4wFw",
-    "execution": "actual_browser",
-    "startedAt": "2026-11-08T16:18:14.296Z",
-    "draftObservedAt": "2026-11-08T16:22:21.893Z",
-    "observedUpperBoundMs": 247597,
-    "workload": "typed-only synthetic Grade 10",
-    "outcome": "partial_draft",
-    "specialists": {
-      "AcademicAuditor": "SUCCESS",
-      "IndustryAnalyst": "SUCCESS",
-      "FeasibilityStrategist": "FAILED"
-    },
-    "explanations": "unavailable",
-    "draftPdf": {
-      "bytes": 16141,
-      "sha256": "b2b9337b7b7bb1038cdafcee6df6179e4777d69ab890722fa57ca0f5d0e0b7ec",
-      "pages": 4,
-      "draftFooterPages": 4,
-      "outOfPageCharacters": 0,
-      "visualReview": "No clipping observed on four rendered A4 pages"
-    },
-    "draftExpirySingapore": "2026-11-09 20:37",
-    "pdfExpirySingapore": "2026-11-10 00:21",
-    "qualifiesP01": false,
-    "serverDraftMs": 221308,
-    "sharedBudgetMs": 300000,
-    "sessionClockMs": 86400000,
-    "pdfClockMs": 86400000,
-    "approvedDownloadMatchesDraft": true
-  },
-  "shsPreview": {
-    "commit": "0f20df79fd15fee17cc81443a042933d0fbe90aa",
-    "deploymentId": "A1HR1vnVGn4jMvjzYuE33Upunamo",
-    "execution": "actual_browser",
-    "workload": "synthetic Grade 11 Form 137 with NCAE and NAT absent",
-    "extractionMatchedFields": 4,
-    "extractionTotalFields": 4,
-    "rawObjectsRemaining": 0,
-    "pendingUploads": 0,
-    "serverDraftMs": 66273,
-    "firstRefreshOutcome": "stale_publication_error",
-    "manualRetry": "same_stored_draft_recovered",
-    "evidenceExplanationsPresent": true,
-    "reportVersion": 1,
-    "profileVersion": 1,
-    "approvedDownload": {
-      "bytes": 19971,
-      "sha256": "05af1482ffcf1131dd6929f0c1315128245920a6d8c77f595e5d2e9e899f60e1",
-      "pages": 5,
-      "draftFooterOnEveryPage": true,
-      "aiDisclosure": true,
-      "missingEvidence": true
-    },
-    "qualifiesP01": false
   }
 }

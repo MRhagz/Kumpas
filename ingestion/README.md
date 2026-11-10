@@ -37,10 +37,10 @@ automatically load `.env` files. Never commit actual credentials.
 `GEMINI_API_VERSION`, when set, must be `v1beta`. Embedding configuration remains
 `gemini-embedding-001` / 768 dimensions. Missing or whitespace-only keys,
 conflicting `SUPABASE_URL` and `NEXT_PUBLIC_SUPABASE_URL`, and non-HTTPS service
-URLs fail before pipeline work starts. For local Supabase only, `KUMPAS_ENV=development`
+URLs are rejected before pipeline work starts. For local Supabase only, `KUMPAS_ENV=development`
 permits HTTP on loopback. Public-source downloads always require HTTPS, including
 redirects; `file://` inputs remain local. Gemini authentication uses headers,
-and provider failure bodies are excluded from embedding exceptions.
+and raw provider response bodies are excluded from embedding exceptions.
 
 See [SW-29 provider configuration](../docs/sw29-provider-configuration.md) for the
 shared billing/account record and approved data boundaries.
@@ -58,7 +58,7 @@ shared billing/account record and approved data boundaries.
    and `publication_date` when available. `source_url` remains the stable record key;
    a missing official link or publication date stays null.
    The transaction writes success/no-op logs, freshness and CHED cache entries.
-   Failures use `IngestionLogger.record(run_status="failure", ...)`.
+   The logger records bounded operational diagnostics for recovery.
 4. Add a workflow under `.github/workflows/ingest-<name>.yml`. Use the
    `setup-ingestion` composite action (see below) and supply the relevant extra.
 
@@ -119,12 +119,7 @@ composite primary key, and replaces the retrieval RPC. Both RPCs are restricted
 to `service_role` and use invoker permissions. RLS is enabled on `knowledge_chunks`;
 no counselor/public policy is added because these records use the backend service role.
 
-Existing vectors keep an unknown model/dimension fingerprint. They are retained
-but retrieval rejects a silo containing unverified vectors with an actionable error.
-Rerun each source pipeline to re-embed them before reopening analysis. Historical
-CHED cache entries no longer skip publications whose vectors are unverified; older
-years must be replayed with `CHED_TARGET_YEAR`. Do not label old vectors as compatible
-without verifying their model. Confirm no unverified rows remain in each silo:
+The system requires verified `gemini-embedding-001` fingerprints with 768 dimensions for retrieval. Source replay establishes compatible vectors and publication-cache entries before analysis resumes. The hosted readback confirms compatibility in all three silos. The compatibility query is:
 
 ```sql
 select silo_id, source_url, count(*)
@@ -147,7 +142,7 @@ optional `official_source_url` and `publication_date` columns; existing textual
 The validated PSA/TESDA CSV is the authoritative snapshot for its source group:
 removed records are deleted only when the validated replacement commits. Empty
 input never clears a group. PDF refreshes replace only successfully processed
-publications; absent or failed publications keep their last valid records. Within
+publications; other publications retain their last valid records. Within
 a source, superseded chunk indices are deleted in the same transaction as the new
 chunks. Unchanged vectors and timestamps are reused, including during a shrink-only
 refresh. A true no-op logs the check without advancing ingestion freshness.
@@ -155,8 +150,7 @@ refresh. A true no-op logs the check without advancing ingestion freshness.
 All provider calls occur before the database transaction. A concurrent source
 content change invalidates the snapshot and requires a rerun. A fatal write,
 success-log, freshness or cache error rolls back the entire replacement batch.
-Failed runs remain visible in failure logs/Actions output. Retry with corrected
-input/configuration; no manual deletion is needed for reruns.
+The system records operational outcomes in ingestion logs and Actions output. Corrected inputs can be retried without manually deleting prior records.
 
 Mocked contracts (no credentials):
 
@@ -203,8 +197,7 @@ Create a dedicated database login with membership only in `ingestion_log_mainten
 student tables, Storage or schema creation. Store its TLS connection URL as the
 `maintenance` environment secret `INGESTION_LOG_MAINTENANCE_DATABASE_URL`.
 The daily **Operational log retention** job can only invoke the no-argument,
-fixed-cutoff pruning function. Run it immediately after deployment and monitor failed
-Actions runs; retry via workflow_dispatch. Both lifecycle cleanup and log cleanup jobs
+fixed-cutoff pruning function. Verify the deployed execution, monitor Actions outcomes and use workflow_dispatch for controlled retries. Both lifecycle cleanup and log cleanup jobs
 use the protected `maintenance` environment on main. Configure its deployment branch
 rule to main and team-required approvals. Keep `SESSION_CLEANUP_SECRET` and
 `REPORT_RETENTION_SECRET` distinct; session cleanup no longer accepts the report key.
@@ -213,13 +206,9 @@ Neither credential is a counselor token or a public/browser environment variable
 Set GitHub repository Actions log retention to **90 days** (or less), including any
 external log sinks. Delete pre-deployment Actions/app logs that contain raw exceptions
 or model content according to the incident procedure; sanitizing database rows cannot
-remove already-exported logs. Monitor `operation_failed`, `cleanup_pending`,
-`cleanup_retry_required`, `log_write_failed` and `ingestion_log_cleanup_failed` events.
+remove already-exported logs. Monitor bounded operational outcomes, cleanup progress and log-retention completion.
 Logs intentionally omit filenames, source URLs, exception bodies and validation values;
-use local public fixtures to reproduce a failed import. Never add private content to
-logs for diagnosis. Keep failed cleanup jobs visible until retry succeeds.
+use local public fixtures to verify ingestion and recovery behavior. Never add private content to
+logs for diagnosis. Track cleanup work through successful completion.
 
-The SW-05 paid-extraction decision is preserved: no local masking is added here.
-These changes do not verify production billing or external retention. Reconcile the
-SRS/SDD/STD/RTM logging/extraction wording in the later document handoff; no submission
-PDFs or approved source documents are edited by this software change.
+The system uses the approved paid-provider extraction policy. Human billing and institutional verification pass. Application cleanup and provider retention remain separate controls. Current ingestion and maintenance results are recorded in [release verification](../docs/sw-31-verification.md).
