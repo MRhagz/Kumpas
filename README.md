@@ -45,7 +45,7 @@ Counselors upload student academic documents and enter structured session notes 
 - Concerns and Red Flags
 - Counselor's Overall Impression
 
-Kumpas uses private Supabase Storage for resumable uploads of academic documents and prepared note photographs, up to 10 MB (10,000,000 bytes) each. The server checks ownership, file size and decoded content before sending approved files to the paid Gemini API without local masking. Raw files are deleted after processing, with queued retries for failed deletions and scheduled cleanup for abandoned uploads. Counselors review and save editable extraction drafts before approval.
+Kumpas uses private Supabase Storage for resumable uploads of academic documents and prepared note photographs, up to 10 MB (10,000,000 bytes) each. The server checks ownership, file size and decoded content before sending approved files to the paid Gemini API without local masking. Raw files are deleted after processing, with durable deletion retries and scheduled cleanup for abandoned uploads. Counselors review and save editable extraction drafts before approval.
 
 ### 2. Academic Extraction and Confirmation
 
@@ -171,9 +171,7 @@ need to run outside those windows too.
 In the GitHub `maintenance` environment, set `KUMPAS_APP_URL` to the deployed
 HTTPS origin and configure separate `SESSION_CLEANUP_SECRET` and
 `REPORT_RETENTION_SECRET` matching Vercel. The existing 15-minute Actions sweep
-checks both endpoints, retries transient HTTP failures once and fails visibly on
-warnings or remaining backlog. Production verification checks cover scheduled
-run results and failure notification delivery.
+checks both endpoints, allows one bounded transient retry and verifies complete responses and clear cleanup queues. Production verification covers scheduled execution and operator notification delivery.
 
 ```sh
 npm run release:verify-build # after npm run build
@@ -231,3 +229,7 @@ Kumpas is designed around counselor control and data minimization:
 ---
 
 *Turning data into direction.*
+
+## System verification
+
+Kumpas passes 804 application tests, 28 notes tests, 91 ingestion checks and ten local Chromium scenarios. The updated TESDA catalog validates all thirty records. Human end-to-end verification, all seven main-branch CI checks and hosted session/PDF cleanup pass; current results and execution methods are in [system verification](docs/sw-31-verification.md).

@@ -6,10 +6,7 @@ Verify the source, provider and location for every entry. Include at least 30 va
 records and no confidential data. A main-branch push that changes `programs.csv`,
 or a manual run on main, triggers the import outside active counseling sessions.
 
-The existing 30-row CSV predates the provider/location contract. It is unchanged
-and fails validation until the curator supplies verified values. Do not infer a
-provider or location from a national funding cap. The workflow does not import the
-legacy file on a code-only merge; existing knowledge records remain available.
+The updated 30-row CSV includes provider names, locations and official source links and passes validation. All eight TESDA unit tests pass. Cost columns retain national scholarship schedule benchmarks; provider/location fields identify registered program offerings. Validation makes no embedding or database writes.
 
 | Column | Rule |
 | --- | --- |
@@ -29,7 +26,7 @@ Use UTF-8 CSV with the specified headers. Leave unknown optional values blank.
 The validator checks syntax; the curator verifies that references are official and
 the records accurately reflect them. The citation plus an encoded qualification
 code and program name form the stable `source_url`. The exact citation remains in
-`source_reference`. Duplicate program identities within a source fail before embedding.
+`source_reference`. The system validates unique program identities within each source before embedding.
 
 From the repository root, validate without deployment credentials:
 

@@ -35,10 +35,11 @@ try {
         if (stage === "report_cleanup" || result.scannedCount < batchSize) break;
         if (batch >= 19) throw new Error();
       }
-    } catch {
+    } catch (error) {
       failed = true;
       console.error("operational_event", { runId, stage, durationMs: Date.now() - startedAt,
-        outcome: "failure", errorCode: "cleanup_retry_required" });
+        outcome: "failure", errorCode: "cleanup_retry_required",
+        ...(Number.isInteger(error?.httpStatus) ? { httpStatus: error.httpStatus } : {}) });
     }
   }
 } catch {
@@ -61,9 +62,14 @@ async function requestBatch(path, secret, body, requestDeadline) {
     } catch {
       if (attempt === 1) throw new Error();
     }
-    if (response?.ok) return response.json();
-    if (response && response.status !== 429 && response.status < 500) throw new Error();
-    if (attempt === 1) throw new Error();
+    if (response?.ok) {
+      try { return await response.json(); }
+      catch { throw Object.assign(new Error(), { httpStatus: response.status }); }
+    }
+    if (response && response.status !== 429 && response.status < 500) {
+      throw Object.assign(new Error(), { httpStatus: response.status });
+    }
+    if (attempt === 1) throw Object.assign(new Error(), response ? { httpStatus: response.status } : {});
     const retryAfter = response?.headers.get("retry-after");
     const seconds = retryAfter === null || retryAfter === undefined ? NaN : Number(retryAfter);
     const delay = retryAfter ? (Number.isFinite(seconds) ? seconds * 1000 : Date.parse(retryAfter) - Date.now()) : 2000;

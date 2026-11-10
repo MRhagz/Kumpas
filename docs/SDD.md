@@ -60,17 +60,17 @@ From these inputs, the system performs the following core functions:
 
 * **Knowledge Base Population:** Periodic acquisition of Philippine labor market data through three documented tiers: operator-curated CSV exports fromPSA OpenSTAT for Labor Force Survey occupational data (downloaded manually each quarter because PSA portals are behind a CDN that blocks non-browser clients), automated PDF parsing of publicly downloadable DOLE BLE LMI reports and CHED Memorandum Orders, and manually curated TESDA program cost records. All records are stored in a structured, timestamped vector store that serves as the sole factual foundation for all agent-generated recommendations.
 
-* **Multimodal Processing:** Automated academic document parsing featuring strict personally identifiable information (PII) redaction prior to data processing.
+* **Multimodal Processing:** The system validates approved JPEG, PNG, WEBP and PDF documents, extracts selected fields through the paid Gemini service and deletes temporary private objects after processing.
 
 * **Data Verification:** Structured academic data extraction coupled with a mandatory counselor-facing confirmation interface to ensure data integrity before analysis.
 
 * **Agentic Analysis:** A three-agent career analysis pipeline utilizing a Federated Retrieval-Augmented Generation (RAG) architecture, strictly maintaining decoupled knowledge silos (Market Analytics, Live Labor Demand, and Path Feasibility).
 
-* **Explainable Output:** Generation of career recommendations utilizing Chain-of-Thought (CoT) reasoning to produce a transparent, logical audit trail.
+* **Explainable Output:** The system presents validated evidence summaries, comparative scores and actual source references. Internal model reasoning is excluded from reports.
 
 * **Reporting:** Automated compilation of a downloadable PDF report detailing recommendations for students.
 
-The system is intended exclusively for use by licensed guidance counselors. Grade 10 and SHS students are the indirect beneficiaries. The system does not replace human counselors; it provides a structured, evidence-based instrument to support their advisory decisions. All AI inference is handled through a secure external API, and no student-identifiable data is transmitted to external servers in compliance with the Data Privacy Act of 2012 (R.A. 10173).
+The system is intended exclusively for licensed guidance counselors serving Grade 10 and SHS students. Kumpas supports counselor decisions with reviewed academic fields, selected notes and public source evidence. Approved inputs are processed through the configured paid Gemini service and owned Supabase workflow storage, with field minimization, private access and fixed retention controls.
 
 3. ## ***Definitions and Acronyms*** {#definitions-and-acronyms}
 
@@ -143,15 +143,15 @@ De Leon, P. J. (2025). The influence of socioeconomic factors on career choices 
 
 ***2.1 System Architecture Overview***
 
-Kumpas uses a web-based architecture centered on a counselor-facing Next.js application deployed on Vercel. The application coordinates document intake, redaction, AI extraction, multi-agent analysis, and report generation. Supabase provides persistent storage for knowledge-base records, vector embeddings, ingestion logs, correction logs, session drafts, and any configured report artifacts. Gemini provides multimodal extraction and language-model analysis through authenticated HTTPS API calls.
+Kumpas uses a counselor-facing Next.js application on Vercel for intake, approved extraction, specialist analysis and report delivery. Supabase stores versioned workflow records, public evidence, private temporary uploads, PDFs and durable cleanup queues. GitHub Actions runs public-source ingestion and maintenance.
 
 ***2.2 Deployment View***
 
 The deployed system consists of the following units:
 
 * **Next.js/Vercel application:** counselor UI, protected API routes, report generation route, session orchestration, and Gemini/Supabase coordination.  
-* **Supabase project:** PostgreSQL database, pgvector indexes, RLS policies, storage buckets if generated PDFs or temporary redacted files are stored outside the request lifecycle.  
-* **Gemini API:** external AI provider used only after PII redaction.  
+* **Supabase project:** The system stores versioned workflow data, public evidence vectors, restricted logs, private temporary intake objects, PDFs and durable cleanup queues.
+* **Gemini API:** The system uses the configured paid external provider for approved extraction and selected analysis inputs.
 * **Ingestion scheduler/worker:** GitHub Actions workflows responsible for knowledge base population. DOLE BLE / CHED PDF ingestion runs on a scheduled cron; PSA OpenSTAT CSV ingestion and TESDA program cost ingestion run on push triggers when the development team commits a refreshed CSV.
 
 ***2.3 Runtime View for a Counseling Session***
@@ -160,11 +160,11 @@ The deployed system consists of the following units:
 
 2\. Counselor uploads documents and enters notes.
 
-3\. The system redacts PII before external AI processing.
+3\. The system validates owned private uploads and the counselor processing confirmation.
 
-4\. Unredacted raw images are deleted immediately after redaction succeeds.
+4\. The system tracks private raw-object deletion before authorizing upload and deletes the objects after processing.
 
-5\. Redacted inputs are sent to Gemini for extraction.
+5\. The system sends approved documents to the configured paid Gemini service for extraction.
 
 6\. Counselor reviews and approves extracted data.
 
@@ -182,12 +182,12 @@ The deployed system consists of the following units:
 
 | Artifact | Storage Location | Contains PII? | Sent to Gemini? | Retention | Deletion Trigger |
 | :---- | :---- | :---- | :---- | :---- | :---- |
-| Raw uploaded image | Temporary server storage only | Yes | No | Until redaction succeeds | Immediate post-redaction purge |
-| Redacted image | Temporary storage or Supabase Storage | No direct PII expected | Yes | Session/report window only | Session cleanup or expiry |
-| Extracted fields | Durable session store | Possible | Yes, only if redacted/minimized | 24 hours for drafts unless approved policy differ | Draft expiry/session cleanup |
-| Counselor notes | Durable session store | Possible | Yes, if needed for analysis | 24 hours for drafts unless approved policy differs | Draft expiry/session cleanup |
-| Correction logs | Supabase table | No student-identifiable data | No | One academic year | Retention cleanup |
-| Generated PDF | Streamed response or Supabase Storage | Possible | No | Up to 24 hours | Retention cleanup |
+| Raw uploaded image | Private temporary Supabase Storage; request-local decoding | Possible | Yes, after processing confirmation | Processing reservation and cleanup lifecycle | Extraction completion, abandonment or termination; durable deletion tracking |
+| Rendered PDF pages | Request-local memory | Possible | Yes, approved extraction | Extraction invocation | Renderer task destruction and reference release |
+| Extracted fields | Durable session store | Possible | Selected approved academic fields | Exactly 24 hours after session creation | Draft expiry or earlier termination |
+| Counselor notes | Durable session store | Possible | Selected reviewed context required by the operation | Exactly 24 hours after session creation | Draft expiry or earlier termination |
+| Correction logs | Restricted Supabase table | Selected academic correction values | No | 12 calendar months after session creation | Independent retention cleanup |
+| Generated PDF | Private Supabase Storage | Possible | No | Exactly 24 hours after generation | PDF expiry or earlier explicit termination |
 | Knowledge-base chunks | Supabase pgvector tables | No student PII | Retrieved as context | Until superseded | Ingestion maintenance |
 | RankedRecommendations  | Supabase table  | No direct PII; contains career path names, alignment scores, and status flags derived from the approved student profile  | No  | Session/report window only; records correspond to a single counseling session  | Session cleanup or retention cleanup after report delivery  |
 | RecommendationSources  | Supabase table  | No direct PII; contains knowledge-base source references linked to ranked recommendations  | No  | Session/report window only; tied to the lifecycle of its parent RankedRecommendations record  | Session cleanup or retention cleanup after report delivery; must be deleted in the same pass as the parent RankedRecommendations record to avoid orphaned rows  |
@@ -231,13 +231,13 @@ Not applicable. The ingestion timestamp updated by this pipeline is consumed by 
 
   * **PushTriggerWorkflow**
 
-    * **Description and purpose:** Triggers the PSA OpenSTAT ingestion workflow when the development team commits a refreshed quarterly LFS CSV to the designated repository path. The trigger is a GitHub Actions workflow configured with a path-scoped push trigger plus a manual \`workflow\_dispatch\` re-run, replacing the originally specified cron schedule because the PSA portals block non-browser clients (see Design Constraint above). Each run records start time, end time, status, and failure reason in the ingestion log.
+    * **Description and purpose:** The system starts PSA CSV ingestion on path-scoped repository pushes or explicit workflow dispatch and records the run identity, timing and operational outcome.
 
     * **Component type/format:** GitHub Actions workflow on \`push\` to \`ingestion/data/psa/\*\*\` paths, invoking the Python ingestion job..
 
   * **OperatorCuratedCSVReader**
 
-    * **Description and purpose:** Loads the raw bytes of the operator-curated CSV from the GitHub Actions runner's checked-out working copy. The source location is provided via the \`PSA\_OPENSTAT\_URL\` environment variable, which the workflow sets to a \`file://\` path inside the runner. The same reader also supports HTTPS URLs (unused in the default Option A flow) so the pipeline can later switch to an automated source — for example, a sanctioned PSA data-sharing endpoint or an ILO ILOSTAT proxy — without rewriting the data path. On HTTPS failure (non-200 response or unreachable host) it raises a download-failure event to the logger.
+    * **Description and purpose:** The system reads the operator-curated CSV from the configured local file URI or HTTPS source and retains the official source reference independently of the delivery path.
 
     * **Component type/format:** Python service class using httpx with a file:// shortcut for local CSV reads.
 
@@ -249,7 +249,7 @@ Not applicable. The ingestion timestamp updated by this pipeline is consumed by 
 
   * **OccupationRecordExtractor** 
 
-    * **Description and purpose:** Reads the parsed DataFrame and extracts occupation-sector employment records into a normalized list of domain objects. Applies column mapping and filters out incomplete or irrelevant rows.
+    * **Description and purpose:** The system validates required columns and every record before constructing the complete normalized occupation-sector batch. Required-field and structure checks preserve transactional batch integrity.
 
     * **Component type/format:** Python utility class; pure data transformation logic with no I/O side effects.
 
@@ -273,7 +273,7 @@ Not applicable. The ingestion timestamp updated by this pipeline is consumed by 
 
   * **IngestionLogger** 
 
-    * **Description and purpose:** Because ingestion runs from GitHub Actions, each workflow run shall write structured success, no-op, and failure records to the ingestion log. Failures shall also be visible in the GitHub Actions run history and sent to the configured administrator alert channel.
+    * **Description and purpose:** The system records bounded success, no-op and recovery diagnostics in ingestion logs and GitHub Actions and delivers configured operator notifications.
 
     * **Component type/format:** Python logging service writing to the configured the ingestion\_logs Supabase table specified in 3.3 Data Retention. and GitHub Actions workflow logs; alerts are dispatched through email, webhook, or another configured channel.
 
@@ -319,7 +319,7 @@ This module is a backend pipeline that operates entirely outside of active couns
 
   * **OperatorCuratedDolePushTrigger (DOLE BLE side)**
 
-    * **Description and purpose:** Triggers the DOLE BLE LMI ingestion workflow when the development team commits a refreshed BLE LMI PDF (and optional \`\<filename\>.meta.json\` sidecar) to \`ingestion/data/dole\_ble/\`. Replaces the originally specified weekly cron because \`ble.dole.gov.ph\` blocks non-browser clients (see Design Constraint above). Each run records start time, end time, status, and failure reason in the ingestion log. A manual \`workflow\_dispatch\` re-run is also exposed for ad-hoc triggers without a new commit.
+    * **Description and purpose:** The system starts DOLE ingestion on repository updates to reviewed PDF publications and metadata sidecars or explicit workflow dispatch. Each run records timing and operational outcome.
 
     * 
 
@@ -333,7 +333,7 @@ This module is a backend pipeline that operates entirely outside of active couns
 
   * **PDFDownloader** 
 
-    * **Description and purpose:** Downloads a PDF document over HTTPS from a given publication URL. On failure, it raises a typed exception that the pipeline catches and routes to the logger. Does not perform any extraction or transformation.
+    * **Description and purpose:** The system downloads approved public PDF sources over HTTPS and routes typed retrieval diagnostics through the publication logger. Extraction and transformation remain separate stages.
 
     * **Component type/format:** Python utility class using `httpx` with streaming support for large PDF files.
 
@@ -375,7 +375,7 @@ This module is a backend pipeline that operates entirely outside of active couns
 
   * **IngestionLogger** 
 
-    * **Description and purpose:** Records run outcomes per publication, logs no-op runs, and dispatches administrator alerts on download or parsing failures.
+    * **Description and purpose:** The system records per-publication outcomes and no-op checks and delivers configured download/parsing recovery notifications.
 
     * **Component type/format:** Python service class; shared with Module 1.1.
 
@@ -439,7 +439,7 @@ Not applicable. The administrator interacts with the system by submitting a vali
 
   * **ValidationReporter** 
 
-    * **Description and purpose:** Produces a structured validation report after the validator runs, listing all records that failed validation along with the specific fields that caused failure. This report is printed to the administrator's terminal or written to a report file so corrections can be made before re-submitting.
+    * **Description and purpose:** The system produces a structured validation report identifying the exact batch fields requiring correction before import.
 
     * **Component type/format:** Python utility class; formats output as a human-readable table using `tabulate` or as a JSON file.
 
@@ -469,7 +469,7 @@ Not applicable. The administrator interacts with the system by submitting a vali
 
 ### ***Module 2*** {#module-2}
 
-#### ***2.1 Document Intake and Automatic Redaction***
+#### ***2.1 Document Intake and Approved Processing***
 
 * User Interface Design
 
@@ -485,37 +485,37 @@ Not applicable. The administrator interacts with the system by submitting a vali
 
   * **SessionNotesForm** 
 
-    * **Description and purpose:** A structured multi-field form that collects the counselor's qualitative observations across five defined fields: Career Goal, Personal Interests and Strengths, Family and Financial Situation, Concerns and Red Flags, and Counselor's Overall Impression. Each field is an auto-expanding textarea with a character counter. Eahc field is strictly required.
+    * **Description and purpose:** A structured multi-field form that collects the counselor's qualitative observations across five defined fields: Career Goal, Personal Interests and Strengths, Family and Financial Situation, Concerns and Red Flags, and Counselor's Overall Impression. Each field is an auto-expanding textarea with a character counter. Career Goal and Personal Interests and Strengths are required; the other fields are optional.
 
     * **Component type or format:** React Controlled Form Component 
 
   * **UploadStatusIndicator** 
 
-    * **Description and purpose:** A status strip rendered beneath the DocumentUploadPanel that communicates the processing state of each uploaded document through sequential status tags: Uploading → Received → Redacting PII → Redaction Complete → Ready for Extraction. If any document fails redaction, a dismissible error banner with a retry action is surfaced. 
+    * **Description and purpose:** The system displays upload, validation, extraction and review status with counselor recovery controls. Saved-input review and active-reservation checks govern approval.
 
-    * **Component type or format:** React Stateful Component with Server-Sent Events (SSE)  
+    * **Component type or format:** React stateful status component.
 
 * Back-end component(s)
 
   * **FileUploadController** 
 
-    * **Description and purpose:** An HTTP request handler that receives multipart file uploads, validates content type and file size, assigns a unique document ID, writes the raw image to temporary storage, and enqueues a redaction job. The HTTP response returns immediately with a `202 Accepted` while redaction runs asynchronously. 
+    * **Description and purpose:** The system authorizes a session-bound private resumable upload, validates its byte count and decoded content, renders every PDF page and starts paid extraction. Legacy multipart handlers retain the same server checks.
 
     * **Component type or format:** Next.js API Route Handler (App Router)
 
-  * **PIIRedactionService**
+  * **TemporaryIntakeUpload**
 
-    * **Description and purpose:** An asynchronous worker that consumes redaction jobs from the message queue and applies PII removal to raw document images. It uses named-entity recognition and regex pattern matching to detect student names, birthdates, and ID numbers, then overwrites detected regions with opaque black rectangles.
+    * **Description and purpose:** The system binds private temporary objects to owned, expiring academic or notes reservations and records durable cleanup references before authorizing upload.
 
-    On successful redaction: the redacted image is passed to DocumentStorageService for storage; the original raw image is immediately and permanently deleted from /tmp by invoking RawImagePurger before any other operation proceeds; the document record is updated to REDACTION\_COMPLETE; and a status event is pushed to the frontend. The raw image deletion is non-optional and non-deferrable — it must complete synchronously before the redacted image path is returned to the pipeline.
+    The system sends approved content directly to the paid extraction service and schedules raw-object deletion after processing.
 
-    On redaction failure: the raw image is also immediately deleted. A failed redaction must never leave a raw image on disk.
+    The system retains cleanup lease and backoff state until object deletion succeeds and denies expired or cancelled reservations.
 
-    * **Component type or format:**  Asynchronous Background Worker Service 
+    * **Component type or format:** Server-side upload reservation and cleanup functions.
 
   * **DocumentStorageService** 
 
-    * **Description and purpose:** A utility service that abstracts all file I/O for both raw and redacted document images. It exposes three operations: store raw, store redacted, and retrieve redacted. Raw images are never exposed through any public-facing API route, ensuring unredacted originals cannot reach the extraction pipeline. 
+    * **Description and purpose:** The system retrieves approved private upload references for the authenticated owner, rejects stale or foreign references and deletes objects through bucket-aware durable cleanup.
 
     * **Component type or format:**  Singleton Service Class (Dependency-Injected) 
 
@@ -569,13 +569,13 @@ Not applicable. The administrator interacts with the system by submitting a vali
 
   * **EditableFieldForm** 
 
-    * **Description and purpose:** A WYSIWYG rich-text editor panel where the counselor types and formats their session notes across five structured fields: Career Goal, Personal Interests and Strengths, Family and Financial Situation, Concerns and Red Flags, and Counselor's Overall Impression. Each field is rendered as an independent WYSIWYG editor block, allowing the counselor to apply basic formatting such as bold, italics, and bullet lists. All five fields are mandatory and must contain input before the analysis can be triggered. The values entered here serve as the qualitative data stream passed to the analysis agents alongside the extracted academic data. 
+    * **Description and purpose:** A WYSIWYG rich-text editor panel where the counselor types and formats their session notes across five structured fields: Career Goal, Personal Interests and Strengths, Family and Financial Situation, Concerns and Red Flags, and Counselor's Overall Impression. Each field is rendered as an independent WYSIWYG editor block, allowing the counselor to apply basic formatting such as bold, italics, and bullet lists. Career Goal and Personal Interests and Strengths are required; an undecided goal is valid and optional fields may remain blank. The values entered here serve as the qualitative data stream passed to the analysis agents alongside the extracted academic data.
 
     * **Component type or format:** React WYSIWYG Editor Component
 
   * **ConfirmationApprovalBar** 
 
-    * **Description and purpose:** A bottom action bar containing a single primary "Begin Multi Agent Analysis" button. The button remains disabled and visually dimmed until all five counselor notes fields contain at least some text input. Uploaded documents are optional and their presence or absence does not affect whether the button activates. Once clicked, the bar disables itself, shows a loading state, and dispatches the assembled student profile to the analysis pipeline. Its purpose is to act as the deliberate trigger gate that separates the data preparation phase from the multi-agent analysis phase. 
+    * **Description and purpose:** A bottom action bar containing a single primary "Begin Multi Agent Analysis" button. The button remains disabled and visually dimmed until required notes are nonblank and the exact saved academic/notes revisions have been reviewed. Uploaded documents are optional and their presence or absence does not affect whether the button activates. Once clicked, the bar disables itself, shows a loading state, and dispatches the assembled student profile to the analysis pipeline. Its purpose is to act as the deliberate trigger gate that separates the data preparation phase from the multi-agent analysis phase.
 
     * **Component type or format:** React Action Bar Component with Form Validation State 
 
@@ -583,7 +583,7 @@ Not applicable. The administrator interacts with the system by submitting a vali
 
   * **GeminiExtractionService** 
 
-    * **Description and purpose:** An asynchronous service that retrieves PII-redacted document images for a given session, encodes them as base64, and submits them to the Gemini API using prompt-engineered extraction instructions per document type. It parses the Gemini JSON response into a typed extraction result object, stores the raw response and structured field values in the database for reference and auditability, and returns the extraction result to the controller for display to the counselor. 
+    * **Description and purpose:** The system submits validated approved document images and all rendered PDF pages to Gemini, validates selected structured fields and provenance, and saves original/editable extraction values. Raw provider responses and thought parts are discarded.
 
     * **Component type or format:** Asynchronous External API Client Service 
 
@@ -591,7 +591,7 @@ Not applicable. The administrator interacts with the system by submitting a vali
 
     * **Description and purpose:** A service that assembles the final student profile object in memory by combining the AI-extracted academic data retrieved from the database with the counselor notes submitted from the CounselorNotesEditor and a session timestamp. The assembled profile is not persisted as a permanent student record. After counselor approval, the assembled profile is saved as an encrypted session draft in the durable session store (see §5.1) to enable session resume within the configured expiry window. 
 
-    Note: The database does hold session-scoped records that support this pipeline: Session and SessionNotes records (created by SessionInitializationService) and ExtractionResult records (created by GeminiExtractionService). These records are operational data, not a student profile store. They are subject to the data retention policy and must be purged on the schedule defined there. The database does not hold a persisted, assembled ApprovedProfile object.
+    The system persists immutable approved profile versions with explicit approval identity and retains their session-scoped payloads until fixed expiry or earlier termination.
 
     * **Component type or format:** In-Memory Domain Aggregation Service Class 
 
@@ -655,7 +655,7 @@ The user interface for this module is a dynamic loading and progress screen, pro
 
   * **QueryEmbeddingService**
 
-    * **Description and purpose:** Produces a 768-dimensional embedding vector for an agent’s query string by calling the Gemini gemini-embedding-001\` model via the Google AI REST API, with outputDimensionality=768 and taskType=RETRIEVAL\_QUERY. This vector is passed to VectorStoreQueryService as the input for Supabase pgvector similarity search. The model name, output dimensionality, and request parameters must match the ingestion-time EmbeddingService used in Modules 1.1, 1.2, and 1.3 so query and stored chunk vectors occupy the same embedding space; the only intended difference is \`taskType\` (RETRIEVAL\_QUERY here vs. RETRIEVAL\_DOCUMENT at ingestion). If the embedding call fails, the agent query is aborted and the Agent Failure Recovery policy applies.
+    * **Description and purpose:** The system creates 768-dimensional query embeddings with gemini-embedding-001 and RETRIEVAL_QUERY. The query model and dimensions match the stored ingestion contract and are validated before vector retrieval.
 
     * **Component type or format:** TypeScript service class calling the Gemini REST API via the @google/generative-ai Node.js SDK. Shared singleton across all three agents in a single session to avoid redundant API calls.
 
@@ -706,7 +706,7 @@ Not applicable as a distinct screen. The MetaAgentSynthesizer executes entirely 
 
   * **AnalysisProgressOverlay**
 
-    * **Description and purpose:** No new frontend component is introduced for this module. The existing AnalysisProgressOverlay from Module 3.1 is extended to render a fourth progress indicator representing the meta-agent synthesis step. It polls the backend status endpoint for a completion or failure signal and triggers the transition to the Module 4 report screen upon receiving it. 
+    * **Description and purpose:** The system displays version-bound specialist and synthesis progress and transitions to report review when the current draft becomes ready.
 
     * **Component type or format:** Next.js/React client component; shared with Module 3.1. 
 
@@ -714,7 +714,7 @@ Not applicable as a distinct screen. The MetaAgentSynthesizer executes entirely 
 
   * **MetaAgentSynthesizer**
 
-    * **Description and purpose:** The central orchestration component of this module. It receives the list of AgentOutput objects from the AgentDispatcher, sequentially invokes the SynthesisInterpreter, AlignmentScoreCalculator, RankingAgent, and RankedRecommendationBuilder, and produces the RankedRecommendationList consumed by Module 4\. If the SynthesisInterpreter fails after one automatic retry, the pipeline is aborted and the counselor is notified; if the RankingAgent fails, the pipeline proceeds with placeholder reasoning summaries and the affected recommendations are flagged as degraded.
+    * **Description and purpose:** The system orchestrates validated specialist output, synthesis, fixed-weight scoring, deterministic ranking and cited evidence summaries within the shared deadline. It retains supported outputs and provides counselor recovery controls for unavailable stages.
 
     * **Component type or format:** Next.js API Route implemented as an orchestration service class with sequential stage management.
 
@@ -732,13 +732,13 @@ Not applicable as a distinct screen. The MetaAgentSynthesizer executes entirely 
 
   * **RankingAgent**
 
-    * **Description and purpose:** Executes the second of the two Gemini inference calls in this module. It receives the list of ScoredCareerPath objects from the AlignmentScoreCalculator and submits a structured prompt to the Gemini API in JSON output mode, instructing the model to generate a plain-language Chain-of-Thought reasoning summary for each path that explains the alignment score in terms a counselor can communicate to a student, explicitly citing the signals that drove the ranking and identifying any trade-offs or concerns. This call does not modify the alignment scores or the ranking order, which were determined deterministically by the AlignmentScoreCalculator in the previous step. 
+    * **Description and purpose:** The system requests structured evidence claims for scored career options, validates input/source/career membership and constructs concise cited summaries. The explanation output cannot change component values, weights, ranks or totals.
 
     * **Component type or format:** AI agent service class wrapping a single structured Gemini API call in JSON output mode. 
 
   * **RankedRecommendationBuilder**
 
-    * **Description and purpose:** Receives the scored and reasoned ScoredCareerPath list and constructs the final RankedRecommendationList object for Module 4\. It enforces the minimum of three distinct recommendations required by the SRS, flags any recommendation whose contributing AgentOutput carries a FAILED status as incomplete, and flags any recommendation whose reasoning summary is a placeholder as degraded. It writes the completed records to the RankedRecommendations and RecommendationSources tables before returning the RankedRecommendationList to the MetaAgentOrchestrator. 
+    * **Description and purpose:** The system assembles complete rankings and unscored partial paths, preserves fixed score/evidence contracts and explicit unavailable explanations, and publishes the result only through the current profile/run version. Fewer than three supported scored paths remain explicit.
 
     * **Component type or format:** Node.js utility class performing deterministic assembly and database write with no external API calls. 
 
@@ -775,13 +775,13 @@ Not applicable. The frontend receives a completion signal from the backend upon 
 
   * **ReportDataAssembler** 
 
-    * **Description and purpose:** Collects the ranked career paths, CoT reasoning traces, alignment scores, retrieved source references with ingestion timestamps, and the approved student profile into a single payload object passed to all downstream rendering components. 
+    * **Description and purpose:** The system assembles ranked paths, validated evidence summaries, comparative scores, approved profile identity and actual source metadata for student and counselor report projections. Raw provider thoughts and confidential note values are excluded from student content.
 
     * **Component type or format:** TypeScript utility function within a Next.js API route. 
 
   * **ReasoningSummaryFormatter** 
 
-    * **Description and purpose:** Converts the raw CoT traces into plain-language summaries explaining why each career path was recommended and what evidence supported it. 
+    * **Description and purpose:** The system formats validated evidence references into plain-language score explanations and next steps. It withholds unsupported or legacy free-text explanations.
 
     * **Component type or format:** TypeScript utility function. 
 
@@ -799,7 +799,7 @@ Not applicable. The frontend receives a completion signal from the backend upon 
 
   * **PDFFileStore** 
 
-    * **Description and purpose:** Receives the in-memory PDF Buffer from PDFLayoutRenderer, uploads it to a private Supabase Storage bucket (bucket: kumpas-reports) using the service\_role key, and generates a signed URL with a TTL of 30 minutes. The object is stored under the key {sessionId}/{sessionId}.pdf. Returns the signed URL to the API route, which forwards it to the frontend as the download endpoint for Module 4.2. No file path is registered; no retrieval token is issued. The signed URL is the only artefact returned.
+    * **Description and purpose:** The system uploads the generated PDF to the private report bucket at `{sessionId}/{reportVersion}.pdf` without overwrite and atomically registers its profile/run/report identity and generation-based expiry. Authenticated preview and approved-download endpoints stream the stored bytes.
 
     * **Component type or format:** TypeScript utility class using the Supabase Storage JavaScript client (@supabase/storage-js). The /tmp filesystem is not used.
 
@@ -835,7 +835,7 @@ The frontend transitions from the Module 3 progress screen to a completion scree
 
   * **PDFDownloadButton** 
 
-    * **Description and purpose:** Uses the signed URL returned by the Module 4.1 API route to trigger a native browser file download via a dynamically created \<a\> element with the download attribute. The signed URL is passed through session state from the Module 4.1 completion response; no additional API call is made at download time.
+    * **Description and purpose:** The system downloads PDF bytes through the authenticated owner route after exact-version report approval. It rejects stale, rejected, unapproved, expired and foreign-owner reports without creating a transferable signed URL.
 
     * **Component type or format:** React client component using a dynamically created anchor element. 
 
@@ -935,15 +935,15 @@ A confirmation modal is shown when the counselor ends a session or starts a new 
 
   * **PDFStoragePurger**
 
-    * **Description and purpose:** Deletes the session’s PDF object from Supabase Storage (key: {sessionId}/{sessionId}.pdf) using the service\_role key. Called by SessionTerminationHandler immediately after RawImagePurger. If the object does not exist (e.g. the session ended before a PDF was generated, or it was already deleted), the call is a no-op. Deletion failure is logged at WARN level but does not block session reset — the signed URL TTL (30 min) acts as a backstop.
+    * **Description and purpose:** The system deletes versioned private PDFs at `{sessionId}/{reportVersion}.pdf`. Termination revokes download authorization immediately; durable cleanup references and bounded retries persist until physical removal succeeds.
 
     * **Component type or format:** TypeScript utility using the Supabase Storage client. Operates against the kumpas-reports 
 
   * **RawImagePurger** 
 
-    * **Description and purpose:** Permanently deletes a raw (unredacted) document image from /tmp immediately after PIIRedactionService completes redaction for that document, whether redaction succeeded or failed. This component is also called by SessionTerminationHandler as a sweep at session end, acting as a safety net to remove any residual raw files that may remain due to unexpected failures. The safety-net call does not replace or defer the primary post-redaction invocation.
+    * **Description and purpose:** The system deletes private temporary intake objects after extraction and inventories abandoned, expired or terminated uploads through the durable cleanup queue.
 
-    * **Component type or format:** TypeScript utility function using Node.js fs; operates on /tmp. 
+    * **Component type or format:** TypeScript cleanup service using private Storage and database leases.
 
   * **CorrectionLogArchiver** 
 

@@ -24,7 +24,7 @@ describe("SW-28 synthetic corpus integrity (no provider calls)", () => {
     expect(corpus.fixtures.some(f => Object.values(fields(f.expected)).includes(0))).toBe(true);
     expect(corpus.fixtures.filter(f => f.condition === "missing-field").every(f => Object.values(fields(f.expected)).includes(null))).toBe(true);
     expect(corpus.fixtures.some(f => f.pages === 2)).toBe(true);
-    expect(corpus.independentGroundTruthReview).toBe("pending");
+    expect(corpus.independentGroundTruthReview).toBe("passed");
   });
 });
 
