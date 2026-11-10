@@ -49,6 +49,8 @@ it.each(["transient", "unauthorized", "login-page", "batch"])("maintenance runne
   const logs = result.stdout + result.stderr;
   expect(logs).not.toContain("PRIVATE");
   expect(logs).not.toContain("fixture-session");
+  if (mode === "unauthorized") expect(logs).toContain("httpStatus: 401");
+  if (mode === "login-page") expect(logs).toContain("httpStatus: 200");
   expect(logs).toContain(mode === "transient" ? '"sessions":2,"reports":2'
     : mode === "batch" ? '"sessions":2,"reports":1' : '"sessions":1,"reports":1');
 });

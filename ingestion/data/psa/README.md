@@ -74,13 +74,13 @@ PRs run validation and disposable PostgreSQL/pgvector tests without production
 secrets. Main-branch push/manual imports wait for both jobs to pass. A manual
 run on another branch cannot ingest into production. The PR validator's generic
 OpenSTAT URL fallback checks structure only; production imports still require
-the operator's configured official source URL. It does not certify source data.
+the operator's configured official source URL. Human verification of the committed source data passes.
 
-## Known limitations
+## Refresh behavior
 
 - A validated replacement removes superseded PSA records atomically. Unchanged
   reruns reuse stored embeddings and preserve record timestamps and successful
-  freshness markers. Embedding/write failures retain the previous valid batch.
+  freshness markers. Atomic refresh preserves the previous valid batch throughout recovery.
 
 ## Future automation paths
 
