@@ -82,6 +82,7 @@ it.each(cases)("F10 / R03 frozen explanation profile: %s", async (name, a, d, f,
   expect(JSON.stringify({ list, rows: m.rows, sources: m.sources })).not.toContain(PRIVATE);
   expect(JSON.stringify({ list, rows: m.rows, sources: m.sources })).not.toContain(RAW);
   expect(list.recommendations[0].alignmentScore).toBe(a === null || d === null || f === null ? null : scored[0].alignmentScore);
+  if (name === "missing-demand") list.recommendations[0].id = "16b19702-4123-4c8f-9f42-9213dbfca509";
   const payload = await assembleReportData("synthetic", { provider: runRecommendationProvider(input, list) });
   const formatted = formatReasoningSummary(payload.rankedRecommendations.recommendations[0]);
   expect(formatted.isPlaceholder).toBe(false); expect(formatted.claims).toHaveLength(claims.length);
@@ -91,7 +92,9 @@ it.each(cases)("F10 / R03 frozen explanation profile: %s", async (name, a, d, f,
     for (const citation of claim.sourceReferences) expect(evidence.flatMap((o) => o.retrievedChunks).some((chunk) => chunk.source_url === citation.reference && chunk.chunk_index === citation.chunkIndex)).toBe(true);
   }
   const pdf = buildReportPdf(payload), text = await reportPdfText(pdf);
-  expect(text).not.toContain(PRIVATE); expect(text).not.toContain(RAW); expect(text).not.toContain("1970");
+  if (name === "missing-demand") expect(text).toContain("16b19702");
+  expect(text).not.toContain(PRIVATE); expect(text).not.toContain(RAW);
+  expect(text).not.toMatch(/\bPublished\s+1970-/); expect(text).not.toMatch(/\bIngestion date:\s+1970-/);
   expect(text).toContain("AI-generated comparisons");
   expect(text).toContain(list.recommendations[0].sources.length ? "Source currency is unverified" : "No supporting reference sources are available");
   if (name.endsWith("dates")) {
